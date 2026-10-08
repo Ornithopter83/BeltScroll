@@ -47,6 +47,7 @@ call :run_smoke player_v5_final_matte_smoke
 call :run_smoke forest_raider_final_matte_smoke
 call :run_window_smoke combat_art_overlap_smoke
 call :run_window_smoke combat_art_candidate_capture_smoke
+call :run_window_smoke forest_raider_art_integration_smoke
 
 call :probe_fixtures
 if errorlevel 1 set "SUITE_FAILED=1"

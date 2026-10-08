@@ -17,7 +17,7 @@ extends CharacterBody2D
 @export var attack_hit_stun: float = 0.22
 
 @onready var visual_root: Node2D = $VisualRoot
-@onready var body_visual: Polygon2D = $VisualRoot/Body
+@onready var body_visual: Sprite2D = $VisualRoot/RaiderArt
 @onready var attack_flash: Polygon2D = $VisualRoot/AttackFlash
 @onready var attack_area: Area2D = $AttackArea
 @onready var receive_area: Area2D = $ReceiveArea
@@ -26,8 +26,8 @@ const BODY_HALF_WIDTH := 15.0
 const BODY_TOP_OFFSET := -43.0
 const BODY_BOTTOM_OFFSET := 2.0
 const MIN_ATTACK_SEPARATION := 36.0
-const BODY_COLOR := Color(0.42, 0.57, 0.31, 1.0)
 const HIT_COLOR := Color(1.0, 0.78, 0.58, 1.0)
+const KNOCKED_OUT_COLOR := Color(0.62, 0.62, 0.62, 0.78)
 
 var health: int
 var attack_phase := "idle"
@@ -74,7 +74,8 @@ func _physics_process(delta: float) -> void:
 	var offset := player.global_position - global_position
 	if absf(offset.x) > 0.5:
 		facing_direction = Vector2(signf(offset.x), 0.0)
-		visual_root.scale.x = facing_direction.x
+		# The source illustration faces left, so positive scale faces left.
+		visual_root.scale.x = -facing_direction.x
 	var in_depth_lane := absf(offset.y) <= attack_depth_tolerance
 	if attack_phase == "windup" and not in_depth_lane:
 		_cancel_attack()
@@ -242,7 +243,7 @@ func receive_hit(hit: Dictionary) -> void:
 		receive_area.monitorable = false
 		_cancel_attack()
 		hit_flash_remaining = 0.14
-		body_visual.color = HIT_COLOR
+		body_visual.modulate = HIT_COLOR
 		return
 	var direction: Vector2 = hit["direction"]
 	if direction.length_squared() > 0.0:
@@ -251,13 +252,13 @@ func receive_hit(hit: Dictionary) -> void:
 	hitstun_remaining = maxf(hitstun_remaining, maxf(0.0, float(hit["hit_stun"])))
 	_cancel_attack()
 	hit_flash_remaining = 0.14
-	body_visual.color = HIT_COLOR
+	body_visual.modulate = HIT_COLOR
 
 func _update_hit_flash(delta: float) -> void:
 	if hit_flash_remaining > 0.0:
 		hit_flash_remaining = maxf(0.0, hit_flash_remaining - delta)
 		if hit_flash_remaining == 0.0:
-			body_visual.color = BODY_COLOR
+			body_visual.modulate = KNOCKED_OUT_COLOR if health <= 0 else Color.WHITE
 
 func _apply_arena_bounds() -> void:
 	global_position.x = clampf(global_position.x, arena_bounds.position.x + BODY_HALF_WIDTH, arena_bounds.end.x - BODY_HALF_WIDTH)

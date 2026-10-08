@@ -1,6 +1,7 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/forest_raider.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/art/enemies/forest_raider_reference_v1_final_candidate_1254x1254.png" id="2_raider_art"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_raider"]
 radius = 15.0
@@ -29,23 +30,10 @@ color = Color(0.02, 0.025, 0.03, 0.42)
 [node name="VisualRoot" type="Node2D" parent="."]
 position = Vector2(0, -21)
 
-[node name="Body" type="Polygon2D" parent="VisualRoot"]
-polygon = PackedVector2Array(-13, -14, -9, -24, 0, -29, 9, -24, 13, -14, 12, 8, 7, 15, -7, 15, -12, 8)
-color = Color(0.42, 0.57, 0.31, 1)
-
-[node name="Cloak" type="Polygon2D" parent="VisualRoot"]
-polygon = PackedVector2Array(-11, -2, -17, 17, -9, 13, 0, 18, 9, 13, 17, 17, 11, -2)
-color = Color(0.28, 0.38, 0.24, 1)
-
-[node name="Face" type="Polygon2D" parent="VisualRoot"]
-position = Vector2(0, -18)
-polygon = PackedVector2Array(-7, -4, -5, -8, 5, -8, 7, -4, 6, 3, -6, 3)
-color = Color(0.89, 0.73, 0.54, 1)
-
-[node name="Bandana" type="Polygon2D" parent="VisualRoot"]
-position = Vector2(0, -22)
-polygon = PackedVector2Array(-7, -1, 0, -4, 7, -1, 6, 2, -6, 2)
-color = Color(0.62, 0.2, 0.16, 1)
+[node name="RaiderArt" type="Sprite2D" parent="VisualRoot"]
+position = Vector2(0, -59.028)
+scale = Vector2(0.148976, 0.148976)
+texture = ExtResource("2_raider_art")
 
 [node name="AttackFlash" type="Polygon2D" parent="VisualRoot"]
 visible = false
