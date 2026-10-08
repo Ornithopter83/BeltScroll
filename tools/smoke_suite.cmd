@@ -15,14 +15,15 @@ if not defined GODOT_EXE (
     exit /b 1
 )
 
+set "BOUNDED_RUNNER=%PROJECT_DIR%\tools\run_smoke_bounded.ps1"
 set "PROBE=%PROJECT_DIR%\tests\smoke_runner_probe.cmd"
 set "RUN_LOG=%TEMP%\beltscroll_smoke_%RANDOM%_%RANDOM%.log"
 set "SUITE_FAILED=0"
 set "FAILED_LOG="
 
 echo [smoke] Importing project resources
-"%GODOT_EXE%" --headless --editor --path "%PROJECT_DIR%" --import --quit >"%RUN_LOG%" 2>&1
-set "RUN_EXIT=%ERRORLEVEL%"
+set "SMOKE_ARGS=--headless --editor --path ""%PROJECT_DIR%"" --import --quit"
+call :run_bounded 300
 call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" ""
 if errorlevel 1 (
     set "SUITE_FAILED=1"
@@ -64,7 +65,22 @@ call :run_window_smoke player_visual_animator_smoke
 call :run_window_smoke camera_boundary_window_smoke
 
 call :probe_fixtures
-if errorlevel 1 set "SUITE_FAILED=1"
+if errorlevel 1 (
+    set "SUITE_FAILED=1"
+    call :save_failure fixtures
+)
+echo [smoke] Verifying bounded process runner fixtures
+set "SMOKE_ARGS=-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""%PROJECT_DIR%\tests\smoke_bounded_runner_smoke.ps1"""
+set "BOUNDED_EXECUTABLE=powershell.exe"
+call :run_bounded 45
+set "BOUNDED_EXECUTABLE="
+call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "smoke_bounded_runner_smoke: all checks passed"
+if errorlevel 1 (
+    set "SUITE_FAILED=1"
+    echo [smoke] FAILED: bounded runner fixtures
+    type "%RUN_LOG%"
+    call :save_failure bounded_runner
+)
 if "%SUITE_FAILED%"=="1" goto failed
 del "%RUN_LOG%" >nul 2>nul
 echo [smoke] All independent smoke checks passed.
@@ -73,8 +89,10 @@ exit /b 0
 :run_smoke
 set "SMOKE_NAME=%~1"
 echo [smoke] Running %SMOKE_NAME%
-"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script "res://tests/%SMOKE_NAME%.gd" >"%RUN_LOG%" 2>&1
-set "RUN_EXIT=%ERRORLEVEL%"
+set "SMOKE_ARGS=--headless --path ""%PROJECT_DIR%"" --script ""res://tests/%SMOKE_NAME%.gd"""
+set "SMOKE_TIMEOUT=120"
+if /I "%SMOKE_NAME%"=="raider_spacing_stress_smoke" set "SMOKE_TIMEOUT=300"
+call :run_bounded %SMOKE_TIMEOUT%
 set "ALLOW_MODE="
 set "SUCCESS_MARKER=%SMOKE_NAME%: all checks passed"
 if /I "%SMOKE_NAME%"=="player_art_normalize_smoke" set "ALLOW_MODE=png-negative"
@@ -102,8 +120,8 @@ exit /b 0
 :run_window_smoke
 set "SMOKE_NAME=%~1"
 echo [smoke] Running %SMOKE_NAME% with the window renderer
-"%GODOT_EXE%" --path "%PROJECT_DIR%" --script "res://tests/%SMOKE_NAME%.gd" >"%RUN_LOG%" 2>&1
-set "RUN_EXIT=%ERRORLEVEL%"
+set "SMOKE_ARGS=--path ""%PROJECT_DIR%"" --script ""res://tests/%SMOKE_NAME%.gd"""
+call :run_bounded 240
 call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SMOKE_NAME%: all checks passed"
 if errorlevel 1 (
     set "SUITE_FAILED=1"
@@ -113,6 +131,13 @@ if errorlevel 1 (
 )
 exit /b 0
 
+:run_bounded
+set "RUN_EXECUTABLE=%GODOT_EXE%"
+if defined BOUNDED_EXECUTABLE set "RUN_EXECUTABLE=%BOUNDED_EXECUTABLE%"
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%BOUNDED_RUNNER%" -Executable "%RUN_EXECUTABLE%" -TimeoutSeconds %~1 -LogPath "%RUN_LOG%"
+set "RUN_EXIT=%ERRORLEVEL%"
+exit /b 0
+
 :save_failure
 if not defined FAILED_LOG set "FAILED_LOG=%TEMP%\beltscroll_smoke_failure_%~1_%RANDOM%.log"
 copy /y "%RUN_LOG%" "%FAILED_LOG%" >nul
@@ -120,16 +145,20 @@ exit /b 0
 
 :probe_fixtures
 echo [smoke] Verifying runner against PASS fixtures
-"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/fixtures/false_pass.gd >"%RUN_LOG%" 2>&1
-set "RUN_EXIT=%ERRORLEVEL%"
+set "SMOKE_ARGS=--headless --path ""%PROJECT_DIR%"" --script res://tests/fixtures/false_pass.gd"
+call :run_bounded 120
+if not "%RUN_EXIT%"=="0" (
+    echo [smoke] ERROR: intentional false PASS fixture did not complete normally. Exit code: %RUN_EXIT%
+    exit /b 1
+)
 call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "false_pass: all checks passed"
 if not errorlevel 1 (
     echo [smoke] ERROR: runner accepted the intentional false PASS fixture.
     exit /b 1
 )
 
-"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/fixtures/pass_probe.gd >"%RUN_LOG%" 2>&1
-set "RUN_EXIT=%ERRORLEVEL%"
+set "SMOKE_ARGS=--headless --path ""%PROJECT_DIR%"" --script res://tests/fixtures/pass_probe.gd"
+call :run_bounded 120
 call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "pass_probe: all checks passed"
 if errorlevel 1 (
     echo [smoke] ERROR: runner rejected the normal PASS fixture.
@@ -142,8 +171,12 @@ if not errorlevel 1 (
     exit /b 1
 )
 
-"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/fixtures/nonzero_pass.gd >"%RUN_LOG%" 2>&1
-set "RUN_EXIT=%ERRORLEVEL%"
+set "SMOKE_ARGS=--headless --path ""%PROJECT_DIR%"" --script res://tests/fixtures/nonzero_pass.gd"
+call :run_bounded 120
+if not "%RUN_EXIT%"=="1" (
+    echo [smoke] ERROR: nonzero PASS fixture returned unexpected exit code %RUN_EXIT%.
+    exit /b 1
+)
 call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "nonzero_pass: all checks passed"
 if not errorlevel 1 (
     echo [smoke] ERROR: runner accepted a PASS marker with a nonzero exit code.
