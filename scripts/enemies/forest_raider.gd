@@ -1,6 +1,10 @@
 extends CharacterBody2D
 """A light forest enemy that pursues, attacks in its depth lane, and can be staggered."""
 
+signal attack_windup_started
+signal raider_hit(stage: int)
+signal raider_ko
+
 @export var walk_speed: float = 118.0
 @export var arena_bounds: Rect2 = Rect2(Vector2(160, 100), Vector2(1600, 880))
 @export var max_health: int = 3
@@ -143,6 +147,7 @@ func _begin_attack() -> void:
 	attack_flash.visible = true
 	attack_area.monitoring = false
 	_hit_targets.clear()
+	attack_windup_started.emit()
 
 func _cancel_attack() -> void:
 	attack_phase = "idle"
@@ -285,8 +290,10 @@ func receive_hit(hit: Dictionary) -> void:
 		return
 	if not hit.has_all(["damage", "direction", "knockback", "hit_stun", "attack_stage"]):
 		return
+	raider_hit.emit(int(hit["attack_stage"]))
 	health = maxi(0, health - maxi(0, int(hit["damage"])))
 	if health == 0:
+		raider_ko.emit()
 		velocity = Vector2.ZERO
 		hitstun_remaining = 0.0
 		collision_layer = 0

@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="1_player"]
 [ext_resource type="PackedScene" path="res://scenes/combat/training_dummy.tscn" id="2_dummy"]
@@ -6,6 +6,7 @@
 [ext_resource type="Texture2D" path="res://assets/art/stage/forest_ruins_v1_1920x1080.png" id="4_stage"]
 [ext_resource type="PackedScene" path="res://scenes/ui/combat_hud.tscn" id="5_hud"]
 [ext_resource type="Script" path="res://scripts/game/game_session.gd" id="6_session"]
+[ext_resource type="Script" path="res://scripts/audio/combat_audio.gd" id="7_combat_audio"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("6_session")
@@ -34,3 +35,6 @@ position = Vector2(1270, 650)
 position = Vector2(1450, 470)
 
 [node name="CombatHUD" parent="." instance=ExtResource("5_hud")]
+
+[node name="CombatAudio" type="Node" parent="."]
+script = ExtResource("7_combat_audio")

@@ -1,5 +1,10 @@
 extends CharacterBody2D
 
+signal attack_started(stage: int)
+signal attack_hit(stage: int)
+signal player_hit(stage: int)
+signal player_ko
+
 @export var walk_speed: float = 280.0
 @export var sit_speed_multiplier: float = 0.45
 @export var arena_bounds: Rect2 = Rect2(Vector2(160, 100), Vector2(1600, 880))
@@ -59,6 +64,7 @@ var _hit_stop_token := 0
 var _saved_time_scale := 1.0
 var _hit_stop_active := false
 var _combat_impacts: Array[Node2D] = []
+var _attack_hit_emitted := false
 
 func _ready() -> void:
 	health = max_health
@@ -178,6 +184,8 @@ func _begin_attack(stage: int) -> void:
 	attack_progress = 0.0
 	_attack_origin = global_position
 	_hit_targets.clear()
+	_attack_hit_emitted = false
+	attack_started.emit(attack_stage)
 	_set_attack_stage_visual(attack_stage)
 	_set_stage_hitbox(attack_stage, false)
 
@@ -246,6 +254,9 @@ func _check_stage_hitbox(stage: int) -> void:
 			"attack_stage": stage,
 		}
 		target.receive_hit(hit)
+		if not _attack_hit_emitted:
+			_attack_hit_emitted = true
+			attack_hit.emit(stage)
 		_spawn_combat_impact(target, stage, direction)
 		_trigger_hit_stop(HIT_STOP[stage - 1])
 		_add_camera_trauma(CAMERA_TRAUMA[stage - 1])
@@ -294,6 +305,7 @@ func receive_hit(hit: Dictionary) -> void:
 		return
 	if not hit.has("damage") or not hit.has("direction") or not hit.has("knockback") or not hit.has("hit_stun") or not hit.has("attack_stage"):
 		return
+	player_hit.emit(int(hit["attack_stage"]))
 	var direction: Vector2 = hit["direction"]
 	if direction.length_squared() > 0.0:
 		direction = direction.normalized()
@@ -317,6 +329,7 @@ func receive_hit(hit: Dictionary) -> void:
 	_add_camera_trauma(0.14 + int(hit["attack_stage"]) * 0.04)
 
 func _enter_ko() -> void:
+	player_ko.emit()
 	_clear_combat_impacts()
 	is_ko = true
 	velocity = Vector2.ZERO

@@ -17,4 +17,4 @@ exit /b %errorlevel%
 
 :usage
 echo Usage: smoke_runner_probe.cmd ^<log-file^> ^<exit-code^> [final-success-marker]
-exit /b 2
+    exit /b 1
