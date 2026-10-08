@@ -56,6 +56,8 @@ call :run_smoke player_v5_final_matte_smoke
 call :run_smoke forest_raider_final_matte_smoke
 call :run_smoke player_v6_art_smoke
 call :run_smoke player_v7_ink_smoke
+call :run_smoke player_attack1_final_matte_smoke
+call :run_smoke player_attack2_art_smoke
 call :run_smoke combat_audio_smoke
 call :run_window_smoke combat_art_overlap_smoke
 call :run_window_smoke combat_art_candidate_capture_smoke
@@ -105,6 +107,7 @@ if /I "%SMOKE_NAME%"=="player_v5_final_matte_smoke" (
     set "SUCCESS_MARKER=player_v5_final_matte_smoke: all checks passed; visual approval pending."
 )
 if /I "%SMOKE_NAME%"=="forest_raider_final_matte_smoke" set "ALLOW_MODE=png-negative"
+if /I "%SMOKE_NAME%"=="player_attack1_final_matte_smoke" set "ALLOW_MODE=png-negative"
 if /I "%SMOKE_NAME%"=="player_v6_art_smoke" set "SUCCESS_MARKER=player_v6_art_smoke: all checks passed; visual approval pending."
 if /I "%SMOKE_NAME%"=="player_v7_ink_smoke" set "SUCCESS_MARKER=player_v7_ink_smoke: all checks passed; visual approval pending."
 if /I "%SMOKE_NAME%"=="player_keypose_relayout_smoke" set "SUCCESS_MARKER=player_keypose_relayout_smoke: all checks passed; source-edge clipping remains a visual review issue"
