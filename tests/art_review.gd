@@ -26,9 +26,12 @@ func _start() -> void:
 	var result := _inspect_png(_image_path)
 	_print_report(result)
 	if check_only:
-		quit(0 if result.get("passed", false) else 1)
+		quit(_exit_code_for_result(result))
 		return
 	_show_review(result)
+
+static func _exit_code_for_result(result: Dictionary) -> int:
+	return 0 if result.get("passed", false) else 1
 
 static func _inspect_png(path: String) -> Dictionary:
 	var result := {"path": path, "passed": false, "errors": [], "width": 0, "height": 0,

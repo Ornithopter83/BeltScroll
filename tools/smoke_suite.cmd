@@ -30,6 +30,7 @@ if errorlevel 1 (
 )
 
 call :run_smoke movement_smoke
+call :run_smoke ground_dust_smoke
 call :run_smoke player_combat_smoke
 call :run_smoke training_dummy_smoke
 call :run_smoke forest_raider_smoke

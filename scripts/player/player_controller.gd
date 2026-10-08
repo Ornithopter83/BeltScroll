@@ -39,6 +39,9 @@ const HIT_STOP := [0.035, 0.055, 0.08]
 const CAMERA_TRAUMA := [0.12, 0.22, 0.34]
 const INPUT_BUFFER_TIME := 0.24
 const COMBAT_IMPACT_SCENE := preload("res://scenes/vfx/combat_impact.tscn")
+const GROUND_DUST_SCENE := preload("res://scenes/vfx/ground_dust.tscn")
+const GROUND_DUST_STEP_DISTANCE := 72.0
+const MAX_GROUND_DUST_INSTANCES := 4
 
 var facing_direction := Vector2.DOWN
 var jump_vertical_velocity := 0.0
@@ -65,6 +68,8 @@ var _saved_time_scale := 1.0
 var _hit_stop_active := false
 var _combat_impacts: Array[Node2D] = []
 var _attack_hit_emitted := false
+var _ground_distance_since_dust := 0.0
+var _ground_dust_instances: Array[Node2D] = []
 
 func _ready() -> void:
 	health = max_health
@@ -106,9 +111,11 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 		_apply_attack_lunge()
 
+	var floor_position_before_move := global_position
 	move_and_slide()
 	_apply_arena_bounds()
-	_update_jump(delta, visual_scale_y)
+	var landed := _update_jump(delta, visual_scale_y)
+	_update_ground_dust(floor_position_before_move, landed)
 	_update_attack(delta)
 	_update_hit_flash(delta)
 	_update_camera_trauma(delta)
@@ -117,7 +124,7 @@ func _apply_arena_bounds() -> void:
 	global_position.x = clampf(global_position.x, arena_bounds.position.x + BODY_HALF_WIDTH, arena_bounds.end.x - BODY_HALF_WIDTH)
 	global_position.y = clampf(global_position.y, arena_bounds.position.y - BODY_TOP_OFFSET, arena_bounds.end.y - BODY_BOTTOM_OFFSET)
 
-func _update_jump(delta: float, visual_scale_y: float) -> void:
+func _update_jump(delta: float, visual_scale_y: float) -> bool:
 	if is_ko:
 		jump_buffer_remaining = 0.0
 		coyote_remaining = 0.0
@@ -126,7 +133,8 @@ func _update_jump(delta: float, visual_scale_y: float) -> void:
 		is_jumping = false
 		visual_root.position.y = VISUAL_BASE_Y + (1.0 - visual_scale_y) * VISUAL_BOTTOM
 		ground_shadow.modulate.a = 0.42
-		return
+		return false
+	var landed := false
 
 	if Input.is_action_just_pressed("jump"):
 		jump_buffer_remaining = maxf(0.0, jump_buffer_time)
@@ -143,6 +151,7 @@ func _update_jump(delta: float, visual_scale_y: float) -> void:
 			jump_height_offset = 0.0
 			jump_vertical_velocity = 0.0
 			is_jumping = false
+			landed = true
 
 	if is_jumping:
 		coyote_remaining = maxf(0.0, coyote_remaining - delta)
@@ -155,6 +164,42 @@ func _update_jump(delta: float, visual_scale_y: float) -> void:
 	visual_root.position.y = VISUAL_BASE_Y - jump_height_offset + (1.0 - visual_scale_y) * VISUAL_BOTTOM
 	var height_ratio := jump_height_offset / maxf(jump_height, 0.001)
 	ground_shadow.modulate.a = 0.42 - 0.20 * height_ratio
+	return landed
+
+func _update_ground_dust(floor_position_before_move: Vector2, landed: bool) -> void:
+	if is_ko:
+		return
+	if landed:
+		_ground_distance_since_dust = 0.0
+		_spawn_ground_dust(true)
+		return
+	if is_jumping:
+		return
+	_ground_distance_since_dust += floor_position_before_move.distance_to(global_position)
+	if _ground_distance_since_dust >= GROUND_DUST_STEP_DISTANCE:
+		_ground_distance_since_dust = fmod(_ground_distance_since_dust, GROUND_DUST_STEP_DISTANCE)
+		_spawn_ground_dust(false)
+
+func _spawn_ground_dust(landing: bool) -> void:
+	for index in range(_ground_dust_instances.size() - 1, -1, -1):
+		if not is_instance_valid(_ground_dust_instances[index]):
+			_ground_dust_instances.remove_at(index)
+	if _ground_dust_instances.size() >= MAX_GROUND_DUST_INSTANCES:
+		return
+	var dust := GROUND_DUST_SCENE.instantiate() as Node2D
+	if dust == null:
+		return
+	add_child(dust)
+	dust.position = Vector2(0.0, 2.0)
+	dust.call("configure", landing)
+	_ground_dust_instances.append(dust)
+
+func _clear_ground_dust() -> void:
+	for dust in _ground_dust_instances:
+		if is_instance_valid(dust):
+			dust.free()
+	_ground_dust_instances.clear()
+	_ground_distance_since_dust = 0.0
 
 func _start_jump() -> void:
 	jump_buffer_remaining = 0.0
@@ -328,6 +373,7 @@ func receive_hit(hit: Dictionary) -> void:
 func _enter_ko() -> void:
 	player_ko.emit()
 	_clear_combat_impacts()
+	_clear_ground_dust()
 	is_ko = true
 	player_art.modulate = KO_COLOR
 	velocity = Vector2.ZERO
