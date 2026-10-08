@@ -42,6 +42,9 @@ if errorlevel 1 exit /b %errorlevel%
 "%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/forest_raider_smoke.gd
 if errorlevel 1 exit /b %errorlevel%
 
+"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/combat_hud_smoke.gd
+if errorlevel 1 exit /b %errorlevel%
+
 "%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/stage_tools_smoke.gd
 if errorlevel 1 exit /b %errorlevel%
 

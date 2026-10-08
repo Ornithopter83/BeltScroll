@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="1_player"]
 [ext_resource type="PackedScene" path="res://scenes/combat/training_dummy.tscn" id="2_dummy"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/forest_raider.tscn" id="3_raider"]
 [ext_resource type="Texture2D" path="res://assets/art/stage/forest_ruins_v1_1920x1080.png" id="4_stage"]
+[ext_resource type="PackedScene" path="res://scenes/ui/combat_hud.tscn" id="5_hud"]
 
 [node name="Main" type="Node2D"]
 
@@ -29,3 +30,5 @@ position = Vector2(1270, 650)
 
 [node name="ForestRaider3" parent="YSortActors" instance=ExtResource("3_raider")]
 position = Vector2(1450, 470)
+
+[node name="CombatHUD" parent="." instance=ExtResource("5_hud")]
