@@ -57,7 +57,9 @@ call :run_smoke forest_raider_final_matte_smoke
 call :run_smoke player_v6_art_smoke
 call :run_smoke player_v7_ink_smoke
 call :run_smoke player_attack1_final_matte_smoke
+call :run_smoke player_attack1_edge_v2_smoke
 call :run_smoke player_attack2_art_smoke
+call :run_smoke player_attack3_art_smoke
 call :run_smoke combat_audio_smoke
 call :run_window_smoke combat_art_overlap_smoke
 call :run_window_smoke combat_art_candidate_capture_smoke
