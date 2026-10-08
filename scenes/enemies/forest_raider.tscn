@@ -1,7 +1,8 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/forest_raider.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/art/enemies/forest_raider_reference_v1_final_candidate_1254x1254.png" id="2_raider_art"]
+[ext_resource type="Script" path="res://scripts/enemies/raider_visual_animator.gd" id="3_visual_animator"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_raider"]
 radius = 15.0
@@ -34,6 +35,9 @@ position = Vector2(0, -21)
 position = Vector2(0, -59.028)
 scale = Vector2(0.148976, 0.148976)
 texture = ExtResource("2_raider_art")
+
+[node name="VisualAnimator" type="Node" parent="."]
+script = ExtResource("3_visual_animator")
 
 [node name="AttackFlash" type="Polygon2D" parent="VisualRoot"]
 visible = false

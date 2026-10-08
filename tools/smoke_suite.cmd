@@ -33,6 +33,7 @@ call :run_smoke movement_smoke
 call :run_smoke player_combat_smoke
 call :run_smoke training_dummy_smoke
 call :run_smoke forest_raider_smoke
+call :run_smoke raider_visual_animator_smoke
 call :run_smoke combat_hud_smoke
 call :run_smoke stage_tools_smoke
 call :run_smoke stage_integration_smoke
@@ -45,6 +46,7 @@ call :run_smoke player_v5_art_smoke
 call :run_smoke forest_raider_matte_smoke
 call :run_smoke player_v5_final_matte_smoke
 call :run_smoke forest_raider_final_matte_smoke
+call :run_smoke player_v6_art_smoke
 call :run_window_smoke combat_art_overlap_smoke
 call :run_window_smoke combat_art_candidate_capture_smoke
 call :run_window_smoke forest_raider_art_integration_smoke
@@ -73,6 +75,7 @@ if /I "%SMOKE_NAME%"=="player_v5_final_matte_smoke" (
     set "SUCCESS_MARKER=player_v5_final_matte_smoke: all checks passed; visual approval pending."
 )
 if /I "%SMOKE_NAME%"=="forest_raider_final_matte_smoke" set "ALLOW_MODE=png-negative"
+if /I "%SMOKE_NAME%"=="player_v6_art_smoke" set "SUCCESS_MARKER=player_v6_art_smoke: all checks passed; visual approval pending."
 call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SUCCESS_MARKER%" "%ALLOW_MODE%"
 if errorlevel 1 (
     set "SUITE_FAILED=1"
