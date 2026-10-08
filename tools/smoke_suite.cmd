@@ -69,6 +69,7 @@ call :run_window_smoke forest_raider_art_integration_smoke
 call :run_window_smoke player_art_integration_smoke
 call :run_window_smoke player_visual_animator_smoke
 call :run_window_smoke camera_boundary_window_smoke
+call :run_window_smoke gameplay_window_render_smoke
 
 call :probe_fixtures
 if errorlevel 1 (
