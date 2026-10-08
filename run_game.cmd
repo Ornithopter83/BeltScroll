@@ -21,5 +21,5 @@ if /I "%~1"=="--smoke" goto smoke
 exit /b %errorlevel%
 
 :smoke
-"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --quit-after 3
+"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/movement_smoke.gd
 exit /b %errorlevel%

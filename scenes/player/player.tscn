@@ -39,11 +39,10 @@ polygon = PackedVector2Array(-2, -4, 8, -20, 5, -7, 18, -14, 4, 8, 5, -2)
 color = Color(1, 0.8, 0.25, 0.95)
 
 [node name="Camera2D" type="Camera2D" parent="."]
-position = Vector2(0, -90)
-zoom = Vector2(0.75, 0.75)
-limit_left = 160
-limit_top = 100
-limit_right = 1760
-limit_bottom = 980
+zoom = Vector2(1.2, 1.2)
+limit_left = 0
+limit_top = 0
+limit_right = 1920
+limit_bottom = 1080
 position_smoothing_enabled = true
 position_smoothing_speed = 6.0
