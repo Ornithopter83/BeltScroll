@@ -1,6 +1,7 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/player_controller.gd" id="1_controller"]
+[ext_resource type="Texture2D" path="res://assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png" id="2_player_art"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_body"]
 radius = 13.0
@@ -32,24 +33,10 @@ color = Color(0.02, 0.025, 0.03, 0.42)
 [node name="VisualRoot" type="Node2D" parent="."]
 position = Vector2(0, -18)
 
-[node name="BodyStage1" type="Polygon2D" parent="VisualRoot"]
-polygon = PackedVector2Array(-12, -15, -8, -24, 0, -28, 8, -24, 12, -15, 11, 7, 7, 15, -7, 15, -11, 7)
-color = Color(0.28, 0.68, 0.73, 1)
-
-[node name="BodyStage2" type="Polygon2D" parent="VisualRoot"]
-visible = false
-polygon = PackedVector2Array(-14, -16, -8, -25, 0, -29, 9, -24, 14, -13, 12, 5, 9, 13, 4, 16, -9, 12, -13, 5)
-color = Color(0.38, 0.76, 0.72, 1)
-
-[node name="BodyStage3" type="Polygon2D" parent="VisualRoot"]
-visible = false
-polygon = PackedVector2Array(-15, -17, -11, -25, -2, -30, 8, -26, 16, -16, 14, -7, 10, -2, 13, 9, 8, 17, -7, 14, -14, 7, -11, -2, -16, -9)
-color = Color(0.48, 0.83, 0.78, 1)
-
-[node name="Face" type="Polygon2D" parent="VisualRoot"]
-position = Vector2(0, -18)
-polygon = PackedVector2Array(-6, -5, -4, -9, 4, -9, 6, -5, 5, 2, -5, 2)
-color = Color(0.93, 0.78, 0.58, 1)
+[node name="PlayerArt" type="Sprite2D" parent="VisualRoot"]
+position = Vector2(0, -62.0)
+texture = ExtResource("2_player_art")
+scale = Vector2(0.1489758, 0.1489758)
 
 [node name="AttackFlash" type="Polygon2D" parent="VisualRoot"]
 visible = false

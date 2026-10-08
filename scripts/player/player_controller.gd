@@ -17,9 +17,7 @@ signal player_ko
 
 @onready var visual_root: Node2D = $VisualRoot
 @onready var attack_flash: Polygon2D = $VisualRoot/AttackFlash
-@onready var body_stage_1: Polygon2D = $VisualRoot/BodyStage1
-@onready var body_stage_2: Polygon2D = $VisualRoot/BodyStage2
-@onready var body_stage_3: Polygon2D = $VisualRoot/BodyStage3
+@onready var player_art: Sprite2D = $VisualRoot/PlayerArt
 @onready var ground_shadow: Polygon2D = $GroundShadow
 @onready var camera: Camera2D = $Camera2D
 
@@ -29,6 +27,8 @@ const BODY_BOTTOM_OFFSET := 2.0
 const VISUAL_BASE_Y := -18.0
 const VISUAL_BOTTOM := 15.0
 const COMBO_COUNT := 3
+const HIT_FLASH_COLOR := Color(1.0, 0.42, 0.36, 1.0)
+const KO_COLOR := Color(0.62, 0.62, 0.62, 0.78)
 const STARTUP := [0.075, 0.085, 0.10]
 const ACTIVE := [0.105, 0.12, 0.14]
 const RECOVERY := [0.20, 0.22, 0.28]
@@ -288,11 +288,7 @@ func _apply_attack_lunge() -> void:
 		velocity = facing_direction * (LUNGE[attack_stage - 1] * 0.4 / ACTIVE[attack_stage - 1])
 
 func _set_attack_stage_visual(stage: int) -> void:
-	body_stage_1.visible = stage == 1
-	body_stage_2.visible = stage == 2
-	body_stage_3.visible = stage == 3
 	if stage == 0:
-		body_stage_1.visible = true
 		attack_flash.visible = false
 		return
 	var stage_index := stage - 1
@@ -326,12 +322,14 @@ func receive_hit(hit: Dictionary) -> void:
 		_set_stage_hitbox(index, false)
 	_set_attack_stage_visual(0)
 	hit_flash_remaining = 0.12
+	player_art.modulate = HIT_FLASH_COLOR
 	_add_camera_trauma(0.14 + int(hit["attack_stage"]) * 0.04)
 
 func _enter_ko() -> void:
 	player_ko.emit()
 	_clear_combat_impacts()
 	is_ko = true
+	player_art.modulate = KO_COLOR
 	velocity = Vector2.ZERO
 	hitstun_remaining = 0.0
 	is_sitting = false
@@ -351,15 +349,14 @@ func _enter_ko() -> void:
 	_set_attack_stage_visual(0)
 
 func _update_hit_flash(delta: float) -> void:
+	if is_ko:
+		player_art.modulate = KO_COLOR
+		return
 	if hit_flash_remaining > 0.0:
 		hit_flash_remaining = maxf(0.0, hit_flash_remaining - delta)
-		body_stage_1.color = Color(1.0, 0.42, 0.36, 1.0)
-		body_stage_2.color = Color(1.0, 0.42, 0.36, 1.0)
-		body_stage_3.color = Color(1.0, 0.42, 0.36, 1.0)
+		player_art.modulate = HIT_FLASH_COLOR
 	else:
-		body_stage_1.color = Color(0.28, 0.68, 0.73, 1.0)
-		body_stage_2.color = Color(0.38, 0.76, 0.72, 1.0)
-		body_stage_3.color = Color(0.48, 0.83, 0.78, 1.0)
+		player_art.modulate = Color.WHITE
 
 func _trigger_hit_stop(duration: float) -> void:
 	_hit_stop_token += 1
