@@ -33,6 +33,7 @@ if errorlevel 1 (
 call :run_smoke movement_smoke
 call :run_smoke ground_dust_smoke
 call :run_smoke player_combat_smoke
+call :run_smoke player_pose_blender_smoke
 call :run_smoke training_dummy_smoke
 call :run_smoke forest_raider_smoke
 call :run_smoke raider_spacing_stress_smoke
@@ -59,6 +60,7 @@ call :run_smoke player_v7_ink_smoke
 call :run_smoke player_attack1_final_matte_smoke
 call :run_smoke player_attack1_edge_v2_smoke
 call :run_smoke player_attack2_art_smoke
+call :run_smoke player_attack2_v2_art_smoke
 call :run_smoke player_attack3_art_smoke
 call :run_smoke combat_audio_smoke
 call :run_window_smoke combat_art_overlap_smoke
