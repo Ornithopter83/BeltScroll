@@ -82,14 +82,43 @@ func _run() -> void:
 	_check(raider.get("attack_phase") == "idle" and not raider.get_node("AttackArea").monitoring, "depth exit cancels windup and disables the attack area")
 	_check(player.hits.is_empty(), "canceled attack does not deliver a hit")
 
-	# Two raiders at the same point must move apart while pursuing.
+	# Raiders starting at the exact same point separate, keep room, then continue pursuit.
 	var second := packed.instantiate() as CharacterBody2D
 	raider.global_position = Vector2(700.0, 400.0)
-	second.global_position = raider.global_position + Vector2(10.0, 0.0)
+	second.global_position = raider.global_position
 	player.global_position = Vector2(1000.0, 400.0)
 	root.add_child(second)
 	await _frames(12)
-	_check(raider.global_position.distance_to(second.global_position) > EPSILON, "nearby raiders apply separation while pursuing")
+	var initial_separation := raider.global_position.distance_to(second.global_position)
+	_check(initial_separation > EPSILON, "coincident raiders deterministically separate while pursuing")
+	await _frames(24)
+	var maintained_separation := raider.global_position.distance_to(second.global_position)
+	_check(maintained_separation > EPSILON, "separated raiders do not return to the same position")
+	_check(raider.global_position.x < 1745.0 and second.global_position.x < 1745.0, "separation keeps both raiders inside the arena")
+	var pair_x_before_pursuit := (raider.global_position.x + second.global_position.x) * 0.5
+	player.global_position.x = 1250.0
+	await _frames(10)
+	var pair_x_after_pursuit := (raider.global_position.x + second.global_position.x) * 0.5
+	_check(pair_x_after_pursuit > pair_x_before_pursuit, "separated raiders resume tracking the player")
+	# A point-blank player must not let coincident raiders enter repeated attacks before they make room.
+	raider.global_position = Vector2(700.0, 400.0)
+	second.global_position = raider.global_position
+	player.global_position = Vector2(770.0, 400.0)
+	await _frames(1)
+	_check(raider.get("attack_phase") == "idle" and second.get("attack_phase") == "idle", "coincident raiders prioritize separation over point-blank attacks")
+	await _frames(40)
+	var close_pair_gap := raider.global_position.distance_to(second.global_position)
+	_check(close_pair_gap > 35.0, "point-blank raiders establish room before attacking")
+	var min_gap := close_pair_gap
+	var max_gap := close_pair_gap
+	for _frame in range(30):
+		await physics_frame
+		var current_gap := raider.global_position.distance_to(second.global_position)
+		min_gap = minf(min_gap, current_gap)
+		max_gap = maxf(max_gap, current_gap)
+	_check(min_gap > 35.0, "point-blank combat does not collapse back into Raider overlap")
+	_check(max_gap - min_gap < 12.0, "Raider spacing stays stable without visible oscillation")
+	_check(raider.get("attack_phase") != "idle" or second.get("attack_phase") != "idle", "Raider attacks resume after they have made room")
 	second.queue_free()
 
 	# Incoming hit cancels attacks, applies knockback, expires stun, and resumes pursuit.

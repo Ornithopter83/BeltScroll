@@ -24,6 +24,7 @@ extends CharacterBody2D
 const BODY_HALF_WIDTH := 15.0
 const BODY_TOP_OFFSET := -43.0
 const BODY_BOTTOM_OFFSET := 2.0
+const MIN_ATTACK_SEPARATION := 36.0
 const BODY_COLOR := Color(0.42, 0.57, 0.31, 1.0)
 const HIT_COLOR := Color(1.0, 0.78, 0.58, 1.0)
 
@@ -75,11 +76,12 @@ func _physics_process(delta: float) -> void:
 
 	match attack_phase:
 		"idle":
-			if offset.length() <= attack_range and in_depth_lane:
+			var close_raider := _has_close_raider()
+			if offset.length() <= attack_range and in_depth_lane and not close_raider:
 				_begin_attack()
 			else:
 				var desired := offset.normalized() * walk_speed
-				velocity = desired + _separation_velocity()
+				velocity = _separation_velocity() if close_raider else desired
 				if absf(offset.x) < attack_range * 0.82 and not in_depth_lane:
 					velocity.x = 0.0
 				move_and_slide()
@@ -167,9 +169,39 @@ func _separation_velocity() -> Vector2:
 			continue
 		var away: Vector2 = global_position - other.global_position
 		var distance: float = away.length()
-		if distance > 0.001 and distance < separation_radius:
-			separation += away / distance * ((separation_radius - distance) / separation_radius)
+		if distance < separation_radius:
+			if distance <= 0.001:
+				away = _coincident_separation_direction(other)
+			else:
+				away /= distance
+			var player := _find_player()
+			if player != null:
+				var toward_player := (player.global_position - global_position).normalized()
+				if away.dot(toward_player) > 0.65:
+					away = Vector2(-toward_player.y, toward_player.x)
+					if get_instance_id() > other.get_instance_id():
+						away = -away
+			separation += away * ((separation_radius - distance) / separation_radius)
 	return separation * separation_strength
+
+func _has_close_raider() -> bool:
+	for candidate in get_tree().get_nodes_in_group("forest_raiders"):
+		var other := candidate as Node2D
+		if other == self or not is_instance_valid(other):
+			continue
+		if global_position.distance_to(other.global_position) < minf(separation_radius, MIN_ATTACK_SEPARATION):
+			return true
+	return false
+
+func _coincident_separation_direction(other: Node2D) -> Vector2:
+	var self_id := get_instance_id()
+	var other_id := other.get_instance_id()
+	var lower_id := mini(self_id, other_id)
+	var higher_id := maxi(self_id, other_id)
+	var pair_seed := hash("%d:%d" % [lower_id, higher_id]) & 0x7fffffff
+	var angle := float(pair_seed) / 2147483647.0 * TAU
+	var direction := Vector2(cos(angle), sin(angle))
+	return direction if self_id == lower_id else -direction
 
 func _find_player() -> CharacterBody2D:
 	var grouped := get_tree().get_first_node_in_group("player") as CharacterBody2D

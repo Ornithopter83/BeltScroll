@@ -26,6 +26,9 @@ if /I "%~1"=="stage-review-check" goto src
 exit /b %errorlevel%
 
 :smoke
+"%GODOT_EXE%" --headless --editor --path "%PROJECT_DIR%" --import
+if errorlevel 1 exit /b %errorlevel%
+
 "%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/movement_smoke.gd
 if errorlevel 1 exit /b %errorlevel%
 
@@ -39,6 +42,9 @@ if errorlevel 1 exit /b %errorlevel%
 if errorlevel 1 exit /b %errorlevel%
 
 "%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/stage_tools_smoke.gd
+if errorlevel 1 exit /b %errorlevel%
+
+"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/stage_integration_smoke.gd
 exit /b %errorlevel%
 
 :art_review_check

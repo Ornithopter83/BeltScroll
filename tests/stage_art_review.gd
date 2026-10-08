@@ -2,7 +2,7 @@ extends SceneTree
 
 const TARGET_WIDTH := 1920
 const TARGET_HEIGHT := 1080
-const DEFAULT_IMAGE := "res://assets/art/stages/stage.png"
+const DEFAULT_IMAGE := "res://assets/art/stage/forest_ruins_v1_1920x1080.png"
 const ARENA_RECT := Rect2(160.0, 100.0, 1600.0, 880.0)
 
 var image_path := DEFAULT_IMAGE
