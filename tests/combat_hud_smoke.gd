@@ -46,10 +46,13 @@ func _run() -> void:
 	player.set("attack_progress", 0.0)
 	hud.refresh()
 	_check(combo_label.text == "—", "combo end clears displayed stage")
+	player.receive_hit({"damage": 3, "direction": Vector2.LEFT, "knockback": 0.0, "hit_stun": 0.0, "attack_stage": 1})
+	hud.refresh()
+	_check(health_label.text == "0 / 5" and is_equal_approx(health_bar.value, 0.0), "Player KO is reflected in the health display")
 
 	var raiders := get_nodes_in_group("forest_raiders")
 	if not raiders.is_empty():
-		raiders[0].set("health", 0)
+		raiders[0].receive_hit({"damage": 99, "direction": Vector2.LEFT, "knockback": 0.0, "hit_stun": 0.0, "attack_stage": 1})
 	hud.refresh()
 	_check(raider_label.text == "02", "defeated Raider is removed from remaining count")
 
@@ -58,7 +61,7 @@ func _run() -> void:
 	hud.queue_free()
 	main.add_child(detached_hud)
 	detached_hud.queue_free()
-	_check(player.get("health") == 3 and player.has_method("receive_hit"), "Player combat state remains independent of HUD lifetime")
+	_check(player.get("health") == 0 and player.has_method("receive_hit"), "Player combat state remains independent of HUD lifetime")
 	main.queue_free()
 	_finish()
 

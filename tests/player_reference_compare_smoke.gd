@@ -4,7 +4,9 @@ const NORMALIZER := preload("res://tools/normalize_player_art.gd")
 const COMPARISON := preload("res://tools/build_player_reference_compare.gd")
 const TARGET_SIZE := 1254
 const MIN_MARGIN := 90
-const ALIGNED_HEIGHT := 185
+const ALIGNED_HEIGHT := 160
+const CAMERA_ZOOM := 1.2
+const DISPLAY_HEIGHT := 192
 
 var failures: Array[String] = []
 var cleanup_paths: Array[String] = []
@@ -39,8 +41,15 @@ func _run() -> void:
 		var bounds4 := COMPARISON._alpha_bounds(v4)
 		var aligned3 := COMPARISON.aligned_silhouette(v3, bounds3, ALIGNED_HEIGHT)
 		var aligned4 := COMPARISON.aligned_silhouette(v4, bounds4, ALIGNED_HEIGHT)
-		_check(aligned3.get_height() == ALIGNED_HEIGHT and aligned4.get_height() == ALIGNED_HEIGHT, "comparison silhouettes are both exactly 185px tall")
-		_check(COMPARISON.in_game_sprite_height() == 222, "game display preview applies the player camera zoom of 1.2 to 185px")
+		var aligned_bounds3 := COMPARISON._alpha_bounds(aligned3)
+		var aligned_bounds4 := COMPARISON._alpha_bounds(aligned4)
+		_check(aligned3.get_height() == ALIGNED_HEIGHT and aligned4.get_height() == ALIGNED_HEIGHT
+			and aligned_bounds3.position.y == 0 and aligned_bounds4.position.y == 0
+			and aligned_bounds3.end.y == ALIGNED_HEIGHT and aligned_bounds4.end.y == ALIGNED_HEIGHT,
+			"alpha boundaries of both aligned silhouettes span exactly 160 world pixels")
+		_check(COMPARISON.CAMERA_ZOOM == CAMERA_ZOOM and COMPARISON.in_game_sprite_height() == DISPLAY_HEIGHT
+			and is_equal_approx(float(ALIGNED_HEIGHT) * CAMERA_ZOOM, DISPLAY_HEIGHT),
+			"Camera2D zoom 1.2 displays the 160px world silhouette at exactly 192 screen pixels")
 	else:
 		_check(false, "v3 and v4 safe images can be decoded for comparison")
 
@@ -53,7 +62,7 @@ func _run() -> void:
 	if generated_compare != null:
 		var expected_baseline := Color("#f05c4f")
 		_check(generated_compare.get_pixel(100, 390).is_equal_approx(expected_baseline)
-			and generated_compare.get_pixel(1010, 390).is_equal_approx(expected_baseline), "both 185px silhouettes use the same rendered foot baseline")
+			and generated_compare.get_pixel(1010, 390).is_equal_approx(expected_baseline), "both 160px silhouettes use the same rendered foot baseline")
 	else:
 		_check(false, "comparison baseline can be inspected")
 	var delivered_compare := ProjectSettings.globalize_path("res://assets/art/review/player_v3_v4_comparison.png")
@@ -104,6 +113,8 @@ func _inspect_safe(path: String, source_path: String) -> bool:
 func _inspect_comparison(path: String) -> bool:
 	var image := _load_png(path)
 	if image == null or image.get_width() != 1920 or image.get_height() != 2000:
+		return false
+	if image.get_format() != Image.FORMAT_RGBA8:
 		return false
 	# An opaque canvas and forest panel corners confirm full-resolution composition.
 	return image.get_pixel(0, 0).a == 1.0 and image.get_pixel(0, 920).a == 1.0 and image.get_pixel(1919, 1999).a == 1.0

@@ -23,6 +23,7 @@ if /I "%~1"=="stage-normalize" goto stage_normalize
 if /I "%~1"=="player-normalize" goto player_normalize
 if /I "%~1"=="stage-review" goto sr
 if /I "%~1"=="stage-review-check" goto src
+if /I "%~1"=="player-reference-review" goto player_reference_review
 "%GODOT_EXE%" --path "%PROJECT_DIR%" %*
 exit /b %errorlevel%
 
@@ -49,6 +50,13 @@ if errorlevel 1 exit /b %errorlevel%
 if errorlevel 1 exit /b %errorlevel%
 
 "%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/stage_integration_smoke.gd
+if errorlevel 1 exit /b %errorlevel%
+
+"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/player_reference_review_smoke.gd
+exit /b %errorlevel%
+
+:player_reference_review
+"%GODOT_EXE%" --path "%PROJECT_DIR%" res://scenes/review/player_reference_review.tscn
 exit /b %errorlevel%
 
 :art_review_check

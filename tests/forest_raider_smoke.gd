@@ -119,6 +119,7 @@ func _run() -> void:
 	_check(min_gap > 35.0, "point-blank combat does not collapse back into Raider overlap")
 	_check(max_gap - min_gap < 12.0, "Raider spacing stays stable without visible oscillation")
 	_check(raider.get("attack_phase") != "idle" or second.get("attack_phase") != "idle", "Raider attacks resume after they have made room")
+	_check(int(second.get("health")) > 0, "live Raiders remain distinct from the defeated Raider")
 	second.queue_free()
 
 	# Incoming hit cancels attacks, applies knockback, expires stun, and resumes pursuit.
@@ -136,6 +137,22 @@ func _run() -> void:
 	raider.receive_hit({"damage": 0, "direction": Vector2.RIGHT, "knockback": 900.0, "hit_stun": 0.16, "attack_stage": 1})
 	await _frames(5)
 	_check(raider.global_position.x <= 1745.0 + EPSILON, "knockback remains clamped inside the arena")
+
+	# Defeated raiders stop all combat and movement.
+	raider.global_position = Vector2(900.0, 500.0)
+	player.global_position = Vector2(940.0, 500.0)
+	raider.set("attack_phase", "active")
+	raider.set("attack_phase_remaining", 0.5)
+	raider.get_node("AttackArea").monitoring = true
+	raider.receive_hit({"damage": 99, "direction": Vector2.LEFT, "knockback": 500.0, "hit_stun": 0.3, "attack_stage": 3})
+	var defeated_position := raider.global_position
+	_check(raider.get("health") == 0 and raider.collision_layer == 0 and raider.collision_mask == 0, "lethal hit disables Raider collision")
+	_check(raider.get("attack_phase") == "idle" and not raider.get_node("AttackArea").monitoring, "lethal hit cancels Raider attack and hit detection")
+	await _frames(30)
+	_check(raider.global_position.distance_to(defeated_position) < EPSILON, "defeated Raider stops tracking and movement")
+	_check(raider.get("attack_phase") == "idle", "defeated Raider does not attack again")
+	raider.receive_hit({"damage": 99, "direction": Vector2.RIGHT, "knockback": 800.0, "hit_stun": 0.5, "attack_stage": 1})
+	_check(raider.get("health") == 0 and raider.get("hitstun_remaining") == 0.0, "repeated hits cannot underflow health or re-enter hit stun")
 
 	if failures.is_empty():
 		print("forest_raider_smoke: all checks passed")

@@ -117,6 +117,32 @@ func _run() -> void:
 	_check(is_equal_approx(Engine.time_scale, time_scale_before_stop), "hit stop restores the previous gameplay time scale")
 	await _check_player_hits_training_dummy()
 
+	# KO interrupts an active combo and all player input while preserving floor placement.
+	player.global_position = Vector2(900.0, 500.0)
+	player.call("_begin_attack", 2)
+	player.set("attack_phase", "active")
+	player.call("_set_stage_hitbox", 2, true)
+	var floor_position := player.global_position
+	player.receive_hit({"damage": 99, "direction": Vector2.LEFT, "knockback": 500.0, "hit_stun": 0.2, "attack_stage": 3})
+	_check(player.get("health") == 0 and player.get("is_ko"), "lethal damage enters the terminal KO state")
+	_check(player.get("attack_phase") == "idle" and player.get("attack_stage") == 0, "KO cancels the current combo")
+	var hitboxes_off := true
+	for index in range(1, 4):
+		hitboxes_off = hitboxes_off and not player.get_node("Hitboxes/Hitbox%d" % index).monitoring
+	_check(hitboxes_off, "KO disables every player hitbox")
+	Input.action_press("move_right")
+	Input.action_press("jump")
+	Input.action_press("attack")
+	await _frames(8)
+	Input.action_release("move_right")
+	Input.action_release("jump")
+	Input.action_release("attack")
+	_check(player.global_position.distance_to(floor_position) < 0.01, "KO blocks movement and preserves the player's floor position")
+	_check(not player.get("is_jumping") and player.get("jump_height_offset") == 0.0, "KO blocks jump input and grounds the visual")
+	_check(player.get("attack_phase") == "idle", "KO blocks new attack input")
+	player.receive_hit({"damage": 99, "direction": Vector2.RIGHT, "knockback": 800.0, "hit_stun": 0.5, "attack_stage": 1})
+	_check(player.get("health") == 0 and player.get("hitstun_remaining") == 0.0, "repeated hits cannot underflow health or re-enter hit stun")
+
 	if failures.is_empty():
 		print("player_combat_smoke: all checks passed")
 		quit(0)

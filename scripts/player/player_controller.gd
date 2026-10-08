@@ -41,6 +41,7 @@ var jump_buffer_remaining := 0.0
 var coyote_remaining := 0.0
 var is_jumping := false
 var is_sitting := false
+var is_ko := false
 var health := 5
 var attack_stage := 0
 var attack_progress := 0.0
@@ -63,6 +64,16 @@ func _ready() -> void:
 	_set_attack_stage_visual(0)
 
 func _physics_process(delta: float) -> void:
+	if is_ko:
+		velocity = Vector2.ZERO
+		move_and_slide()
+		_apply_arena_bounds()
+		_update_jump(delta, 1.0)
+		_update_attack(delta)
+		_update_hit_flash(delta)
+		_update_camera_trauma(delta)
+		return
+
 	if Input.is_action_just_pressed("attack"):
 		_request_attack()
 	else:
@@ -99,6 +110,16 @@ func _apply_arena_bounds() -> void:
 	global_position.y = clampf(global_position.y, arena_bounds.position.y - BODY_TOP_OFFSET, arena_bounds.end.y - BODY_BOTTOM_OFFSET)
 
 func _update_jump(delta: float, visual_scale_y: float) -> void:
+	if is_ko:
+		jump_buffer_remaining = 0.0
+		coyote_remaining = 0.0
+		jump_vertical_velocity = 0.0
+		jump_height_offset = 0.0
+		is_jumping = false
+		visual_root.position.y = VISUAL_BASE_Y + (1.0 - visual_scale_y) * VISUAL_BOTTOM
+		ground_shadow.modulate.a = 0.42
+		return
+
 	if Input.is_action_just_pressed("jump"):
 		jump_buffer_remaining = maxf(0.0, jump_buffer_time)
 	else:
@@ -140,7 +161,7 @@ func _jump_gravity() -> float:
 	return velocity_magnitude * velocity_magnitude / (2.0 * height)
 
 func _request_attack() -> void:
-	if hitstun_remaining > 0.0:
+	if is_ko or hitstun_remaining > 0.0:
 		return
 	if attack_phase == "idle":
 		_begin_attack(1)
@@ -246,12 +267,19 @@ func _set_attack_stage_visual(stage: int) -> void:
 	attack_flash.scale = Vector2(1.0 + stage_index * 0.18, 1.0 + stage_index * 0.12)
 
 func receive_hit(hit: Dictionary) -> void:
+	if is_ko:
+		return
 	if not hit.has("damage") or not hit.has("direction") or not hit.has("knockback") or not hit.has("hit_stun") or not hit.has("attack_stage"):
 		return
 	var direction: Vector2 = hit["direction"]
 	if direction.length_squared() > 0.0:
 		direction = direction.normalized()
 	health = maxi(0, health - int(hit["damage"]))
+	if health == 0:
+		hit_flash_remaining = 0.12
+		_add_camera_trauma(0.14 + int(hit["attack_stage"]) * 0.04)
+		_enter_ko()
+		return
 	velocity = direction * float(hit["knockback"])
 	hitstun_remaining = maxf(hitstun_remaining, float(hit["hit_stun"]))
 	is_sitting = false
@@ -264,6 +292,26 @@ func receive_hit(hit: Dictionary) -> void:
 	_set_attack_stage_visual(0)
 	hit_flash_remaining = 0.12
 	_add_camera_trauma(0.14 + int(hit["attack_stage"]) * 0.04)
+
+func _enter_ko() -> void:
+	is_ko = true
+	velocity = Vector2.ZERO
+	hitstun_remaining = 0.0
+	is_sitting = false
+	jump_buffer_remaining = 0.0
+	coyote_remaining = 0.0
+	jump_vertical_velocity = 0.0
+	jump_height_offset = 0.0
+	is_jumping = false
+	attack_phase = "idle"
+	attack_stage = 0
+	attack_progress = 0.0
+	attack_phase_remaining = 0.0
+	attack_buffer_remaining = 0.0
+	attack_elapsed = 0.0
+	for index in range(1, COMBO_COUNT + 1):
+		_set_stage_hitbox(index, false)
+	_set_attack_stage_visual(0)
 
 func _update_hit_flash(delta: float) -> void:
 	if hit_flash_remaining > 0.0:

@@ -20,6 +20,7 @@ extends CharacterBody2D
 @onready var body_visual: Polygon2D = $VisualRoot/Body
 @onready var attack_flash: Polygon2D = $VisualRoot/AttackFlash
 @onready var attack_area: Area2D = $AttackArea
+@onready var receive_area: Area2D = $ReceiveArea
 
 const BODY_HALF_WIDTH := 15.0
 const BODY_TOP_OFFSET := -43.0
@@ -49,6 +50,10 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	_update_hit_flash(delta)
+	if health <= 0:
+		velocity = Vector2.ZERO
+		_cancel_attack()
+		return
 	var player := _find_player()
 	if hitstun_remaining > 0.0:
 		hitstun_remaining = maxf(0.0, hitstun_remaining - delta)
@@ -167,6 +172,8 @@ func _separation_velocity() -> Vector2:
 		var other := candidate as Node2D
 		if other == self or not is_instance_valid(other):
 			continue
+		if int(other.get("health")) <= 0:
+			continue
 		var away: Vector2 = global_position - other.global_position
 		var distance: float = away.length()
 		if distance < separation_radius:
@@ -188,6 +195,8 @@ func _has_close_raider() -> bool:
 	for candidate in get_tree().get_nodes_in_group("forest_raiders"):
 		var other := candidate as Node2D
 		if other == self or not is_instance_valid(other):
+			continue
+		if int(other.get("health")) <= 0:
 			continue
 		if global_position.distance_to(other.global_position) < minf(separation_radius, MIN_ATTACK_SEPARATION):
 			return true
@@ -219,9 +228,22 @@ func _find_named_player(node: Node) -> CharacterBody2D:
 	return null
 
 func receive_hit(hit: Dictionary) -> void:
+	if health <= 0:
+		return
 	if not hit.has_all(["damage", "direction", "knockback", "hit_stun", "attack_stage"]):
 		return
 	health = maxi(0, health - maxi(0, int(hit["damage"])))
+	if health == 0:
+		velocity = Vector2.ZERO
+		hitstun_remaining = 0.0
+		collision_layer = 0
+		collision_mask = 0
+		receive_area.collision_layer = 0
+		receive_area.monitorable = false
+		_cancel_attack()
+		hit_flash_remaining = 0.14
+		body_visual.color = HIT_COLOR
+		return
 	var direction: Vector2 = hit["direction"]
 	if direction.length_squared() > 0.0:
 		direction = direction.normalized()

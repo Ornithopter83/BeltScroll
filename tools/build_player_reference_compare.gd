@@ -1,7 +1,8 @@
 extends SceneTree
 
 const CANVAS_SIZE := Vector2i(1920, 2000)
-const ALIGNED_HEIGHT := 185
+const ALIGNED_HEIGHT := 160
+const CAMERA_ZOOM := 1.2
 const V3_SAFE := "res://assets/art/player/elven_fighter_reference_v3_safe_1254x1254.png"
 const V4_SAFE := "res://assets/art/player/elven_fighter_reference_v4_safe_1254x1254.png"
 const FOREST := "res://assets/art/stage/forest_ruins_v1_1920x1080.png"
@@ -42,7 +43,7 @@ static func build_comparison(v3_path: String, v4_path: String, forest_path: Stri
 
 	var canvas := Image.create(CANVAS_SIZE.x, CANVAS_SIZE.y, false, Image.FORMAT_RGBA8)
 	canvas.fill(Color("#171b20"))
-	# Full silhouettes: equal non-transparent height, with both foot bottoms on y=390.
+	# Full silhouettes: 160 world px tall, with both foot bottoms on y=390.
 	_draw_checker(canvas, Rect2i(80, 65, 840, 350))
 	_draw_checker(canvas, Rect2i(1000, 65, 840, 350))
 	var full3 := aligned_silhouette(v3, v3_bounds, ALIGNED_HEIGHT)
@@ -71,8 +72,8 @@ static func build_comparison(v3_path: String, v4_path: String, forest_path: Stri
 		_fit_and_blend(canvas, crop3, Rect2i(x + 8, 461, 379, 184))
 		_fit_and_blend(canvas, crop4, Rect2i(x + 8, 675, 379, 184))
 
-	# Actual display scale: the game's Camera2D zoom is 1.2, so a 185px
-	# reference silhouette occupies 222 screen pixels over the 1920x1080 stage.
+	# The game's Camera2D zoom is 1.2, so a 160px world silhouette occupies
+	# 192 screen pixels over the 1920x1080 stage.
 	var stage := forest.duplicate()
 	canvas.blit_rect(stage, Rect2i(Vector2i.ZERO, stage.get_size()), Vector2i(0, 920))
 	var in_game_height := in_game_sprite_height()
@@ -96,7 +97,7 @@ static func aligned_silhouette(source: Image, bounds: Rect2i, target_height: int
 	return silhouette
 
 static func in_game_sprite_height() -> int:
-	return int(round(float(ALIGNED_HEIGHT) * 1.2))
+	return int(round(float(ALIGNED_HEIGHT) * CAMERA_ZOOM))
 
 static func _load_png(path: String) -> Image:
 	if not FileAccess.file_exists(path):
@@ -115,7 +116,8 @@ static func _alpha_bounds(image: Image) -> Rect2i:
 	var max_y := -1
 	for y in range(image.get_height()):
 		for x in range(image.get_width()):
-			if image.get_pixel(x, y).a > 0.0:
+			# Ignore sub-5% fringe pixels that disappear during downscaling.
+			if image.get_pixel(x, y).a >= 0.05:
 				min_x = mini(min_x, x)
 				min_y = mini(min_y, y)
 				max_x = maxi(max_x, x)

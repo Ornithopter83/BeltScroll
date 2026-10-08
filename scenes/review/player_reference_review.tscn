@@ -1,0 +1,25 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/review/player_reference_review.gd" id="1_review"]
+[ext_resource type="Texture2D" path="res://assets/art/stage/forest_ruins_v1_1920x1080.png" id="2_forest"]
+
+[node name="PlayerReferenceReview" type="Node2D"]
+script = ExtResource("1_review")
+
+[node name="ForestRuinsBackground" type="Sprite2D" parent="."]
+position = Vector2(960, 540)
+texture = ExtResource("2_forest")
+z_index = -10
+
+[node name="CandidateSprite" type="Sprite2D" parent="."]
+position = Vector2(600, 770)
+z_index = 1
+texture_filter = 2
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(960, 540)
+zoom = Vector2(1.2, 1.2)
+enabled = true
+
+[node name="ReviewCanvas" type="CanvasLayer" parent="."]
+layer = 10
