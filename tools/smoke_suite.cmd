@@ -42,6 +42,7 @@ call :run_smoke stage_integration_smoke
 call :run_smoke game_session_smoke
 call :run_smoke game_pause_smoke
 call :run_smoke gamepad_input_smoke
+call :run_smoke player_keypose_pipeline_smoke
 call :run_smoke player_reference_review_smoke
 call :run_smoke art_review_smoke
 call :run_smoke player_art_normalize_smoke
@@ -58,6 +59,7 @@ call :run_window_smoke combat_art_candidate_capture_smoke
 call :run_window_smoke forest_raider_art_integration_smoke
 call :run_window_smoke player_art_integration_smoke
 call :run_window_smoke player_visual_animator_smoke
+call :run_window_smoke camera_boundary_window_smoke
 
 call :probe_fixtures
 if errorlevel 1 set "SUITE_FAILED=1"

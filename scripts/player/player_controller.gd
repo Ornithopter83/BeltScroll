@@ -432,16 +432,23 @@ func _update_camera_trauma(delta: float) -> void:
 		var t := Time.get_ticks_msec() * 0.001
 		var shake_offset := Vector2(sin(t * 71.0), cos(t * 59.0)) * shake * 8.0
 		camera.offset = Vector2.ZERO
-		var half_view := get_viewport_rect().size / camera.zoom * 0.5
-		var center := camera.get_screen_center_position()
-		var min_center := Vector2(camera.limit_left, camera.limit_top) + half_view
-		var max_center := Vector2(camera.limit_right, camera.limit_bottom) - half_view
-		var min_offset := min_center - center
-		var max_offset := max_center - center
-		if max_offset.x < min_offset.x:
-			min_offset.x = 0.0
-			max_offset.x = 0.0
-		if max_offset.y < min_offset.y:
-			min_offset.y = 0.0
-			max_offset.y = 0.0
-		camera.offset = Vector2(clampf(shake_offset.x, min_offset.x, max_offset.x), clampf(shake_offset.y, min_offset.y, max_offset.y))
+		camera.offset = _clamp_camera_offset_to_background(shake_offset)
+
+func _clamp_camera_offset_to_background(requested_offset: Vector2) -> Vector2:
+	# Keep a one screen-pixel guard inside the stage so texture filtering and
+	# fractional camera smoothing cannot reveal the clear color at a backdrop edge.
+	var viewport_size := get_viewport_rect().size
+	var half_view := viewport_size / camera.zoom * 0.5
+	var guard := Vector2.ONE / camera.zoom
+	var center := camera.get_screen_center_position()
+	var min_center := Vector2(camera.limit_left, camera.limit_top) + half_view + guard
+	var max_center := Vector2(camera.limit_right, camera.limit_bottom) - half_view - guard
+	var min_offset := min_center - center
+	var max_offset := max_center - center
+	if max_offset.x < min_offset.x:
+		min_offset.x = 0.0
+		max_offset.x = 0.0
+	if max_offset.y < min_offset.y:
+		min_offset.y = 0.0
+		max_offset.y = 0.0
+	return Vector2(clampf(requested_offset.x, min_offset.x, max_offset.x), clampf(requested_offset.y, min_offset.y, max_offset.y))

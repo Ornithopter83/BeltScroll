@@ -1,8 +1,8 @@
 extends SceneTree
 
-const CELL_SIZE := 192
 const DEFAULT_REFERENCE := "res://assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png"
-const DEFAULT_OUTPUT := "res://assets/art/review/player_keyposes_contact.png"
+const DEFAULT_OUTPUT := "res://assets/art/review/player_keyposes_v2_contact.png"
+const DISPLAY_SIZE := 192
 const CONTACT_SIZE := Vector2i(832, 576)
 const PANEL_SIZE := Vector2i(400, 264)
 
@@ -47,23 +47,23 @@ func _run() -> void:
 static func inspect_image(sheet: Image, anchors: Array[int] = [], margin: int = 2, foot_tolerance: int = 2) -> Dictionary:
 	var checks: Array[Dictionary] = []
 	if sheet == null or sheet.is_empty():
-		_add_check(checks, "sheet_size", false, "입력 시트 없음")
-		return {"valid": false, "checks": checks, "cells": []}
-	var dimensions_ok := sheet.get_width() > 0 and sheet.get_height() > 0 and sheet.get_width() % 2 == 0 and sheet.get_height() % 2 == 0
-	_add_check(checks, "sheet_size", dimensions_ok, "%d×%d, 2×2 균등 분할%s" % [sheet.get_width(), sheet.get_height(), "" if dimensions_ok else " 필요"])
+		_add_check(checks, "input_missing", false, "입력 시트 없음")
+		return {"valid": false, "checks": checks, "cells": [], "failure_codes": ["INPUT_MISSING"], "cell_size": Vector2i.ZERO}
+	var dimensions_ok := sheet.get_width() > 0 and sheet.get_height() > 0 and sheet.get_width() == sheet.get_height() and sheet.get_width() % 2 == 0
+	_add_check(checks, "dimensions", dimensions_ok, "%d×%d, 정사각형 2×2 균등 분할%s" % [sheet.get_width(), sheet.get_height(), "" if dimensions_ok else " 필요"])
 	var cell_w := sheet.get_width() / 2
 	var cell_h := sheet.get_height() / 2
 	var cells: Array[Dictionary] = []
 	if not dimensions_ok:
-		return {"valid": false, "checks": checks, "cells": cells}
+		return {"valid": false, "checks": checks, "cells": cells, "failure_codes": ["INVALID_DIMENSIONS"], "cell_size": Vector2i(cell_w, cell_h)}
 	var all_valid := true
 	var observed_feet: Array[int] = []
 	for index in range(4):
 		var rect := Rect2i((index % 2) * cell_w, (index / 2) * cell_h, cell_w, cell_h)
 		var cell := sheet.get_region(rect)
 		var cell_checks: Array[Dictionary] = []
-		var size_ok := cell.get_size() == Vector2i(CELL_SIZE, CELL_SIZE)
-		_add_check(cell_checks, "cell_size", size_ok, "%d×%d (기준 %d×%d)" % [cell_w, cell_h, CELL_SIZE, CELL_SIZE])
+		var size_ok := cell.get_width() == cell.get_height() and cell.get_width() > 0
+		_add_check(cell_checks, "cell_size", size_ok, "실제 셀 %d×%dpx" % [cell_w, cell_h])
 		var bounds := _alpha_bounds(cell)
 		var has_alpha := bounds.size.x > 0 and bounds.size.y > 0
 		_add_check(cell_checks, "alpha_bounds", has_alpha, "투명도 5%% 이상 경계 %s" % str(bounds))
@@ -71,7 +71,7 @@ static func inspect_image(sheet: Image, anchors: Array[int] = [], margin: int = 
 		_add_check(cell_checks, "cell_intrusion", not touches_edge, "셀 외곽 alpha 접촉=%s" % str(touches_edge))
 		var inset_ok := has_alpha and bounds.position.x >= margin and bounds.position.y >= margin and cell_w - bounds.end.x >= margin and cell_h - bounds.end.y >= margin
 		_add_check(cell_checks, "alpha_margin", inset_ok, "최소 여백 %dpx, 실제 경계 %s" % [margin, str(bounds)])
-		var clipped := not has_alpha or bounds.position.x == 0 or bounds.position.y == 0 or bounds.end.x >= cell_w or bounds.end.y >= cell_h
+		var clipped := has_alpha and (bounds.position.x == 0 or bounds.position.y == 0 or bounds.end.x >= cell_w or bounds.end.y >= cell_h)
 		_add_check(cell_checks, "clipping", not clipped, "셀 경계 잘림 징후=%s" % str(clipped))
 		var foot_y := bounds.end.y - 1 if has_alpha else -1
 		observed_feet.append(foot_y)
@@ -91,7 +91,30 @@ static func inspect_image(sheet: Image, anchors: Array[int] = [], margin: int = 
 		all_valid = all_valid and feet_ok
 	for cell_result in cells:
 		all_valid = all_valid and cell_result["valid"]
-	return {"valid": all_valid, "checks": checks, "cells": cells}
+	var result := {"valid": all_valid, "checks": checks, "cells": cells, "cell_size": Vector2i(cell_w, cell_h)}
+	result["failure_codes"] = _failure_codes(result)
+	return result
+
+static func _failure_codes(report: Dictionary) -> Array[String]:
+	var codes: Array[String] = []
+	for check in report.get("checks", []):
+		if not check["ok"]:
+			_append_failure_code(codes, "FOOT_BASELINE_ERROR" if check["name"] == "foot_baseline_alignment" else "INVALID_DIMENSIONS")
+	for cell in report.get("cells", []):
+		for check in cell["checks"]:
+			if check["ok"]:
+				continue
+			match check["name"]:
+				"cell_intrusion", "clipping": _append_failure_code(codes, "GRID_INTRUSION")
+				"foot_anchor": _append_failure_code(codes, "FOOT_BASELINE_ERROR")
+				"cell_size": _append_failure_code(codes, "INVALID_DIMENSIONS")
+				"alpha_bounds": _append_failure_code(codes, "NO_ALPHA")
+				_: _append_failure_code(codes, "ALPHA_MARGIN_ERROR")
+	return codes
+
+static func _append_failure_code(codes: Array[String], code: String) -> void:
+	if not codes.has(code):
+		codes.append(code)
 
 static func exit_code_for(report: Dictionary) -> int:
 	return 0 if report.get("valid", false) else 1
@@ -99,7 +122,7 @@ static func exit_code_for(report: Dictionary) -> int:
 static func build_contact_sheet(sheet: Image, reference: Image, report: Dictionary) -> Image:
 	var canvas := Image.create(CONTACT_SIZE.x, CONTACT_SIZE.y, false, Image.FORMAT_RGBA8)
 	canvas.fill(Color("#20252b"))
-	var ref := _resize_to_box(_alpha_crop(reference), Vector2i(CELL_SIZE, CELL_SIZE))
+	var ref := _resize_to_box(_alpha_crop(reference), Vector2i(DISPLAY_SIZE, DISPLAY_SIZE))
 	for i in range(4):
 		var col := i % 2
 		var row := i / 2
@@ -109,10 +132,10 @@ static func build_contact_sheet(sheet: Image, reference: Image, report: Dictiona
 		var gutter_x := origin.x + 8
 		var top_y := origin.y + 34
 		var left_label := "POSE %d" % (i + 1)
-		var right_label := "V8 CANDIDATE 192PX"
+		var right_label := "V8 CLEAN"
 		_draw_label(canvas, left_label, Vector2i(gutter_x, origin.y + 23), Color("#dce3e8"))
 		_draw_label(canvas, right_label, Vector2i(gutter_x + 196, origin.y + 23), Color("#dce3e8"))
-		canvas.fill_rect(Rect2i(origin.x + 7, top_y + 192, PANEL_SIZE.x - 14, 1), Color("#7e8993"))
+		canvas.fill_rect(Rect2i(origin.x + 7, top_y + DISPLAY_SIZE, PANEL_SIZE.x - 14, 1), Color("#7e8993"))
 		var ref_pos := Vector2i(origin.x + 204, top_y)
 		canvas.blend_rect(ref, Rect2i(Vector2i.ZERO, ref.get_size()), ref_pos)
 		if sheet != null and sheet.get_width() % 2 == 0 and sheet.get_height() % 2 == 0:
@@ -122,18 +145,21 @@ static func build_contact_sheet(sheet: Image, reference: Image, report: Dictiona
 				var cell_bounds := _alpha_bounds(cell)
 				if cell_bounds.size.x > 0:
 					var cropped := cell.get_region(cell_bounds)
-					var fitted := _resize_to_box(cropped, Vector2i(CELL_SIZE, CELL_SIZE))
-					canvas.blend_rect(fitted, Rect2i(Vector2i.ZERO, fitted.get_size()), Vector2i(origin.x + 8 + (CELL_SIZE - fitted.get_width()) / 2, top_y + (CELL_SIZE - fitted.get_height()) / 2))
+					var fitted := _resize_to_box(cropped, Vector2i(DISPLAY_SIZE, DISPLAY_SIZE))
+					canvas.blend_rect(fitted, Rect2i(Vector2i.ZERO, fitted.get_size()), Vector2i(origin.x + 8 + (DISPLAY_SIZE - fitted.get_width()) / 2, top_y + (DISPLAY_SIZE - fitted.get_height()) / 2))
 			else:
-				canvas.fill_rect(Rect2i(origin.x + 8, top_y, CELL_SIZE, CELL_SIZE), Color("#39434c"))
+				canvas.fill_rect(Rect2i(origin.x + 8, top_y, DISPLAY_SIZE, DISPLAY_SIZE), Color("#39434c"))
 		else:
-			canvas.fill_rect(Rect2i(origin.x + 8, top_y, CELL_SIZE, CELL_SIZE), Color("#39434c"))
+			canvas.fill_rect(Rect2i(origin.x + 8, top_y, DISPLAY_SIZE, DISPLAY_SIZE), Color("#39434c"))
 		canvas.fill_rect(Rect2i(origin.x + 7, origin.y + PANEL_SIZE.y - 26, PANEL_SIZE.x - 14, 18), Color("#303941"))
 		var state := "PENDING" if sheet == null else ("PASS" if report.get("valid", false) else "FAIL")
 		_draw_label(canvas, state, Vector2i(origin.x + 12, origin.y + PANEL_SIZE.y - 12), Color("#91d7a5") if state == "PASS" else Color("#f3bd70"))
 	return canvas
 
 static func print_report(report: Dictionary) -> void:
+	var failure_codes: Array = report.get("failure_codes", [])
+	if not failure_codes.is_empty():
+		print("FAILURE_CODES: %s" % ",".join(failure_codes))
 	for check in report.get("checks", []):
 		print("%s %s: %s" % ["PASS" if check["ok"] else "FAIL", check["name"], check["detail"]])
 	for cell in report.get("cells", []):
@@ -221,7 +247,7 @@ static func _alpha_bounds(image: Image) -> Rect2i:
 
 static func _alpha_crop(image: Image) -> Image:
 	if image == null or image.is_empty():
-		var blank := Image.create(CELL_SIZE, CELL_SIZE, false, Image.FORMAT_RGBA8)
+		var blank := Image.create(DISPLAY_SIZE, DISPLAY_SIZE, false, Image.FORMAT_RGBA8)
 		blank.fill(Color.TRANSPARENT)
 		return blank
 	var bounds := _alpha_bounds(image)
