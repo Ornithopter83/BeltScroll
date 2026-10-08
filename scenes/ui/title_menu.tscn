@@ -1,0 +1,42 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/title_menu.gd" id="1_menu"]
+[ext_resource type="Texture2D" path="res://assets/art/stage/forest_ruins_v1_1920x1080.png" id="2_background"]
+
+[sub_resource type="Shader" id="Shader_title_shade"]
+code = "shader_type canvas_item;\n\nuniform vec4 shade_color : source_color = vec4(0.015, 0.030, 0.028, 0.56);\nuniform float edge_strength = 0.36;\n\nvoid fragment() {\n\tvec2 uv = UV;\n\tfloat edge = smoothstep(0.22, 0.92, distance(uv, vec2(0.5, 0.48)));\n\tfloat alpha = clamp(shade_color.a + edge * edge_strength, 0.0, 0.88);\n\tCOLOR = vec4(shade_color.rgb, alpha);\n}\n"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_title_shade"]
+shader = SubResource("Shader_title_shade")
+
+[node name="TitleMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_menu")
+
+[node name="Background" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("2_background")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Shade" type="ColorRect" parent="."]
+material = SubResource("ShaderMaterial_title_shade")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(1, 1, 1, 1)
