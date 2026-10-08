@@ -13,6 +13,7 @@ var _menu_content: VBoxContainer
 var _controls_layer: Control
 var _controls_close_button: Button
 var _quit_button: Button
+var _controls_return_focus: Control
 
 func _ready() -> void:
 	_build_menu()
@@ -76,7 +77,7 @@ func _build_menu() -> void:
 	_quit_button.pressed.connect(_request_quit)
 	_menu_content.add_child(_quit_button)
 
-	var footer := _label("WASD / 방향키로 이동  ·  Enter로 선택", 13, Color(0.72, 0.79, 0.73, 0.82))
+	var footer := _label("WASD / 방향키 / 스틱 / 십자키 이동  ·  Enter / 남쪽 버튼 선택", 13, Color(0.72, 0.79, 0.73, 0.82))
 	footer.add_theme_constant_override("margin_top", 18)
 	_menu_content.add_child(footer)
 
@@ -119,7 +120,7 @@ func _build_controls_panel() -> void:
 	divider.color = Color(GOLD, 0.72)
 	layout.add_child(divider)
 
-	var controls := _label("이동     WASD / 방향키\n점프     Space\n앉기     C\n공격     J / 왼쪽 마우스 버튼\n일시정지  Esc\n도움말 닫기  Esc 또는 버튼", 18, MUTED)
+	var controls := _label("이동     WASD / 방향키 / 왼쪽 스틱 / 십자키\n점프     Space / 남쪽 버튼\n앉기     C / 동쪽 버튼\n공격     J / 왼쪽 마우스 / 서쪽 버튼\n메뉴 선택  Enter / 남쪽 버튼\n돌아가기  Esc / 동쪽 버튼", 18, MUTED)
 	controls.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	controls.add_theme_constant_override("line_spacing", 7)
 	layout.add_child(controls)
@@ -204,17 +205,21 @@ func _start_game() -> void:
 	get_tree().change_scene_to_file(MAIN_SCENE)
 
 func _show_controls() -> void:
+	_controls_return_focus = get_node_or_null("MenuCenter/MenuContent/ControlsButton") as Control
 	_controls_layer.visible = true
 	_controls_close_button.grab_focus()
 
 func _hide_controls() -> void:
 	_controls_layer.visible = false
-	get_node("MenuCenter/MenuContent/ControlsButton").grab_focus()
+	if is_instance_valid(_controls_return_focus):
+		_controls_return_focus.grab_focus()
+	else:
+		get_node("MenuCenter/MenuContent/StartButton").grab_focus()
 
-func _unhandled_key_input(event: InputEvent) -> void:
+func _unhandled_input(event: InputEvent) -> void:
 	if _controls_layer == null or not _controls_layer.visible:
 		return
-	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_ESCAPE:
+	if event.is_action_pressed("ui_cancel"):
 		_hide_controls()
 		get_viewport().set_input_as_handled()
 

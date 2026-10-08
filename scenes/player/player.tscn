@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/player/player_controller.gd" id="1_controller"]
 [ext_resource type="Texture2D" path="res://assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png" id="2_player_art"]
+[ext_resource type="Script" path="res://scripts/player/player_visual_animator.gd" id="3_visual_animator"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_body"]
 radius = 13.0
@@ -37,6 +38,9 @@ position = Vector2(0, -18)
 position = Vector2(0, -62.0)
 texture = ExtResource("2_player_art")
 scale = Vector2(0.1489758, 0.1489758)
+
+[node name="VisualAnimator" type="Node" parent="."]
+script = ExtResource("3_visual_animator")
 
 [node name="AttackFlash" type="Polygon2D" parent="VisualRoot"]
 visible = false

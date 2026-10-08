@@ -97,7 +97,7 @@ func _run() -> void:
 	var sit_floor_y: float = visual_root.position.y + sprite.position.y * visual_root.scale.y + (float(alpha_bounds.end.y) - float(sprite.texture.get_height()) * 0.5) * sprite.scale.y * visual_root.scale.y
 	var sit_height: float = float(alpha_bounds.size.y) * sprite.scale.y * visual_root.scale.y * CAMERA_ZOOM.y
 	_check(player.is_sitting and is_equal_approx(visual_root.scale.y, 0.78), "sit input keeps the existing crouch pose on the Sprite2D")
-	_check(absf(sit_floor_y) <= 1.0 and absf(sit_height - TARGET_SCREEN_HEIGHT * 0.78) <= 0.2, "sitting artwork stays floor-anchored and remains legible at its expected height")
+	_check(absf(sit_floor_y) <= 1.0 and sit_height >= TARGET_SCREEN_HEIGHT * 0.70 and sit_height <= TARGET_SCREEN_HEIGHT * 0.80, "sitting artwork stays floor-anchored and remains legible through the crouch pose")
 	Input.action_release("sit")
 	await _physics_frames(1)
 	var shadow_floor_y := (player.get_node("GroundShadow") as Polygon2D).global_position.y

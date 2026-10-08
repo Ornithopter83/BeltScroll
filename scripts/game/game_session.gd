@@ -45,24 +45,19 @@ func _process(_delta: float) -> void:
 		_finish_session(ResultState.VICTORY)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not event is InputEventKey:
-		return
-	var key_event := event as InputEventKey
-	if not key_event.pressed or key_event.echo:
-		return
-	if result_state == ResultState.PLAYING and key_event.physical_keycode == KEY_ESCAPE:
+	if result_state == ResultState.PLAYING and event.is_action_pressed("pause"):
 		_set_paused(not _paused)
 		var viewport := get_viewport()
 		if viewport != null:
 			viewport.set_input_as_handled()
 		return
-	if result_state == ResultState.PLAYING and not _paused and key_event.physical_keycode == KEY_H:
+	if result_state == ResultState.PLAYING and not _paused and event.is_action_pressed("help"):
 		help_panel.visible = not help_panel.visible
 		var viewport := get_viewport()
 		if viewport != null:
 			viewport.set_input_as_handled()
 		return
-	if result_state != ResultState.PLAYING and key_event.physical_keycode == KEY_R:
+	if result_state != ResultState.PLAYING and event.is_action_pressed("restart"):
 		_restart_session()
 		var viewport := get_viewport()
 		if viewport != null:
@@ -178,7 +173,7 @@ func _build_pause_overlay() -> void:
 	title.add_theme_font_size_override("font_size", 34)
 	layout.add_child(title)
 	var resume := Label.new()
-	resume.text = "ESC 키를 눌러 계속하기"
+	resume.text = "ESC / Start 버튼을 눌러 계속하기"
 	resume.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	resume.add_theme_font_size_override("font_size", 18)
 	layout.add_child(resume)
@@ -208,7 +203,7 @@ func _build_help_overlay() -> void:
 	help_panel.add_theme_stylebox_override("panel", style)
 	help_layer.add_child(help_panel)
 	var help_text := Label.new()
-	help_text.text = "조작 도움말  ·  H 닫기\nWASD / 방향키: 이동\nSpace: 점프\nC: 앉기\nJ / 마우스: 공격\nR: 결과 화면에서 재시작"
+	help_text.text = "조작 도움말  ·  H / Select 닫기\nWASD / 방향키 / 왼쪽 스틱: 이동\nSpace / 남쪽 버튼: 점프\nC / 동쪽 버튼: 앉기\nJ / 마우스 / 서쪽 버튼: 공격\nESC / Start: 일시정지\nR / 북쪽 버튼: 결과 화면에서 재시작"
 	help_text.add_theme_font_size_override("font_size", 16)
 	help_text.add_theme_color_override("font_color", Color(0.94, 0.93, 0.84, 1.0))
 	help_panel.add_child(help_text)
@@ -263,7 +258,7 @@ func _build_result_overlay() -> void:
 
 	restart_label = Label.new()
 	restart_label.name = "RestartLabel"
-	restart_label.text = "R 키를 눌러 다시 시작"
+	restart_label.text = "R 키 / 북쪽 버튼을 눌러 다시 시작"
 	restart_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	restart_label.add_theme_font_size_override("font_size", 20)
 	restart_label.add_theme_color_override("font_color", Color(0.78, 0.72, 0.42, 1.0))
