@@ -1,12 +1,14 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="1_player"]
 [ext_resource type="PackedScene" path="res://scenes/combat/training_dummy.tscn" id="2_dummy"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/forest_raider.tscn" id="3_raider"]
 [ext_resource type="Texture2D" path="res://assets/art/stage/forest_ruins_v1_1920x1080.png" id="4_stage"]
 [ext_resource type="PackedScene" path="res://scenes/ui/combat_hud.tscn" id="5_hud"]
+[ext_resource type="Script" path="res://scripts/game/game_session.gd" id="6_session"]
 
 [node name="Main" type="Node2D"]
+script = ExtResource("6_session")
 
 [node name="StageBackground" type="Sprite2D" parent="."]
 position = Vector2(960, 540)

@@ -28,31 +28,7 @@ if /I "%~1"=="player-reference-review" goto player_reference_review
 exit /b %errorlevel%
 
 :smoke
-"%GODOT_EXE%" --headless --editor --path "%PROJECT_DIR%" --import
-if errorlevel 1 exit /b %errorlevel%
-
-"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/movement_smoke.gd
-if errorlevel 1 exit /b %errorlevel%
-
-"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/player_combat_smoke.gd
-if errorlevel 1 exit /b %errorlevel%
-
-"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/training_dummy_smoke.gd
-if errorlevel 1 exit /b %errorlevel%
-
-"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/forest_raider_smoke.gd
-if errorlevel 1 exit /b %errorlevel%
-
-"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/combat_hud_smoke.gd
-if errorlevel 1 exit /b %errorlevel%
-
-"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/stage_tools_smoke.gd
-if errorlevel 1 exit /b %errorlevel%
-
-"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/stage_integration_smoke.gd
-if errorlevel 1 exit /b %errorlevel%
-
-"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/player_reference_review_smoke.gd
+call "%PROJECT_DIR%\tools\smoke_suite.cmd"
 exit /b %errorlevel%
 
 :player_reference_review
