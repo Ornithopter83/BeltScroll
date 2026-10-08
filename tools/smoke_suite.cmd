@@ -21,7 +21,7 @@ set "SUITE_FAILED=0"
 set "FAILED_LOG="
 
 echo [smoke] Importing project resources
-"%GODOT_EXE%" --headless --editor --path "%PROJECT_DIR%" --import >"%RUN_LOG%" 2>&1
+"%GODOT_EXE%" --headless --editor --path "%PROJECT_DIR%" --import --quit >"%RUN_LOG%" 2>&1
 set "RUN_EXIT=%ERRORLEVEL%"
 call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" ""
 if errorlevel 1 (
@@ -41,6 +41,9 @@ call :run_smoke player_reference_review_smoke
 call :run_smoke art_review_smoke
 call :run_smoke player_art_normalize_smoke
 call :run_smoke player_reference_compare_smoke
+call :run_smoke player_v5_art_smoke
+call :run_smoke forest_raider_matte_smoke
+call :run_window_smoke combat_art_overlap_smoke
 
 call :probe_fixtures
 if errorlevel 1 set "SUITE_FAILED=1"
@@ -54,11 +57,29 @@ set "SMOKE_NAME=%~1"
 echo [smoke] Running %SMOKE_NAME%
 "%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script "res://tests/%SMOKE_NAME%.gd" >"%RUN_LOG%" 2>&1
 set "RUN_EXIT=%ERRORLEVEL%"
-if /I "%SMOKE_NAME%"=="player_art_normalize_smoke" (
-    call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SMOKE_NAME%: all checks passed" "png-negative"
-) else (
-    call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SMOKE_NAME%: all checks passed"
+set "ALLOW_MODE="
+set "SUCCESS_MARKER=%SMOKE_NAME%: all checks passed"
+if /I "%SMOKE_NAME%"=="player_art_normalize_smoke" set "ALLOW_MODE=png-negative"
+if /I "%SMOKE_NAME%"=="forest_raider_matte_smoke" set "ALLOW_MODE=png-negative"
+if /I "%SMOKE_NAME%"=="player_v5_art_smoke" (
+    set "ALLOW_MODE=png-negative"
+    set "SUCCESS_MARKER=player_v5_art_smoke: 모든 기계 검증 통과. 원화의 최종 승인은 별도 검수 대상."
 )
+call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SUCCESS_MARKER%" "%ALLOW_MODE%"
+if errorlevel 1 (
+    set "SUITE_FAILED=1"
+    echo [smoke] FAILED: %SMOKE_NAME%
+    type "%RUN_LOG%"
+    call :save_failure %SMOKE_NAME%
+)
+exit /b 0
+
+:run_window_smoke
+set "SMOKE_NAME=%~1"
+echo [smoke] Running %SMOKE_NAME% with the window renderer
+"%GODOT_EXE%" --path "%PROJECT_DIR%" --script "res://tests/%SMOKE_NAME%.gd" >"%RUN_LOG%" 2>&1
+set "RUN_EXIT=%ERRORLEVEL%"
+call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SMOKE_NAME%: all checks passed"
 if errorlevel 1 (
     set "SUITE_FAILED=1"
     echo [smoke] FAILED: %SMOKE_NAME%

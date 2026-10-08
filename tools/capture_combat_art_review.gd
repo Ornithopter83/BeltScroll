@@ -2,7 +2,7 @@
 """Captures a real Window Viewport frame of the standalone combat art review."""
 
 const REVIEW_SCENE := "res://scenes/review/combat_art_stage_review.tscn"
-const DEFAULT_OUTPUT := "res://assets/art/review/combat_art_stage_review_capture.png"
+const DEFAULT_OUTPUT := "res://assets/art/review/combat_art_overlap_capture.png"
 const CAPTURE_SIZE := Vector2i(1920, 1080)
 
 func _initialize() -> void:
@@ -31,6 +31,7 @@ func _capture() -> void:
 	if review == null:
 		_fail("검수 장면을 Node2D로 인스턴스화하지 못했습니다.")
 		return
+	review.set("overlap_review_mode", true)
 	root.add_child(review)
 	for _frame in range(4):
 		await process_frame
@@ -55,7 +56,7 @@ func _capture() -> void:
 	if load_error != OK or saved_image.get_size() != CAPTURE_SIZE:
 		_fail("저장한 캡처를 다시 읽지 못했거나 크기가 잘못되었습니다: %s" % absolute_output)
 		return
-	print("combat-art-stage-review-capture: saved real %dx%d Window Viewport PNG to %s" % [CAPTURE_SIZE.x, CAPTURE_SIZE.y, absolute_output])
+	print("combat-art-overlap-review-capture: saved real %dx%d Window Viewport PNG (OVERLAP DEPTH REVIEW mode) to %s" % [CAPTURE_SIZE.x, CAPTURE_SIZE.y, absolute_output])
 	quit(0)
 
 func _has_rendered_content(image: Image) -> bool:
@@ -72,5 +73,5 @@ func _color_distance_squared(left: Color, right: Color) -> float:
 	return difference.r * difference.r + difference.g * difference.g + difference.b * difference.b
 
 func _fail(message: String) -> void:
-	push_error("combat-art-stage-review-capture: " + message)
+	push_error("combat-art-overlap-review-capture: " + message)
 	quit(1)
