@@ -6,6 +6,9 @@ const DUMMY_SCENE := "res://scenes/combat/training_dummy.tscn"
 class HitReceiver:
 	extends StaticBody2D
 	var received_hits: Array[Dictionary] = []
+	var impact_stage_observations: Array[int] = []
+	var duplicate_impact_observation := false
+	var impact_position_mismatch := false
 
 	func _init() -> void:
 		collision_layer = 2
@@ -19,6 +22,17 @@ class HitReceiver:
 
 	func receive_hit(hit: Dictionary) -> void:
 		received_hits.append(hit.duplicate())
+		call_deferred("_observe_combat_impacts", int(hit["attack_stage"]))
+
+	func _observe_combat_impacts(stage: int) -> void:
+		var effect_count := 0
+		for child in get_children():
+			if child.name == "CombatImpact":
+				effect_count += 1
+				if int(child.get("attack_stage")) == stage:
+					impact_stage_observations.append(stage)
+					impact_position_mismatch = impact_position_mismatch or child.global_position.distance_to(global_position + Vector2(0.0, -20.0)) > 0.1
+		duplicate_impact_observation = duplicate_impact_observation or effect_count > 1
 
 var failures: Array[String] = []
 var player: CharacterBody2D
@@ -73,7 +87,23 @@ func _run() -> void:
 			knockback_by_stage[stage] = hit["knockback"]
 	_check(stages.has(1) and stages.has(2) and stages.has(3), "buffered combo stages all reach receivers")
 	_check(depth_decoys.all(func(decoy: HitReceiver) -> bool: return decoy.received_hits.is_empty()), "forward hitbox rejects targets outside its depth lane and behind the player")
+	_check(depth_decoys.all(func(decoy: HitReceiver) -> bool:
+		for child in decoy.get_children():
+			if child.name == "CombatImpact":
+				return false
+		return true
+	), "missed depth and rear attacks do not spawn impact effects")
 	_check(hits_per_receiver <= 3, "each receiver is hit at most once per combo stage")
+	var observed_stages: Array[int] = []
+	var duplicate_impacts := false
+	for receiver in receivers:
+		for stage in receiver.impact_stage_observations:
+			if not observed_stages.has(stage):
+				observed_stages.append(stage)
+		duplicate_impacts = duplicate_impacts or receiver.duplicate_impact_observation
+	_check(observed_stages.has(1) and observed_stages.has(2) and observed_stages.has(3), "actual stage hits spawn their matching impact effect")
+	_check(not duplicate_impacts, "a receiver never gets duplicate impacts from one hit callback")
+	_check(receivers.all(func(receiver: HitReceiver) -> bool: return not receiver.impact_position_mismatch), "impact effects align to the receiver depth and torso position")
 	_check(damage_by_stage[1] < damage_by_stage[2] and damage_by_stage[2] < damage_by_stage[3], "combo damage scales upward")
 	_check(knockback_by_stage[1] < knockback_by_stage[2] and knockback_by_stage[2] < knockback_by_stage[3], "combo knockback scales upward")
 	_check(player.get("attack_phase") == "idle", "combo returns control after recovery")

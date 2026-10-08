@@ -49,9 +49,15 @@ func _finish_session(result: ResultState) -> void:
 		return
 	result_state = result
 	Engine.time_scale = 1.0
+	_clear_combat_impacts()
 	_set_combat_active(false)
 	result_label.text = "DEFEAT" if result == ResultState.DEFEAT else "VICTORY"
 	result_overlay.visible = true
+
+func _clear_combat_impacts() -> void:
+	for impact in get_tree().get_nodes_in_group("combat_impacts"):
+		if is_instance_valid(impact):
+			impact.queue_free()
 
 func _set_combat_active(active: bool) -> void:
 	if is_instance_valid(_player):

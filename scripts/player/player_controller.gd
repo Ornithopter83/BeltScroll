@@ -33,6 +33,7 @@ const KNOCKBACK := [210.0, 310.0, 440.0]
 const HIT_STOP := [0.035, 0.055, 0.08]
 const CAMERA_TRAUMA := [0.12, 0.22, 0.34]
 const INPUT_BUFFER_TIME := 0.24
+const COMBAT_IMPACT_SCENE := preload("res://scenes/vfx/combat_impact.tscn")
 
 var facing_direction := Vector2.DOWN
 var jump_vertical_velocity := 0.0
@@ -57,6 +58,7 @@ var _hit_targets: Dictionary = {}
 var _hit_stop_token := 0
 var _saved_time_scale := 1.0
 var _hit_stop_active := false
+var _combat_impacts: Array[Node2D] = []
 
 func _ready() -> void:
 	health = max_health
@@ -244,8 +246,29 @@ func _check_stage_hitbox(stage: int) -> void:
 			"attack_stage": stage,
 		}
 		target.receive_hit(hit)
+		_spawn_combat_impact(target, stage, direction)
 		_trigger_hit_stop(HIT_STOP[stage - 1])
 		_add_camera_trauma(CAMERA_TRAUMA[stage - 1])
+
+func _spawn_combat_impact(target: Node2D, stage: int, direction: Vector2) -> void:
+	if is_ko or not is_instance_valid(target) or not target.is_inside_tree():
+		return
+	var impact := COMBAT_IMPACT_SCENE.instantiate() as Node2D
+	if impact == null:
+		return
+	target.add_child(impact)
+	impact.global_position = target.global_position + Vector2(0.0, -20.0)
+	impact.configure(stage, direction)
+	for index in range(_combat_impacts.size() - 1, -1, -1):
+		if not is_instance_valid(_combat_impacts[index]):
+			_combat_impacts.remove_at(index)
+	_combat_impacts.append(impact)
+
+func _clear_combat_impacts() -> void:
+	for impact in _combat_impacts:
+		if is_instance_valid(impact):
+			impact.queue_free()
+	_combat_impacts.clear()
 
 func _apply_attack_lunge() -> void:
 	if attack_phase == "startup":
@@ -294,6 +317,7 @@ func receive_hit(hit: Dictionary) -> void:
 	_add_camera_trauma(0.14 + int(hit["attack_stage"]) * 0.04)
 
 func _enter_ko() -> void:
+	_clear_combat_impacts()
 	is_ko = true
 	velocity = Vector2.ZERO
 	hitstun_remaining = 0.0

@@ -22,6 +22,8 @@ func _run() -> void:
 	var raiders: Array = victory_session.get("_raiders")
 	_check(raiders.size() == 3, "session tracks all three ForestRaiders")
 	var victory_player: Node = victory_session.get_node("YSortActors/Player")
+	var victory_impact: Node2D = (load("res://scenes/vfx/combat_impact.tscn") as PackedScene).instantiate()
+	victory_session.get_node("YSortActors/ForestRaider1").add_child(victory_impact)
 	var victory_hitbox := victory_player.get_node("Hitboxes/Hitbox2") as Area2D
 	victory_player.call("_begin_attack", 2)
 	victory_hitbox.monitoring = true
@@ -36,6 +38,7 @@ func _run() -> void:
 	_check(victory_session.get("result_label").text == "VICTORY" and victory_session.get("result_overlay").visible, "victory is shown on its own CanvasLayer")
 	_check(not victory_hitbox.monitoring and not (raiders[0].get_node("AttackArea") as Area2D).monitoring, "victory cancels lingering Player and Raider hitboxes")
 	_check(is_equal_approx(Engine.time_scale, 1.0), "victory restores normal engine time scale immediately")
+	_check(not is_instance_valid(victory_impact), "session end immediately clears active combat impact effects")
 	await create_timer(0.15).timeout
 	_check(is_equal_approx(Engine.time_scale, 1.0), "pending hit-stop timer cannot restore a stale time scale")
 	victory_session.call("_finish_session", 1)
