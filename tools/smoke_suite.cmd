@@ -39,6 +39,7 @@ call :run_smoke combat_hud_smoke
 call :run_smoke stage_tools_smoke
 call :run_smoke stage_integration_smoke
 call :run_smoke game_session_smoke
+call :run_smoke game_pause_smoke
 call :run_smoke player_reference_review_smoke
 call :run_smoke art_review_smoke
 call :run_smoke player_art_normalize_smoke

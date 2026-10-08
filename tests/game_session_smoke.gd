@@ -19,6 +19,24 @@ func _run() -> void:
 	root.add_child(victory_session)
 	current_scene = victory_session
 	await process_frame
+	var escape := InputEventKey.new()
+	escape.physical_keycode = KEY_ESCAPE
+	escape.pressed = true
+	victory_session.call("_unhandled_input", escape)
+	_check(paused and victory_session.get("pause_overlay").visible, "ESC pauses the tree and shows the pause overlay")
+	escape.pressed = false
+	victory_session.call("_unhandled_input", escape)
+	_check(paused, "key release does not resume the session")
+	escape.pressed = true
+	victory_session.call("_unhandled_input", escape)
+	_check(not paused and not victory_session.get("pause_overlay").visible, "ESC resumes the session")
+	var help_key := InputEventKey.new()
+	help_key.physical_keycode = KEY_H
+	help_key.pressed = true
+	victory_session.call("_unhandled_input", help_key)
+	_check(victory_session.get("help_panel").visible, "H shows the compact controls help")
+	victory_session.call("_unhandled_input", help_key)
+	_check(not victory_session.get("help_panel").visible, "H hides the controls help")
 	var raiders: Array = victory_session.get("_raiders")
 	_check(raiders.size() == 3, "session tracks all three ForestRaiders")
 	var victory_player: Node = victory_session.get_node("YSortActors/Player")
@@ -71,9 +89,13 @@ func _run() -> void:
 	player.get_node("Camera2D").offset = Vector2(12.0, -8.0)
 	raiders[0].set("attack_phase", "windup")
 	raiders[0].set("hitstun_remaining", 0.25)
+	restart_session.call("_finish_session", 1)
 	Engine.time_scale = 0.08
 	var previous_id := restart_session.get_instance_id()
-	restart_session.call("_restart_session")
+	var restart_key := InputEventKey.new()
+	restart_key.physical_keycode = KEY_R
+	restart_key.pressed = true
+	restart_session.call("_unhandled_input", restart_key)
 	await process_frame
 	await process_frame
 	var reloaded := current_scene
