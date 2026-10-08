@@ -51,12 +51,9 @@ position = Vector2(1220, 540)
 
 [node name="ForestRaider1" parent="YSortActors" instance=ExtResource("3_raider")]
 position = Vector2(690, 430)
-notice_range = 180.0
 
 [node name="ForestRaider2" parent="YSortActors" instance=ExtResource("3_raider")]
 position = Vector2(1270, 650)
-notice_range = 180.0
 
 [node name="ForestRaider3" parent="YSortActors" instance=ExtResource("3_raider")]
 position = Vector2(1450, 470)
-notice_range = 180.0

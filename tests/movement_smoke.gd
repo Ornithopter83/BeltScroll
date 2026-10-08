@@ -14,6 +14,7 @@ func _initialize() -> void:
 func _run() -> void:
 	var packed_main: PackedScene = load(MAIN_SCENE) as PackedScene
 	var main: Node = packed_main.instantiate()
+	_disable_test_enemies(main)
 	root.add_child(main)
 	await physics_frame
 	player = main.get_node("YSortActors/Player") as CharacterBody2D
@@ -42,6 +43,12 @@ func _run() -> void:
 			push_error("movement_smoke: " + failure)
 		push_error("movement_smoke: %d check(s) failed" % failures.size())
 		quit(1)
+
+func _disable_test_enemies(main: Node) -> void:
+	# Keep movement input checks independent from the live combat AI in main.tscn.
+	var actors := main.get_node("YSortActors")
+	for raider_name in ["ForestRaider1", "ForestRaider2", "ForestRaider3"]:
+		actors.get_node(raider_name).free()
 
 func _check_scene_configuration(main: Node) -> void:
 	_check(main.get_node("YSortActors").y_sort_enabled, "YSortActors enables y sorting")

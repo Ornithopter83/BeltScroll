@@ -89,8 +89,15 @@ func _run() -> void:
 	player.receive_hit(incoming)
 	_check(player.get("hitstun_remaining") > 0.0, "receive_hit enters hit stun")
 	_check(player.velocity.x < 0.0, "receive_hit applies directional knockback")
+	_check(player.get("camera_trauma") > 0.0, "incoming hit adds camera trauma")
 	await _frames(15)
 	_check(player.get("hitstun_remaining") == 0.0, "hit stun expires and controls return")
+	var position_after_stun := player.global_position
+	Input.action_press("move_right")
+	await _frames(4)
+	Input.action_release("move_right")
+	_check(player.global_position.x > position_after_stun.x, "movement input works again after hit stun")
+	_check(player.get("camera_trauma") < 0.22, "camera trauma decays after an incoming hit")
 	player.global_position = Vector2(1747.0, 500.0)
 	player.receive_hit({"damage": 0, "direction": Vector2.RIGHT, "knockback": 800.0, "hit_stun": 0.12, "attack_stage": 1})
 	await _frames(3)
@@ -99,12 +106,15 @@ func _run() -> void:
 	Input.action_press("jump")
 	await _frames(3)
 	var jump_height_before_stop: float = player.get("jump_height_offset")
+	var time_scale_before_stop := Engine.time_scale
 	player.call("_trigger_hit_stop", 0.08)
+	_check(Engine.time_scale <= 0.08, "hit stop reduces gameplay time scale")
 	await _frames(2)
 	_check(player.get("is_jumping") == true and player.get("jump_height_offset") >= jump_height_before_stop, "jump state remains valid while hit-stop is active")
 	Input.action_release("jump")
 	await _frames(40)
 	_check(player.get("is_jumping") == false, "jump completes after hit-stop restores gameplay time")
+	_check(is_equal_approx(Engine.time_scale, time_scale_before_stop), "hit stop restores the previous gameplay time scale")
 	await _check_player_hits_training_dummy()
 
 	if failures.is_empty():
