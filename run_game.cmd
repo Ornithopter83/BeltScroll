@@ -20,6 +20,7 @@ if /I "%~1"=="--smoke" goto smoke
 if /I "%~1"=="art-review-check" goto art_review_check
 if /I "%~1"=="art-review" goto art_review
 if /I "%~1"=="stage-normalize" goto stage_normalize
+if /I "%~1"=="player-normalize" goto player_normalize
 if /I "%~1"=="stage-review" goto sr
 if /I "%~1"=="stage-review-check" goto src
 "%GODOT_EXE%" --path "%PROJECT_DIR%" %*
@@ -79,6 +80,22 @@ if not "%~4"=="" (
     exit /b 2
 )
 "%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tools/normalize_stage_art.gd -- "%~2" "%~3"
+exit /b %errorlevel%
+
+:player_normalize
+if "%~2"=="" (
+    echo Usage: run_game.cmd player-normalize ^<input.png^> ^<output.png^>
+    exit /b 2
+)
+if "%~3"=="" (
+    echo Usage: run_game.cmd player-normalize ^<input.png^> ^<output.png^>
+    exit /b 2
+)
+if not "%~4"=="" (
+    echo Usage: run_game.cmd player-normalize ^<input.png^> ^<output.png^>
+    exit /b 2
+)
+"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tools/normalize_player_art.gd -- "%~2" "%~3"
 exit /b %errorlevel%
 
 :sr

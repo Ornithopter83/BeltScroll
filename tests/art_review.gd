@@ -4,6 +4,7 @@ const DEFAULT_IMAGE := "res://assets/art/player/elven_fighter_reference_v1_1254x
 const EXPECTED_SIZE := 1254
 const REQUIRED_MARGIN := 90
 const PREVIEW_SIZE := 165
+const ZOOM_SIZE := 600
 
 var _image_path := DEFAULT_IMAGE
 
@@ -29,7 +30,7 @@ func _start() -> void:
 		return
 	_show_review(result)
 
-func _inspect_png(path: String) -> Dictionary:
+static func _inspect_png(path: String) -> Dictionary:
 	var result := {"path": path, "passed": false, "errors": [], "width": 0, "height": 0,
 		"has_alpha": false, "has_transparent": false, "bounds": Rect2i()}
 	if not FileAccess.file_exists(path):
@@ -195,7 +196,7 @@ func _inspect_png(path: String) -> Dictionary:
 	result.passed = result.errors.is_empty() and width == EXPECTED_SIZE and height == EXPECTED_SIZE
 	return result
 
-func _unfilter_row(row: PackedByteArray, previous: PackedByteArray, bpp: int, filter: int) -> bool:
+static func _unfilter_row(row: PackedByteArray, previous: PackedByteArray, bpp: int, filter: int) -> bool:
 	if filter < 0 or filter > 4:
 		return false
 	for i in range(row.size()):
@@ -211,7 +212,7 @@ func _unfilter_row(row: PackedByteArray, previous: PackedByteArray, bpp: int, fi
 		row[i] = (int(row[i]) + predictor) & 255
 	return true
 
-func _sample(row: PackedByteArray, sample_index: int, depth: int) -> int:
+static func _sample(row: PackedByteArray, sample_index: int, depth: int) -> int:
 	if depth == 8:
 		return int(row[sample_index])
 	if depth == 16:
@@ -220,12 +221,12 @@ func _sample(row: PackedByteArray, sample_index: int, depth: int) -> int:
 	var shift := 8 - depth - (bit_offset % 8)
 	return (int(row[int(bit_offset / 8)]) >> shift) & ((1 << depth) - 1)
 
-func _to_byte(value: int, depth: int) -> int:
+static func _to_byte(value: int, depth: int) -> int:
 	if depth == 16: return value >> 8
 	if depth == 8: return value
 	return int(round(value * 255.0 / ((1 << depth) - 1)))
 
-func _paeth(a: int, b: int, c: int) -> int:
+static func _paeth(a: int, b: int, c: int) -> int:
 	var p := a + b - c
 	var pa := absi(p - a)
 	var pb := absi(p - b)
@@ -234,10 +235,10 @@ func _paeth(a: int, b: int, c: int) -> int:
 	if pb <= pc: return b
 	return c
 
-func _u32be(bytes: PackedByteArray, offset: int) -> int:
+static func _u32be(bytes: PackedByteArray, offset: int) -> int:
 	return (int(bytes[offset]) << 24) | (int(bytes[offset + 1]) << 16) | (int(bytes[offset + 2]) << 8) | int(bytes[offset + 3])
 
-func _u16be(bytes: PackedByteArray, offset: int) -> int:
+static func _u16be(bytes: PackedByteArray, offset: int) -> int:
 	return (int(bytes[offset]) << 8) | int(bytes[offset + 1])
 
 func _print_report(result: Dictionary) -> void:
@@ -253,9 +254,12 @@ func _print_report(result: Dictionary) -> void:
 		push_error("art-review: " + error)
 
 func _show_review(result: Dictionary) -> void:
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.add_child(scroll)
 	var ui := Control.new()
-	ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	root.add_child(ui)
+	ui.custom_minimum_size = Vector2(1400, 920)
+	scroll.add_child(ui)
 	var title := Label.new()
 	title.text = "플레이어 PNG 원화 검수"
 	title.position = Vector2(40, 24)
@@ -273,29 +277,36 @@ func _show_review(result: Dictionary) -> void:
 	ui.add_child(path_label)
 	if result.has("pixels"):
 		var image := Image.create_from_data(result.width, result.height, false, Image.FORMAT_RGBA8, result.pixels)
-		var texture := ImageTexture.create_from_image(image)
-		_add_preview(ui, texture, Vector2(60, 190), Vector2(470, 470), "전체 원화 (1254 × 1254)")
-		_add_preview(ui, texture, Vector2(700, 330), Vector2(PREVIEW_SIZE, PREVIEW_SIZE), "게임 내 축소 미리보기 (165 × 165)")
+		var bounds: Rect2i = result.bounds
+		var silhouette := image.get_region(bounds)
+		var sprite_165 := _resize_silhouette(silhouette, PREVIEW_SIZE)
+		var sprite_600 := _resize_silhouette(silhouette, ZOOM_SIZE)
+		_add_preview(ui, ImageTexture.create_from_image(image), Vector2(40, 190), Vector2(380, 380), "전체 원화 · 투명 체커보드 · %d × %d" % [result.width, result.height])
+		_add_preview(ui, ImageTexture.create_from_image(sprite_165), Vector2(460, 250), Vector2(sprite_165.get_width(), PREVIEW_SIZE), "비투명 실루엣 높이 정확히 %dpx · 발끝 기준선" % PREVIEW_SIZE, true)
+		_add_preview(ui, ImageTexture.create_from_image(sprite_600), Vector2(680, 220), Vector2(sprite_600.get_width(), ZOOM_SIZE), "확대 보기 · 비투명 실루엣 높이 %dpx · 얼굴/귀/손발/색 번짐 확인" % ZOOM_SIZE, true)
+		var bounds_label := Label.new()
+		bounds_label.text = "알파 경계 x=%d y=%d w=%d h=%d  |  원본 캔버스 축소가 아닌 비투명 픽셀 경계 기준" % [bounds.position.x, bounds.position.y, bounds.size.x, bounds.size.y]
+		bounds_label.position = Vector2(40, 640)
+		ui.add_child(bounds_label)
 	else:
 		var details := Label.new()
 		details.text = "\n".join(result.errors)
 		details.position = Vector2(60, 190)
 		ui.add_child(details)
 	var hint := Label.new()
-	hint.text = "원화의 형태와 축소 시 식별성을 확인한 뒤, 검수자가 시각적 최종 승인을 판단하세요."
+	hint.text = "발끝을 공통 기준선에 맞췄습니다. 기계 검사 통과와 별개로 검수자가 시각적 최종 승인을 판단하세요."
 	hint.position = Vector2(40, 680)
 	ui.add_child(hint)
 
-func _add_preview(parent: Control, texture: Texture2D, position: Vector2, size: Vector2, caption: String) -> void:
+func _add_preview(parent: Control, texture: Texture2D, position: Vector2, size: Vector2, caption: String, show_foot_baseline := false) -> void:
 	var label := Label.new()
 	label.text = caption
 	label.position = position - Vector2(0, 28)
 	parent.add_child(label)
-	var frame := ColorRect.new()
-	frame.position = position
-	frame.size = size
-	frame.color = Color(0.16, 0.18, 0.21)
-	parent.add_child(frame)
+	var checker := Checkerboard.new()
+	checker.position = position
+	checker.size = size
+	parent.add_child(checker)
 	var preview := TextureRect.new()
 	preview.position = position
 	preview.size = size
@@ -303,3 +314,26 @@ func _add_preview(parent: Control, texture: Texture2D, position: Vector2, size: 
 	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	parent.add_child(preview)
+	if show_foot_baseline:
+		var baseline := ColorRect.new()
+		baseline.position = Vector2(position.x, position.y + size.y - 2)
+		baseline.size = Vector2(size.x, 2)
+		baseline.color = Color(1.0, 0.28, 0.18, 0.95)
+		parent.add_child(baseline)
+
+func _resize_silhouette(source: Image, target_height: int) -> Image:
+	var target_width := maxi(1, int(round(float(source.get_width()) * target_height / source.get_height())))
+	var resized := source.duplicate()
+	resized.resize(target_width, target_height, Image.INTERPOLATE_LANCZOS)
+	return resized
+
+class Checkerboard:
+	extends Control
+	const TILE := 16
+	func _draw() -> void:
+		var columns := int(ceil(size.x / TILE))
+		var rows := int(ceil(size.y / TILE))
+		for y in range(rows):
+			for x in range(columns):
+				var shade := Color(0.31, 0.33, 0.36) if (x + y) % 2 == 0 else Color(0.20, 0.22, 0.25)
+				draw_rect(Rect2(x * TILE, y * TILE, TILE, TILE), shade)
