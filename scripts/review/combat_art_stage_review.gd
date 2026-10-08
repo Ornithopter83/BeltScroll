@@ -5,11 +5,16 @@ const TARGET_SCREEN_HEIGHT := 192.0
 const FOOT_BASELINE_WORLD_Y := 850.0
 const PLAYER_PATH := "res://assets/art/player/elven_fighter_reference_v4_matte_v4_1254x1254.png"
 const RAIDER_PATH := "res://assets/art/enemies/forest_raider_reference_v1_safe_1254x1254.png"
+const CANDIDATE_PLAYER_PATH := "res://assets/art/player/elven_fighter_reference_v5_clean_1254x1254.png"
+const CANDIDATE_RAIDER_PATH := "res://assets/art/enemies/forest_raider_reference_v1_clean_1254x1254.png"
 const FOREST_PATH := "res://assets/art/stage/forest_ruins_v1_1920x1080.png"
 
 var zoom_factor := 1.0
 var facing_right := true
+var raider_facing_right := true
 @export var overlap_review_mode := false
+@export var candidate_review_mode := false
+var candidate_overlap_mode := false
 var _player_sprite: Sprite2D
 var _raider_sprite: Sprite2D
 var _status_label: Label
@@ -26,8 +31,10 @@ func _ready() -> void:
 	_camera.zoom = CAMERA_ZOOM
 	if overlap_review_mode:
 		_configure_overlap_positions()
-	_player_sprite = _build_candidate(_player_anchor, PLAYER_PATH, "PlayerArt")
-	_raider_sprite = _build_candidate(_raider_anchor, RAIDER_PATH, "RaiderArt")
+	var player_path := CANDIDATE_PLAYER_PATH if candidate_review_mode else PLAYER_PATH
+	var raider_path := CANDIDATE_RAIDER_PATH if candidate_review_mode else RAIDER_PATH
+	_player_sprite = _build_candidate(_player_anchor, player_path, "PlayerArt")
+	_raider_sprite = _build_candidate(_raider_anchor, raider_path, "RaiderArt")
 	if overlap_review_mode:
 		_build_candidate(_player_front_anchor, PLAYER_PATH, "PlayerArt")
 		_build_candidate(_raider_front_anchor, RAIDER_PATH, "RaiderArt")
@@ -67,6 +74,51 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			zoom_factor = 1.0
 			_update_view_controls()
 			get_viewport().set_input_as_handled()
+		KEY_P when candidate_review_mode:
+			facing_right = not facing_right
+			_update_view_controls()
+			get_viewport().set_input_as_handled()
+		KEY_R when candidate_review_mode:
+			raider_facing_right = not raider_facing_right
+			_update_view_controls()
+			get_viewport().set_input_as_handled()
+		KEY_O when candidate_review_mode:
+			candidate_overlap_mode = not candidate_overlap_mode
+			_configure_candidate_positions()
+			_refresh_overlay()
+			get_viewport().set_input_as_handled()
+		KEY_C when not overlap_review_mode:
+			candidate_review_mode = not candidate_review_mode
+			candidate_overlap_mode = false
+			_configure_candidate_positions()
+			_rebuild_candidate_sprites()
+			_refresh_overlay()
+			_update_view_controls()
+			get_viewport().set_input_as_handled()
+
+func _rebuild_candidate_sprites() -> void:
+	if _player_sprite != null:
+		_player_sprite.free()
+	if _raider_sprite != null:
+		_raider_sprite.free()
+	var player_path := CANDIDATE_PLAYER_PATH if candidate_review_mode else PLAYER_PATH
+	var raider_path := CANDIDATE_RAIDER_PATH if candidate_review_mode else RAIDER_PATH
+	_player_sprite = _build_candidate(_player_anchor, player_path, "PlayerArt")
+	_raider_sprite = _build_candidate(_raider_anchor, raider_path, "RaiderArt")
+
+func _refresh_overlay() -> void:
+	var old_overlay := _review_canvas.get_node_or_null("ReviewOverlay")
+	if old_overlay != null:
+		old_overlay.free()
+	_build_overlay()
+
+func _configure_candidate_positions() -> void:
+	if candidate_overlap_mode:
+		_player_anchor.position = Vector2(960, 850)
+		_raider_anchor.position = Vector2(960, 890)
+	else:
+		_player_anchor.position = Vector2(650, FOOT_BASELINE_WORLD_Y)
+		_raider_anchor.position = Vector2(1270, FOOT_BASELINE_WORLD_Y)
 
 func _build_candidate(anchor: Node2D, texture_path: String, node_name: String) -> Sprite2D:
 	var source_texture := load(texture_path) as Texture2D
@@ -97,7 +149,11 @@ func _build_overlay() -> void:
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_review_canvas.add_child(overlay)
-	if overlap_review_mode:
+	if candidate_review_mode:
+		_make_label(overlay, "전투 아트 후보 검수 · 실제 Window Viewport 렌더", Vector2(44, 26), 32, Color.WHITE, "ReviewHeading")
+		_make_label(overlay, "PLAYER: v5_clean (미승인)    RAIDER: v1_clean (미승인)", Vector2(48, 72), 20, Color("#ffe1a6"), "AssetNames")
+		_make_label(overlay, "192 px 화면 높이 · 발 anchor 정렬 · 카메라 zoom 1.2× · O 겹침 배치 전환", Vector2(48, 106), 18, Color("#d2dfd7"), "ScaleNote")
+	elif overlap_review_mode:
 		_make_label(overlay, "OVERLAP DEPTH REVIEW · 실제 Window Viewport 렌더", Vector2(44, 26), 32, Color.WHITE, "ReviewHeading")
 		_make_label(overlay, "PLAYER: v4_matte_v4    RAIDER: v1_safe    두 쌍은 동일 X, 서로 반대 Y 순서", Vector2(48, 72), 20, Color("#e5e8df"), "AssetNames")
 		_make_label(overlay, "192 px 화면 높이 · 각 발 기준선 표시 · 카메라 zoom 1.2× · YSort 깊이 가림", Vector2(48, 106), 18, Color("#d2dfd7"), "ScaleNote")
@@ -106,8 +162,29 @@ func _build_overlay() -> void:
 		_make_label(overlay, "왼쪽: v4_matte_v4    오른쪽: forest_raider_reference_v1_safe", Vector2(48, 72), 20, Color("#e5e8df"), "AssetNames")
 		_make_label(overlay, "192 px 화면 높이 · 동일 발 기준 · 카메라 기본 확대 1.2×", Vector2(48, 106), 18, Color("#d2dfd7"), "ScaleNote")
 	_status_label = _make_label(overlay, "", Vector2(48, 142), 17, Color("#ffd17a"), "ViewStatus")
-	_make_label(overlay, "← / A 왼쪽 보기     → / D 오른쪽 보기     + / - 확대 비교     0 기본 배율", Vector2(48, 176), 16, Color.WHITE, "Controls")
-	if overlap_review_mode:
+	if candidate_review_mode:
+		_make_label(overlay, "C: 후보 모드 전환     P: PLAYER 방향     R: RAIDER 방향     O: 겹침 배치     + / - 확대     0 기본 배율", Vector2(48, 176), 16, Color.WHITE, "Controls")
+	else:
+		var legacy_controls := "← / A 왼쪽 보기     → / D 오른쪽 보기     + / - 확대 비교     0 기본 배율"
+		if not overlap_review_mode:
+			legacy_controls = "C: v5_clean 후보 모드     " + legacy_controls
+		_make_label(overlay, legacy_controls, Vector2(48, 176), 16, Color.WHITE, "Controls")
+	if candidate_review_mode:
+		if candidate_overlap_mode:
+			_add_baseline(overlay, 850.0, 960.0, "PLAYER 뒤 발 기준선")
+			_add_baseline(overlay, 890.0, 960.0, "RAIDER 앞 발 기준선")
+			_make_label(overlay, "YSort 깊이 겹침 비교", Vector2(790, 218), 18, Color("#ffd1c9"), "CandidateOverlapTag")
+		else:
+			var candidate_baseline_y := 540.0 + (FOOT_BASELINE_WORLD_Y - 540.0) * CAMERA_ZOOM.y
+			var candidate_baseline := ColorRect.new()
+			candidate_baseline.name = "FootBaseline"
+			candidate_baseline.position = Vector2(350, candidate_baseline_y)
+			candidate_baseline.size = Vector2(1220, 2)
+			candidate_baseline.color = Color("#ff665c")
+			overlay.add_child(candidate_baseline)
+			_make_label(overlay, "PLAYER · 미승인 후보", Vector2(590, 870), 16, Color("#ffe1a6"), "PlayerTag")
+			_make_label(overlay, "RAIDER · 미승인 후보", Vector2(1210, 870), 16, Color("#ffe1a6"), "RaiderTag")
+	elif overlap_review_mode:
 		_add_baseline(overlay, 850.0, 420.0, "후면 PLAYER 발 기준선")
 		_add_baseline(overlay, 890.0, 420.0, "전면 RAIDER 발 기준선")
 		_add_baseline(overlay, 890.0, 1040.0, "전면 PLAYER 발 기준선")
@@ -142,9 +219,12 @@ func _update_view_controls() -> void:
 	if _player_sprite != null:
 		_player_sprite.flip_h = not facing_right
 	if _raider_sprite != null:
-		_raider_sprite.flip_h = not facing_right
+		_raider_sprite.flip_h = not (raider_facing_right if candidate_review_mode else facing_right)
 	if _status_label != null:
-		_status_label.text = "방향: %s    비교 확대: %.2f×" % ["오른쪽" if facing_right else "왼쪽", zoom_factor]
+		if candidate_review_mode:
+			_status_label.text = "PLAYER: %s    RAIDER: %s    배치: %s    비교 확대: %.2f×" % ["오른쪽" if facing_right else "왼쪽", "오른쪽" if raider_facing_right else "왼쪽", "겹침" if candidate_overlap_mode else "기본", zoom_factor]
+		else:
+			_status_label.text = "방향: %s    비교 확대: %.2f×" % ["오른쪽" if facing_right else "왼쪽", zoom_factor]
 
 func _find_alpha_bounds(source: Image) -> Rect2i:
 	var min_x := source.get_width()

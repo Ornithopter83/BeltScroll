@@ -41,6 +41,7 @@ func _run() -> void:
 	_check(_failure_exit_code() == 2, "잘못된 실행 인수에서 비정상 성공 없이 종료 코드 2를 반환함")
 	if failures.is_empty():
 		print("player_v5_art_smoke: 모든 기계 검증 통과. 원화의 최종 승인은 별도 검수 대상.")
+		print("player_v5_art_smoke: all checks passed; visual approval pending.")
 		quit(0)
 	else:
 		for failure in failures:

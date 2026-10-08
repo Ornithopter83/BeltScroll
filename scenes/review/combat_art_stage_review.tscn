@@ -1,4 +1,4 @@
-﻿[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/review/combat_art_stage_review.gd" id="1_review"]
 [ext_resource type="Texture2D" path="res://assets/art/stage/forest_ruins_v1_1920x1080.png" id="2_forest"]
@@ -6,6 +6,7 @@
 [node name="CombatArtStageReview" type="Node2D"]
 script = ExtResource("1_review")
 overlap_review_mode = false
+candidate_review_mode = false
 
 [node name="ForestRuinsBackground" type="Sprite2D" parent="."]
 position = Vector2(960, 540)

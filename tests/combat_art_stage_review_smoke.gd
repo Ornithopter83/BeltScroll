@@ -2,7 +2,7 @@
 
 const REVIEW_SCENE := "res://scenes/review/combat_art_stage_review.tscn"
 const REVIEW_SCRIPT := "res://scripts/review/combat_art_stage_review.gd"
-const PLAYER_PATH := "res://assets/art/player/elven_fighter_reference_v4_matte_v3_1254x1254.png"
+const PLAYER_PATH := "res://assets/art/player/elven_fighter_reference_v4_matte_v4_1254x1254.png"
 const RAIDER_PATH := "res://assets/art/enemies/forest_raider_reference_v1_safe_1254x1254.png"
 const FOREST_PATH := "res://assets/art/stage/forest_ruins_v1_1920x1080.png"
 const TARGET_SCREEN_HEIGHT := 192.0
@@ -22,7 +22,7 @@ func _run() -> void:
 	_check(ResourceLoader.exists(PLAYER_PATH) and ResourceLoader.exists(RAIDER_PATH) and ResourceLoader.exists(FOREST_PATH), "all three existing art assets are connected")
 	if review_script != null:
 		var paths := review_script.get_script_constant_map()
-		_check(paths.get("PLAYER_PATH") == PLAYER_PATH and paths.get("RAIDER_PATH") == RAIDER_PATH and paths.get("FOREST_PATH") == FOREST_PATH, "review references the exact requested source assets")
+		_check(paths.get("PLAYER_PATH") == PLAYER_PATH and paths.get("RAIDER_PATH") == RAIDER_PATH and paths.get("FOREST_PATH") == FOREST_PATH, "review references the exact v4_matte_v4, Raider safe, and Forest Ruins assets")
 	if packed == null:
 		_finish()
 		return

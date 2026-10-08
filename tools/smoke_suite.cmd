@@ -43,7 +43,10 @@ call :run_smoke player_art_normalize_smoke
 call :run_smoke player_reference_compare_smoke
 call :run_smoke player_v5_art_smoke
 call :run_smoke forest_raider_matte_smoke
+call :run_smoke player_v5_final_matte_smoke
+call :run_smoke forest_raider_final_matte_smoke
 call :run_window_smoke combat_art_overlap_smoke
+call :run_window_smoke combat_art_candidate_capture_smoke
 
 call :probe_fixtures
 if errorlevel 1 set "SUITE_FAILED=1"
@@ -63,8 +66,12 @@ if /I "%SMOKE_NAME%"=="player_art_normalize_smoke" set "ALLOW_MODE=png-negative"
 if /I "%SMOKE_NAME%"=="forest_raider_matte_smoke" set "ALLOW_MODE=png-negative"
 if /I "%SMOKE_NAME%"=="player_v5_art_smoke" (
     set "ALLOW_MODE=png-negative"
-    set "SUCCESS_MARKER=player_v5_art_smoke: 모든 기계 검증 통과. 원화의 최종 승인은 별도 검수 대상."
+    set "SUCCESS_MARKER=player_v5_art_smoke: all checks passed; visual approval pending."
 )
+if /I "%SMOKE_NAME%"=="player_v5_final_matte_smoke" (
+    set "SUCCESS_MARKER=player_v5_final_matte_smoke: all checks passed; visual approval pending."
+)
+if /I "%SMOKE_NAME%"=="forest_raider_final_matte_smoke" set "ALLOW_MODE=png-negative"
 call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SUCCESS_MARKER%" "%ALLOW_MODE%"
 if errorlevel 1 (
     set "SUITE_FAILED=1"
