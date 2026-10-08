@@ -1,6 +1,7 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="1_player"]
+[ext_resource type="PackedScene" path="res://scenes/combat/training_dummy.tscn" id="2_dummy"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_arena"]
 bg_color = Color(0.12, 0.17, 0.18, 1)
@@ -43,3 +44,6 @@ y_sort_enabled = true
 
 [node name="Player" parent="YSortActors" instance=ExtResource("1_player")]
 position = Vector2(960, 540)
+
+[node name="TrainingDummy" parent="YSortActors" instance=ExtResource("2_dummy")]
+position = Vector2(1220, 540)

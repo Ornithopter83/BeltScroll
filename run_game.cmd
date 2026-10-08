@@ -17,9 +17,27 @@ if not defined GODOT_EXE (
 
 if /I "%~1"=="smoke" goto smoke
 if /I "%~1"=="--smoke" goto smoke
+if /I "%~1"=="art-review-check" goto art_review_check
+if /I "%~1"=="art-review" goto art_review
 "%GODOT_EXE%" --path "%PROJECT_DIR%" %*
 exit /b %errorlevel%
 
 :smoke
 "%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/movement_smoke.gd
+exit /b %errorlevel%
+
+:art_review_check
+if "%~2"=="" (
+    "%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/art_review.gd -- --check
+) else (
+    "%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/art_review.gd -- --check "%~2"
+)
+exit /b %errorlevel%
+
+:art_review
+if "%~2"=="" (
+    "%GODOT_EXE%" --path "%PROJECT_DIR%" --script res://tests/art_review.gd --
+) else (
+    "%GODOT_EXE%" --path "%PROJECT_DIR%" --script res://tests/art_review.gd -- "%~2"
+)
 exit /b %errorlevel%

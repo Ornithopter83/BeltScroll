@@ -1,10 +1,19 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/player_controller.gd" id="1_controller"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_body"]
 radius = 13.0
 height = 40.0
+
+[sub_resource type="RectangleShape2D" id="HitboxShape_stage_1"]
+size = Vector2(44, 28)
+
+[sub_resource type="RectangleShape2D" id="HitboxShape_stage_2"]
+size = Vector2(60, 36)
+
+[sub_resource type="RectangleShape2D" id="HitboxShape_stage_3"]
+size = Vector2(78, 46)
 
 [node name="Player" type="CharacterBody2D"]
 collision_layer = 1
@@ -23,9 +32,19 @@ color = Color(0.02, 0.025, 0.03, 0.42)
 [node name="VisualRoot" type="Node2D" parent="."]
 position = Vector2(0, -18)
 
-[node name="Body" type="Polygon2D" parent="VisualRoot"]
+[node name="BodyStage1" type="Polygon2D" parent="VisualRoot"]
 polygon = PackedVector2Array(-12, -15, -8, -24, 0, -28, 8, -24, 12, -15, 11, 7, 7, 15, -7, 15, -11, 7)
 color = Color(0.28, 0.68, 0.73, 1)
+
+[node name="BodyStage2" type="Polygon2D" parent="VisualRoot"]
+visible = false
+polygon = PackedVector2Array(-14, -16, -8, -25, 0, -29, 9, -24, 14, -13, 12, 5, 9, 13, 4, 16, -9, 12, -13, 5)
+color = Color(0.38, 0.76, 0.72, 1)
+
+[node name="BodyStage3" type="Polygon2D" parent="VisualRoot"]
+visible = false
+polygon = PackedVector2Array(-15, -17, -11, -25, -2, -30, 8, -26, 16, -16, 14, -7, 10, -2, 13, 9, 8, 17, -7, 14, -14, 7, -11, -2, -16, -9)
+color = Color(0.48, 0.83, 0.78, 1)
 
 [node name="Face" type="Polygon2D" parent="VisualRoot"]
 position = Vector2(0, -18)
@@ -37,6 +56,32 @@ visible = false
 position = Vector2(25, -5)
 polygon = PackedVector2Array(-2, -4, 8, -20, 5, -7, 18, -14, 4, 8, 5, -2)
 color = Color(1, 0.8, 0.25, 0.95)
+
+[node name="Hitboxes" type="Node2D" parent="."]
+
+[node name="Hitbox1" type="Area2D" parent="Hitboxes"]
+collision_layer = 0
+collision_mask = 2
+monitoring = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitboxes/Hitbox1"]
+shape = SubResource("HitboxShape_stage_1")
+
+[node name="Hitbox2" type="Area2D" parent="Hitboxes"]
+collision_layer = 0
+collision_mask = 2
+monitoring = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitboxes/Hitbox2"]
+shape = SubResource("HitboxShape_stage_2")
+
+[node name="Hitbox3" type="Area2D" parent="Hitboxes"]
+collision_layer = 0
+collision_mask = 2
+monitoring = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitboxes/Hitbox3"]
+shape = SubResource("HitboxShape_stage_3")
 
 [node name="Camera2D" type="Camera2D" parent="."]
 zoom = Vector2(1.2, 1.2)

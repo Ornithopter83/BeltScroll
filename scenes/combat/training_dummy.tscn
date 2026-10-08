@@ -1,0 +1,38 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/training_dummy.gd" id="1_script"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_dummy"]
+radius = 18.0
+height = 48.0
+
+[node name="TrainingDummy" type="CharacterBody2D"]
+collision_layer = 1
+collision_mask = 1
+script = ExtResource("1_script")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -24)
+shape = SubResource("CapsuleShape2D_dummy")
+
+[node name="GroundShadow" type="Polygon2D" parent="."]
+position = Vector2(0, 2)
+polygon = PackedVector2Array(-25, 0, -21, -8, -12, -13, 0, -14, 12, -13, 21, -8, 25, 0, 21, 8, 12, 13, 0, 14, -12, 13, -21, 8)
+color = Color(0.02, 0.025, 0.03, 0.42)
+
+[node name="VisualRoot" type="Node2D" parent="."]
+position = Vector2(0, -24)
+
+[node name="Body" type="Polygon2D" parent="VisualRoot"]
+polygon = PackedVector2Array(-17, -23, -12, -35, 0, -40, 12, -35, 17, -23, 16, 8, 10, 16, -10, 16, -16, 8)
+color = Color(0.72, 0.57, 0.29, 1)
+
+[node name="Face" type="Polygon2D" parent="VisualRoot"]
+position = Vector2(0, -26)
+polygon = PackedVector2Array(-8, -4, -6, -8, 6, -8, 8, -4, 7, 3, -7, 3)
+color = Color(0.93, 0.78, 0.58, 1)
+
+[node name="TargetMark" type="Polygon2D" parent="VisualRoot"]
+position = Vector2(0, -10)
+polygon = PackedVector2Array(0, -7, 2, -2, 7, 0, 2, 2, 0, 7, -2, 2, -7, 0, -2, -2)
+color = Color(0.72, 0.2, 0.16, 1)
