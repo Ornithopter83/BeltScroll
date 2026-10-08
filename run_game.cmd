@@ -24,6 +24,12 @@ exit /b %errorlevel%
 
 :smoke
 "%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/movement_smoke.gd
+if errorlevel 1 exit /b %errorlevel%
+
+"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/player_combat_smoke.gd
+if errorlevel 1 exit /b %errorlevel%
+
+"%GODOT_EXE%" --headless --path "%PROJECT_DIR%" --script res://tests/training_dummy_smoke.gd
 exit /b %errorlevel%
 
 :art_review_check

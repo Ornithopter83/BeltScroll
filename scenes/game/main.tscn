@@ -1,7 +1,8 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="1_player"]
 [ext_resource type="PackedScene" path="res://scenes/combat/training_dummy.tscn" id="2_dummy"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/forest_raider.tscn" id="3_raider"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_arena"]
 bg_color = Color(0.12, 0.17, 0.18, 1)
@@ -47,3 +48,15 @@ position = Vector2(960, 540)
 
 [node name="TrainingDummy" parent="YSortActors" instance=ExtResource("2_dummy")]
 position = Vector2(1220, 540)
+
+[node name="ForestRaider1" parent="YSortActors" instance=ExtResource("3_raider")]
+position = Vector2(690, 430)
+notice_range = 180.0
+
+[node name="ForestRaider2" parent="YSortActors" instance=ExtResource("3_raider")]
+position = Vector2(1270, 650)
+notice_range = 180.0
+
+[node name="ForestRaider3" parent="YSortActors" instance=ExtResource("3_raider")]
+position = Vector2(1450, 470)
+notice_range = 180.0
