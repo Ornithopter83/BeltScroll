@@ -1,37 +1,29 @@
 # Player 키포즈 검수 게이트
 
-## 비교 기준과 승인 범위
+## 승인 상태
 
-본편에는 v8 clean 정지 원화가 승인되어 적용되어 있다. 현재 경로는 `assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png`이며, `scenes/player/player.tscn`이 이 원화를 사용한다. `candidate`는 파일 경로에 남아 있는 이름이고 본편 정지 원화의 현재 적용 상태를 뜻하지 않는다.
+v8 clean 정지 원화 `assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png`는 본편에 적용 승인된 상태다. 이 승인은 정지 원화에만 해당한다. v2 키포즈 원본과 신규 relayout 후보는 별도 검수 중이며, Player 씬·VisualAnimator·프레임 애니메이션에는 연결하지 않는다.
 
-이 승인은 정지 원화에만 해당한다. 신규 2×2 키포즈 시트와 애니메이션 연결은 아직 승인되지 않았다. 자동 검수나 contact 생성은 승인 상태를 바꾸지 않는다. `assets/art/player/elven_fighter_attack_keyposes_v2_1254x1254.png`가 제공되어 자동 검수와 contact 비교를 마쳤으며, 현재 결과는 실패·미승인이다. 담당자는 얼굴 정체성·귀·포니테일·의상·해부학·공격별 실루엣·발 기준선·192px 가독성을 contact에서 확인하고 별도로 승인해야 한다.
+원본 `assets/art/player/elven_fighter_attack_keyposes_v2_1254x1254.png`는 수정하지 않았다. 독립 정렬 후보는 `assets/art/player/elven_fighter_attack_keyposes_v2_relayout_1254x1254.png`이고, 192px 전후 비교판은 `assets/art/review/player_keyposes_v2_relayout_contact.png`다. 비교판의 각 포즈에는 BEFORE, RELAYOUT, V8 CLEAN을 각각 192×192px 표시 상자에 담았다.
 
-## 검사 절차
-
-검수 도구는 원본 PNG를 읽기만 하며 입력 이미지나 비교 원화를 저장·수정하지 않는다. 입력은 투명 alpha 채널이 있는 정사각형 PNG이며, 같은 크기의 셀 네 개로 이루어진 균등한 2×2 배열이어야 한다. 셀 크기는 고정하지 않고 입력에서 계산한다. 384×384 입력은 192px 셀, 1254×1254 입력은 627px 셀, 2048×2048 입력은 1024px 셀로 판정한다.
-
-각 셀에 대해 실제 크기, 유효 alpha 경계, 투명 여백, 셀/격자 경계 접촉 및 잘림 징후, 발 기준선을 개별 판정한다. 기본 발 기준선 검사는 네 셀 alpha 최하단 편차가 2px 이내인지 확인한다. 자세별 발 위치가 다르면 `--foot-anchors`에 좌상·우상·좌하·우하 셀의 셀 내부 y 좌표를 지정한다. `--foot-tolerance`와 `--margin`은 원본 셀 픽셀 단위다.
-
-각 포즈는 투명 여백을 제외한 alpha 경계 상자에 맞춰 최대 192×192px 상자에 비율을 유지해 배치한다. 본편 승인 v8 clean 정지 원화도 같은 192×192px 표시 상자에 배치한다. 실제 입력 셀 크기와 무관하게 contact에서 두 이미지의 표시 크기는 동일하다. 투명 영역 뒤의 회색 바둑판은 alpha 여백 확인용이다.
+## 재현 및 기계 검사
 
 ```powershell
-godot --headless --path . --script res://tools/inspect_player_keyposes.gd -- res://path/to/player_keyposes_1254x1254.png
-godot --headless --path . --script res://tools/inspect_player_keyposes.gd -- res://path/to/player_keyposes.png --reference res://assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png --output res://assets/art/review/player_keyposes_v2_contact.png --foot-anchors 612,612,612,612
+godot --headless --path . --script res://tools/rebuild_player_keyposes_v2.gd
+godot --headless --path . --script res://tests/player_keypose_relayout_smoke.gd
 ```
 
-종료 코드는 정상 0, 검수 실패 1, 인수·파일 처리 실패 2다. 보고서에는 `INPUT_MISSING`, `INVALID_DIMENSIONS`, `GRID_INTRUSION`, `FOOT_BASELINE_ERROR` 등의 실패 코드가 함께 출력된다. `PASS`는 기하 검사를 통과했다는 뜻이며 사람의 키포즈 승인 표시는 아니다.
+재구성 도구는 1254×1254 RGBA PNG의 네 627×627 셀을 따로 처리한다. alpha 5% 기준 8방향 연결 성분을 찾아 가장 큰 인물 실루엣에 비해 작은 분리 성분만 제거한다. 두 번째 셀에서 분리된 조각 645px와 작은 투명 배경 파편을 제거했다. 그 밖의 인물 픽셀은 보간 전 각 셀의 실제 alpha 경계 상자에서 가져온다. 네 셀 모두에 동일한 0.998322 비율을 적용하고 셀별로 수평 중앙과 공통 발 기준선에 배치한다. 손·발·포니테일을 경계에서 잘라 여백 검사를 통과시키지 않는다.
 
-## 합성 smoke
+Smoke 결과: 후보 1254×1254, 셀별 alpha 여백 최소 16px, 네 발 기준선 y=610(셀 안 좌표, 편차 0px), 원본 바이트 보존, 두 번째 셀 분리 파편 제거 규칙, 비교판 파일 생성이 통과했다. 이 검사는 시각 승인이나 신체 누락 복원을 뜻하지 않는다.
 
-`tests/player_keypose_pipeline_smoke.gd`는 메모리에서 384×384, 1254×1254, 2048×2048 RGBA fixture를 생성해 검사한다. 입력 부재, 잘못된 차원, 격자 침범, 기준선 오차 실패 코드와 alpha·여백·실제 셀 크기·contact 생성을 확인한다.
+## 남은 시각 검수 사항
 
-```powershell
-godot --headless --path . --script res://tests/player_keypose_pipeline_smoke.gd
-```
+- 두 번째 포즈의 분리된 주먹 조각과 작은 부유 파편은 연결 성분 기준으로 제거됐다.
+- 세 번째 포즈의 원본 alpha 경계가 오른쪽 셀 경계에 닿는다. 재배치 후 후보의 셀 여백은 확보됐지만, 경계 접촉 부근 신체가 원본에서 잘렸는지 여부는 픽셀만으로 복구하거나 승인할 수 없어 미해결로 남긴다.
+- 네 번째 포즈의 원본 alpha가 셀 상단에 닿으며, 올린 손/팔이 원본 경계에서 잘려 있다. 후보는 남아 있는 픽셀을 보존해 옮긴 것이므로 손을 복원하지 않았다. 신체 완전성은 미해결이다.
+- 네 얼굴 정체성, 귀·포니테일, 의상, 해부학, 공격별 실루엣 및 192px 가독성은 담당자의 비교판 시각 검수를 기다린다.
 
-## 현재 승인 상태
+## 게이트 판정
 
-- v8 clean 정지 원화: 본편 적용 승인.
-- 신규 2×2 키포즈 입력: `assets/art/player/elven_fighter_attack_keyposes_v2_1254x1254.png` 제공됨. 자동 검수 실패 (`FOOT_BASELINE_ERROR`, `GRID_INTRUSION`, `ALPHA_MARGIN_ERROR`); 실패 결과를 담은 contact는 `assets/art/review/player_keyposes_v2_contact.png`.
-- 비교 결과: 얼굴 정체성·귀·포니테일·의상은 192px 표시에서도 v8과 대체로 연속성이 보인다. 다만 2번 포즈 아래쪽에 분리된 주먹 조각이 있고, 3번 포즈가 셀 경계에 닿으며, 4번 포즈의 유효 alpha 경계가 셀 좌상단에 닿는다. 네 포즈의 alpha 최하단 편차는 36px로 기본 2px 허용치를 넘는다. 공격 포즈 실루엣의 차이는 읽히지만 경계 침범과 분리된 파편 때문에 현재 시트는 가독성·배치 기준에 부적합하다.
-- 신규 키포즈 및 애니메이션 연결: 미승인. 위 경계·여백·기준선 실패와 담당자 시각 검수가 해결될 때까지 Player 씬 / VisualAnimator / 프레임 애니메이션에 연결하지 않는다.
+relayout 후보의 자동 배치 조건은 통과했다. 원본 경계에 닿은 세 번째 포즈와 잘린 네 번째 포즈의 신체 완전성은 미해결이며 시각 승인도 아직 없다. 따라서 신규 키포즈와 애니메이션 연결은 미승인 상태로 유지한다.

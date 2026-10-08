@@ -1,0 +1,236 @@
+[smoke] Importing project resources
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] Environment warning: ERROR: Cannot save file 'C:/Users/ornit/AppData/Roaming/Godot/editor_settings-4.7.tres'.
+[smoke probe] Environment warning: ERROR: Error saving editor settings to C:/Users/ornit/AppData/Roaming/Godot/editor_settings-4.7.tres
+[smoke probe] PASS
+[smoke] Running movement_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.02.59.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running ground_dust_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.07.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_combat_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.09.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running training_dummy_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.13.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running forest_raider_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.16.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running raider_spacing_stress_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.21.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running raider_visual_animator_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.32.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running combat_hud_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.32.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running stage_tools_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.33.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running stage_integration_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.34.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running game_session_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.34.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running game_session_navigation_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.35.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running game_pause_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.36.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running gamepad_input_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.37.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_keypose_pipeline_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.37.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_keypose_relayout_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.39.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] Final success marker mismatch. Expected: player_keypose_relayout_smoke: all checks passed; last output: player_keypose_relayout_smoke: all checks passed; source-edge clipping remains a visual review issue
+[smoke] FAILED: player_keypose_relayout_smoke
+ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.39.log'.
+   at: copy (core/io/dir_access.cpp:429)
+ERROR: Failed to open log file for writing: user://logs/godot.log
+   at: rotate_file (core/io/logger.cpp:169)
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+PASS: 원본 v2 키포즈 PNG 존재 및 크기
+PASS: relayout 후보가 원본과 같은 1254×1254 캔버스
+PASS: 192px 전후/v8 비교판 생성
+PASS: v2 원본 파일 바이트 보존
+PASS: 네 셀 독립 기하 검사
+PASS: 각 셀 16px 이상 투명 여백과 공통 발 기준선 ±2px
+PASS: 후보 발 기준선 편차 2px 이하
+PASS: 2번 셀의 분리된 작은 주먹 조각/부유 파편 제거 규칙 확인
+PASS: 3번 원본 경계 접촉은 미해결로 검출
+PASS: 4번 원본 경계/잘림은 미해결로 검출
+PASS: 후보와 검토 비교판 파일 저장
+player_keypose_relayout_smoke: all checks passed; source-edge clipping remains a visual review issue
+[smoke] Running player_reference_review_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.40.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running art_review_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.40.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_art_normalize_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.04.00.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] Expected rejected-input diagnostic: ERROR: Condition "!success" is true. Returning: ERR_FILE_CORRUPT
+[smoke probe] Expected rejected-input diagnostic: ERROR: Condition "err" is true. Returning: Ref<Image>()
+[smoke probe] Expected rejected-input diagnostic: ERROR: Condition "image.is_null()" is true. Returning: ERR_PARSE_ERROR
+[smoke probe] PASS
+[smoke] Running player_reference_compare_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.04.02.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_v5_art_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.04.06.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running forest_raider_matte_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.04.29.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] Expected rejected-input diagnostic: ERROR: Condition "!success" is true. Returning: ERR_FILE_CORRUPT
+[smoke probe] Expected rejected-input diagnostic: ERROR: Condition "err" is true. Returning: Ref<Image>()
+[smoke probe] Expected rejected-input diagnostic: ERROR: Condition "image.is_null()" is true. Returning: ERR_PARSE_ERROR
+[smoke probe] PASS
+[smoke] Running player_v5_final_matte_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.04.31.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running forest_raider_final_matte_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.04.43.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] Expected rejected-input diagnostic: ERROR: Condition "!success" is true. Returning: ERR_FILE_CORRUPT
+[smoke probe] Expected rejected-input diagnostic: ERROR: Condition "err" is true. Returning: Ref<Image>()
+[smoke probe] Expected rejected-input diagnostic: ERROR: Condition "image.is_null()" is true. Returning: ERR_PARSE_ERROR
+[smoke probe] PASS
+[smoke] Running player_v6_art_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.04.48.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_v7_ink_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.05.21.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running combat_audio_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.05.37.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running combat_art_overlap_smoke with the window renderer
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.05.38.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running combat_art_candidate_capture_smoke with the window renderer
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.05.39.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running forest_raider_art_integration_smoke with the window renderer
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.05.41.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_art_integration_smoke with the window renderer
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.05.44.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_visual_animator_smoke with the window renderer
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.05.46.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running camera_boundary_window_smoke with the window renderer
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.05.48.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Verifying runner against PASS fixtures
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.06.25.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] Godot error: ERROR: false_pass: intentional runtime failure after the success marker
+[smoke probe] Final success marker mismatch. Expected: false_pass: all checks passed; last output: [0] _initialize (res://tests/fixtures/false_pass.gd:5)
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.06.25.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+Usage: smoke_runner_probe.cmd <log-file> <exit-code> [final-success-marker]
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T07.06.26.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] Process exited with code 1.
+[smoke] FAILED. Diagnostic log: C:\Users\ornit\AppData\Local\Temp\beltscroll_smoke_failure_player_keypose_relayout_smoke_25050.log
+ERROR: Failed to open 'user://logs/godot2026-10-09T07.03.39.log'.
+   at: copy (core/io/dir_access.cpp:429)
+ERROR: Failed to open log file for writing: user://logs/godot.log
+   at: rotate_file (core/io/logger.cpp:169)
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+PASS: 원본 v2 키포즈 PNG 존재 및 크기
+PASS: relayout 후보가 원본과 같은 1254×1254 캔버스
+PASS: 192px 전후/v8 비교판 생성
+PASS: v2 원본 파일 바이트 보존
+PASS: 네 셀 독립 기하 검사
+PASS: 각 셀 16px 이상 투명 여백과 공통 발 기준선 ±2px
+PASS: 후보 발 기준선 편차 2px 이하
+PASS: 2번 셀의 분리된 작은 주먹 조각/부유 파편 제거 규칙 확인
+PASS: 3번 원본 경계 접촉은 미해결로 검출
+PASS: 4번 원본 경계/잘림은 미해결로 검출
+PASS: 후보와 검토 비교판 파일 저장
+player_keypose_relayout_smoke: all checks passed; source-edge clipping remains a visual review issue

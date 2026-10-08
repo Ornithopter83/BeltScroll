@@ -6,6 +6,8 @@ enum ResultState { PLAYING, DEFEAT, VICTORY }
 const EXPECTED_RAIDER_COUNT := 3
 const OVERLAY_LAYER := 20
 const HELP_LAYER := 10
+const TITLE_SCENE := "res://scenes/ui/title_menu.tscn"
+const MAIN_SCENE := "res://scenes/game/main.tscn"
 
 var result_state: ResultState = ResultState.PLAYING
 var result_overlay: CanvasLayer
@@ -14,8 +16,14 @@ var restart_label: Label
 var pause_overlay: CanvasLayer
 var help_panel: PanelContainer
 var _paused := false
+var _transition_pending := false
 var _player: Node
 var _raiders: Array[Node] = []
+var _pause_resume_button: Button
+var _pause_restart_button: Button
+var _pause_title_button: Button
+var _result_restart_button: Button
+var _result_title_button: Button
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -31,7 +39,7 @@ func _ready() -> void:
 	_build_help_overlay()
 
 func _process(_delta: float) -> void:
-	if result_state != ResultState.PLAYING or _paused:
+	if result_state != ResultState.PLAYING or _paused or _transition_pending:
 		return
 	if not is_instance_valid(_player):
 		_player = get_node_or_null("YSortActors/Player")
@@ -45,6 +53,11 @@ func _process(_delta: float) -> void:
 		_finish_session(ResultState.VICTORY)
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _transition_pending:
+		var pending_viewport := get_viewport()
+		if pending_viewport != null:
+			pending_viewport.set_input_as_handled()
+		return
 	if result_state == ResultState.PLAYING and event.is_action_pressed("pause"):
 		_set_paused(not _paused)
 		var viewport := get_viewport()
@@ -57,14 +70,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		if viewport != null:
 			viewport.set_input_as_handled()
 		return
-	if result_state != ResultState.PLAYING and event.is_action_pressed("restart"):
+	if not _transition_pending and result_state != ResultState.PLAYING and event.is_action_pressed("restart"):
 		_restart_session()
 		var viewport := get_viewport()
 		if viewport != null:
 			viewport.set_input_as_handled()
 
 func _set_paused(paused: bool) -> void:
-	if result_state != ResultState.PLAYING or _paused == paused:
+	if result_state != ResultState.PLAYING or _paused == paused or _transition_pending:
 		return
 	_paused = paused
 	if paused:
@@ -72,6 +85,7 @@ func _set_paused(paused: bool) -> void:
 		Engine.time_scale = 1.0
 		pause_overlay.visible = true
 		get_tree().paused = true
+		_pause_resume_button.grab_focus.call_deferred()
 	else:
 		get_tree().paused = false
 		pause_overlay.visible = false
@@ -83,7 +97,7 @@ func _cancel_hit_stop_for_pause() -> void:
 		_player.set("_saved_time_scale", 1.0)
 
 func _finish_session(result: ResultState) -> void:
-	if result_state != ResultState.PLAYING:
+	if result_state != ResultState.PLAYING or _transition_pending:
 		return
 	if result != ResultState.DEFEAT and result != ResultState.VICTORY:
 		return
@@ -97,6 +111,7 @@ func _finish_session(result: ResultState) -> void:
 	_set_combat_active(false)
 	result_label.text = "DEFEAT" if result == ResultState.DEFEAT else "VICTORY"
 	result_overlay.visible = true
+	_result_restart_button.grab_focus.call_deferred()
 
 func _clear_combat_impacts() -> void:
 	for impact in get_tree().get_nodes_in_group("combat_impacts"):
@@ -138,10 +153,34 @@ func _cancel_raider_attack(raider: Node) -> void:
 		attack_flash.visible = false
 
 func _restart_session() -> void:
+	if _transition_pending or not is_inside_tree():
+		return
+	_transition_pending = true
 	_paused = false
-	get_tree().paused = false
+	_set_combat_active(false)
+	_restore_global_combat_state()
+	get_tree().call_deferred("reload_current_scene")
+
+func _return_to_title() -> void:
+	if _transition_pending or not is_inside_tree():
+		return
+	_transition_pending = true
+	_paused = false
+	_set_combat_active(false)
+	_restore_global_combat_state()
+	get_tree().call_deferred("change_scene_to_file", TITLE_SCENE)
+
+func _restore_global_combat_state() -> void:
+	var tree := get_tree()
+	if tree != null:
+		tree.paused = false
 	Engine.time_scale = 1.0
-	get_tree().reload_current_scene()
+	_cancel_hit_stop_for_pause()
+	if is_instance_valid(_player):
+		_player.set("_saved_time_scale", 1.0)
+	var combat_audio := get_node_or_null("CombatAudio")
+	if is_instance_valid(combat_audio) and combat_audio.has_method("stop_all"):
+		combat_audio.call("stop_all")
 
 func _build_pause_overlay() -> void:
 	pause_overlay = CanvasLayer.new()
@@ -161,22 +200,55 @@ func _build_pause_overlay() -> void:
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pause_overlay.add_child(center)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(380.0, 150.0)
+	panel.custom_minimum_size = Vector2(500.0, 360.0)
 	center.add_child(panel)
 	var layout := VBoxContainer.new()
 	layout.alignment = BoxContainer.ALIGNMENT_CENTER
-	layout.add_theme_constant_override("separation", 14)
+	layout.add_theme_constant_override("separation", 10)
 	panel.add_child(layout)
 	var title := Label.new()
 	title.text = "일시정지"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 34)
 	layout.add_child(title)
-	var resume := Label.new()
-	resume.text = "ESC / Start 버튼을 눌러 계속하기"
-	resume.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	resume.add_theme_font_size_override("font_size", 18)
-	layout.add_child(resume)
+	_pause_resume_button = _make_menu_button("계속하기")
+	_pause_resume_button.name = "ResumeButton"
+	_pause_resume_button.pressed.connect(_on_resume_pressed)
+	layout.add_child(_pause_resume_button)
+	_pause_restart_button = _make_menu_button("재시작")
+	_pause_restart_button.name = "RestartButton"
+	_pause_restart_button.pressed.connect(_restart_session)
+	layout.add_child(_pause_restart_button)
+	_pause_title_button = _make_menu_button("타이틀로 돌아가기")
+	_pause_title_button.name = "TitleButton"
+	_pause_title_button.pressed.connect(_return_to_title)
+	layout.add_child(_pause_title_button)
+
+func _on_resume_pressed() -> void:
+	_set_paused(false)
+
+func _make_menu_button(caption: String) -> Button:
+	var button := Button.new()
+	button.text = caption
+	button.custom_minimum_size = Vector2(390.0, 52.0)
+	button.focus_mode = Control.FOCUS_ALL
+	button.add_theme_font_size_override("font_size", 20)
+	button.add_theme_color_override("font_color", Color(0.94, 0.93, 0.84, 1.0))
+	button.add_theme_color_override("font_hover_color", Color.WHITE)
+	button.add_theme_color_override("font_focus_color", Color(0.94, 0.93, 0.84, 1.0))
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.035, 0.085, 0.073, 0.96)
+	normal.border_color = Color(0.78, 0.72, 0.42, 0.8)
+	normal.set_border_width_all(1)
+	normal.set_corner_radius_all(5)
+	button.add_theme_stylebox_override("normal", normal)
+	var hover := normal.duplicate() as StyleBoxFlat
+	hover.bg_color = Color(0.10, 0.20, 0.16, 1.0)
+	hover.border_color = Color(0.47, 0.73, 0.65, 1.0)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("focus", hover)
+	button.add_theme_stylebox_override("pressed", hover)
+	return button
 
 func _build_help_overlay() -> void:
 	var help_layer := CanvasLayer.new()
@@ -230,7 +302,7 @@ func _build_result_overlay() -> void:
 
 	var panel := PanelContainer.new()
 	panel.name = "ResultPanel"
-	panel.custom_minimum_size = Vector2(480.0, 220.0)
+	panel.custom_minimum_size = Vector2(560.0, 330.0)
 	var panel_style := StyleBoxFlat.new()
 	panel_style.bg_color = Color(0.035, 0.075, 0.065, 0.97)
 	panel_style.border_color = Color(0.78, 0.72, 0.42, 0.9)
@@ -258,8 +330,16 @@ func _build_result_overlay() -> void:
 
 	restart_label = Label.new()
 	restart_label.name = "RestartLabel"
-	restart_label.text = "R 키 / 북쪽 버튼을 눌러 다시 시작"
+	restart_label.text = "R 키 / 북쪽 버튼으로 재시작할 수 있습니다"
 	restart_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	restart_label.add_theme_font_size_override("font_size", 20)
 	restart_label.add_theme_color_override("font_color", Color(0.78, 0.72, 0.42, 1.0))
 	layout.add_child(restart_label)
+	_result_restart_button = _make_menu_button("재도전")
+	_result_restart_button.name = "RetryButton"
+	_result_restart_button.pressed.connect(_restart_session)
+	layout.add_child(_result_restart_button)
+	_result_title_button = _make_menu_button("타이틀로 돌아가기")
+	_result_title_button.name = "TitleButton"
+	_result_title_button.pressed.connect(_return_to_title)
+	layout.add_child(_result_title_button)

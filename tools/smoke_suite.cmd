@@ -40,9 +40,11 @@ call :run_smoke combat_hud_smoke
 call :run_smoke stage_tools_smoke
 call :run_smoke stage_integration_smoke
 call :run_smoke game_session_smoke
+call :run_smoke game_session_navigation_smoke
 call :run_smoke game_pause_smoke
 call :run_smoke gamepad_input_smoke
 call :run_smoke player_keypose_pipeline_smoke
+call :run_smoke player_keypose_relayout_smoke
 call :run_smoke player_reference_review_smoke
 call :run_smoke art_review_smoke
 call :run_smoke player_art_normalize_smoke
@@ -87,6 +89,7 @@ if /I "%SMOKE_NAME%"=="player_v5_final_matte_smoke" (
 if /I "%SMOKE_NAME%"=="forest_raider_final_matte_smoke" set "ALLOW_MODE=png-negative"
 if /I "%SMOKE_NAME%"=="player_v6_art_smoke" set "SUCCESS_MARKER=player_v6_art_smoke: all checks passed; visual approval pending."
 if /I "%SMOKE_NAME%"=="player_v7_ink_smoke" set "SUCCESS_MARKER=player_v7_ink_smoke: all checks passed; visual approval pending."
+if /I "%SMOKE_NAME%"=="player_keypose_relayout_smoke" set "SUCCESS_MARKER=player_keypose_relayout_smoke: all checks passed; source-edge clipping remains a visual review issue"
 call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SUCCESS_MARKER%" "%ALLOW_MODE%"
 if errorlevel 1 (
     set "SUITE_FAILED=1"
