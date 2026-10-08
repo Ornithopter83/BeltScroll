@@ -25,7 +25,10 @@ extends CharacterBody2D
 const BODY_HALF_WIDTH := 15.0
 const BODY_TOP_OFFSET := -43.0
 const BODY_BOTTOM_OFFSET := 2.0
-const MIN_ATTACK_SEPARATION := 36.0
+const SPACING_TARGET := 48.0
+const SPACING_ENTER_RADIUS := 54.0
+const SPACING_EXIT_RADIUS := 62.0
+const SPACING_ESCAPE_SPEED := 36.0
 const HIT_COLOR := Color(1.0, 0.78, 0.58, 1.0)
 const KNOCKED_OUT_COLOR := Color(0.62, 0.62, 0.62, 0.78)
 
@@ -36,6 +39,7 @@ var hitstun_remaining := 0.0
 var hit_flash_remaining := 0.0
 var facing_direction := Vector2.LEFT
 var _hit_targets: Dictionary = {}
+var _spacing_engaged := false
 
 func _ready() -> void:
 	collision_layer = 2
@@ -60,6 +64,7 @@ func _physics_process(delta: float) -> void:
 		velocity = velocity.move_toward(Vector2.ZERO, 760.0 * delta)
 		move_and_slide()
 		_apply_arena_bounds()
+		_enforce_nearby_raider_spacing(delta)
 		if hitstun_remaining == 0.0:
 			velocity = Vector2.ZERO
 		return
@@ -82,16 +87,17 @@ func _physics_process(delta: float) -> void:
 
 	match attack_phase:
 		"idle":
-			var close_raider := _has_close_raider()
-			if offset.length() <= attack_range and in_depth_lane and not close_raider:
+			var desired := offset.normalized() * walk_speed
+			if absf(offset.x) < attack_range * 0.82 and not in_depth_lane:
+				desired.x = 0.0
+			var spacing := _spacing_adjustment(desired)
+			if offset.length() <= attack_range and in_depth_lane and spacing.minimum_gap >= SPACING_TARGET:
 				_begin_attack()
 			else:
-				var desired := offset.normalized() * walk_speed
-				velocity = _separation_velocity() if close_raider else desired
-				if absf(offset.x) < attack_range * 0.82 and not in_depth_lane:
-					velocity.x = 0.0
+				velocity = spacing.velocity
 				move_and_slide()
 				_apply_arena_bounds()
+				_enforce_nearby_raider_spacing(delta)
 				return
 		"windup":
 			velocity = Vector2.ZERO
@@ -127,6 +133,7 @@ func _physics_process(delta: float) -> void:
 				attack_phase = "idle"
 	move_and_slide()
 	_apply_arena_bounds()
+	_enforce_nearby_raider_spacing(delta)
 
 func _begin_attack() -> void:
 	attack_phase = "windup"
@@ -166,42 +173,38 @@ func _on_attack_body_entered(target: Node2D) -> void:
 		"hit_stun": attack_hit_stun,
 		"attack_stage": 1,
 	})
-
-func _separation_velocity() -> Vector2:
-	var separation := Vector2.ZERO
+func _spacing_adjustment(desired: Vector2) -> Dictionary:
+	var adjusted := desired
+	var was_engaged := _spacing_engaged
+	var remains_engaged := false
+	var minimum_gap := INF
+	var enter_radius := maxf(SPACING_ENTER_RADIUS, separation_radius)
+	var exit_radius := maxf(SPACING_EXIT_RADIUS, enter_radius + 8.0)
+	var escape_speed := maxf(SPACING_ESCAPE_SPEED, separation_strength * 0.4)
 	for candidate in get_tree().get_nodes_in_group("forest_raiders"):
 		var other := candidate as Node2D
-		if other == self or not is_instance_valid(other):
-			continue
-		if int(other.get("health")) <= 0:
+		if other == self or not is_instance_valid(other) or int(other.get("health")) <= 0:
 			continue
 		var away: Vector2 = global_position - other.global_position
-		var distance: float = away.length()
-		if distance < separation_radius:
-			if distance <= 0.001:
-				away = _coincident_separation_direction(other)
-			else:
-				away /= distance
-			var player := _find_player()
-			if player != null:
-				var toward_player := (player.global_position - global_position).normalized()
-				if away.dot(toward_player) > 0.65:
-					away = Vector2(-toward_player.y, toward_player.x)
-					if get_instance_id() > other.get_instance_id():
-						away = -away
-			separation += away * ((separation_radius - distance) / separation_radius)
-	return separation * separation_strength
+		var distance := away.length()
+		minimum_gap = minf(minimum_gap, distance)
+		var active_radius := exit_radius if was_engaged else enter_radius
+		if distance >= active_radius:
+			continue
+		remains_engaged = true
+		if distance < SPACING_TARGET:
+			away = _coincident_separation_direction(other)
+		else:
+			away /= distance
 
-func _has_close_raider() -> bool:
-	for candidate in get_tree().get_nodes_in_group("forest_raiders"):
-		var other := candidate as Node2D
-		if other == self or not is_instance_valid(other):
-			continue
-		if int(other.get("health")) <= 0:
-			continue
-		if global_position.distance_to(other.global_position) < minf(separation_radius, MIN_ATTACK_SEPARATION):
-			return true
-	return false
+		# Remove any steering component that closes this pair. Below the target
+		# gap, add an outward component so coincident groups split promptly.
+		var inward_speed := adjusted.dot(-away)
+		var outward_speed := escape_speed if distance < SPACING_TARGET else 0.0
+		var correction := maxf(0.0, inward_speed + outward_speed)
+		adjusted += away * correction
+	_spacing_engaged = remains_engaged
+	return {"velocity": adjusted.limit_length(walk_speed), "minimum_gap": minimum_gap}
 
 func _coincident_separation_direction(other: Node2D) -> Vector2:
 	var self_id := get_instance_id()
@@ -212,6 +215,55 @@ func _coincident_separation_direction(other: Node2D) -> Vector2:
 	var angle := float(pair_seed) / 2147483647.0 * TAU
 	var direction := Vector2(cos(angle), sin(angle))
 	return direction if self_id == lower_id else -direction
+
+func _enforce_nearby_raider_spacing(delta: float) -> void:
+	# Steering alone can be clipped by arena bounds when several Raiders start
+	# together. Resolve a small pairwise positional correction after movement so
+	# every live Raider gets a clear escape path without changing collision masks.
+	var live_raiders: Array[Node2D] = []
+	for candidate in get_tree().get_nodes_in_group("forest_raiders"):
+		var raider := candidate as Node2D
+		if raider != null and is_instance_valid(raider) and raider != self and int(raider.get("health")) > 0:
+			live_raiders.append(raider)
+	var max_step := SPACING_ESCAPE_SPEED * delta
+	for _iteration in range(2):
+		for other in live_raiders:
+			var away := global_position - other.global_position
+			var distance := away.length()
+			if distance >= SPACING_TARGET:
+				continue
+			if distance <= 0.001:
+				away = _coincident_separation_direction(other)
+			else:
+				away /= distance
+			var step := minf(max_step, (SPACING_TARGET - distance) * 0.5)
+			var best_self := global_position
+			var best_other := other.global_position
+			var best_gap := distance
+			var other_body := other as CharacterBody2D
+			if other_body == null:
+				continue
+			for direction_index in range(16):
+				var direction := away.rotated(TAU * float(direction_index) / 16.0)
+				var candidate_self := _clamp_to_arena(global_position + direction * step)
+				var candidate_other := _clamp_to_arena(other.global_position - direction * step)
+				if test_move(global_transform, candidate_self - global_position) \
+						or other_body.test_move(other_body.global_transform, candidate_other - other_body.global_position):
+					continue
+				var candidate_gap := candidate_self.distance_to(candidate_other)
+				if candidate_gap > best_gap:
+					best_gap = candidate_gap
+					best_self = candidate_self
+					best_other = candidate_other
+			if best_gap > distance:
+				global_position = best_self
+				other.global_position = best_other
+
+func _clamp_to_arena(position: Vector2) -> Vector2:
+	return Vector2(
+		clampf(position.x, arena_bounds.position.x + BODY_HALF_WIDTH, arena_bounds.end.x - BODY_HALF_WIDTH),
+		clampf(position.y, arena_bounds.position.y - BODY_TOP_OFFSET, arena_bounds.end.y - BODY_BOTTOM_OFFSET)
+	)
 
 func _find_player() -> CharacterBody2D:
 	var grouped := get_tree().get_first_node_in_group("player") as CharacterBody2D

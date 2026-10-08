@@ -33,6 +33,7 @@ call :run_smoke movement_smoke
 call :run_smoke player_combat_smoke
 call :run_smoke training_dummy_smoke
 call :run_smoke forest_raider_smoke
+call :run_smoke raider_spacing_stress_smoke
 call :run_smoke raider_visual_animator_smoke
 call :run_smoke combat_hud_smoke
 call :run_smoke stage_tools_smoke
