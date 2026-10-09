@@ -5,6 +5,7 @@ const PLAYER_SCENE := "res://scenes/player/player.tscn"
 class SkillReceiver:
 	extends StaticBody2D
 	var received_hits: Array[Dictionary] = []
+	var impact_observations: Dictionary = {}
 
 	func _init() -> void:
 		collision_layer = 2
@@ -18,6 +19,18 @@ class SkillReceiver:
 
 	func receive_hit(hit: Dictionary) -> void:
 		received_hits.append(hit.duplicate())
+		call_deferred("_observe_impact", int(hit.get("skill_id", 0)))
+
+	func _observe_impact(selected_skill: int) -> void:
+		for child in get_children():
+			if child.name == "CombatImpact" and int(child.get("skill_id")) == selected_skill:
+				impact_observations[selected_skill] = {
+					"color": child.get("impact_color"),
+					"radius": child.get("arc_radius"),
+					"width": child.get("arc_width"),
+					"shards": child.get("shard_count"),
+					"lifetime": child.get("lifetime"),
+				}
 
 var failures: Array[String] = []
 var player: CharacterBody2D
@@ -51,6 +64,7 @@ func _run() -> void:
 	await _wait_for_skill_phase("active", 1)
 	await _wait_for_skill_phase("recovery", 1)
 	_check(dash_target.received_hits.size() == 1, "forward dash area hits its target exactly once")
+	_check(dash_target.impact_observations.has(1), "Num4 hit spawns its dedicated impact profile")
 	_check(skill_recoil_observations.get(1, false), "skill 1 hit briefly recoils the attacker opposite its lunge")
 	_check(dash_decoy.received_hits.is_empty(), "forward dash lane rejects targets outside its depth")
 	_check(dash_far_decoy.received_hits.is_empty(), "forward dash rejects targets beyond its reach")
@@ -58,6 +72,9 @@ func _run() -> void:
 		var hit: Dictionary = dash_target.received_hits[0]
 		_check(hit.get("skill_id") == 1 and hit.get("damage") == 3, "skill 1 has independent heavy damage metadata")
 		_check(hit.get("knockback", 0.0) == 520.0 and hit.get("hit_stun", 0.0) == 0.42, "skill 1 carries its own knockback and hit stun")
+		if dash_target.impact_observations.has(1):
+			var impact: Dictionary = dash_target.impact_observations[1]
+			_check(impact["color"] == Color(0.35, 0.94, 1.0, 1.0) and impact["shards"] >= 7, "Num4 impact uses a cyan dash burst with directional fragments")
 	_check(player.get("skill_cooldowns")[0] > 0.0, "skill 1 starts its own cooldown")
 	_check(player.get_node("Hitboxes/Skill1Hitbox").monitoring == false, "skill 1 hitbox turns off after active phase")
 	await _wait_for_idle()
@@ -74,6 +91,7 @@ func _run() -> void:
 	await _wait_for_skill_phase("active", 2)
 	await _wait_for_skill_phase("recovery", 2)
 	_check(spin_target.received_hits.size() == 1 and spin_edge.received_hits.size() == 1, "spin area reaches targets inside its radius")
+	_check(spin_target.impact_observations.has(2) and spin_edge.impact_observations.has(2), "Num5 hits spawn their dedicated impact profile once per target")
 	_check(skill_recoil_observations.get(2, false), "skill 2 hit briefly recoils the attacker")
 	_check(spin_decoy.received_hits.is_empty(), "spin area rejects targets outside its radius")
 	_check(spin_far_decoy.received_hits.is_empty(), "spin area rejects targets beyond its radius")
@@ -81,6 +99,9 @@ func _run() -> void:
 		var hit: Dictionary = spin_target.received_hits[0]
 		_check(hit.get("skill_id") == 2 and hit.get("damage") == 2, "skill 2 has separate damage metadata")
 		_check(hit.get("knockback", 0.0) == 360.0 and hit.get("hit_stun", 0.0) == 0.32, "skill 2 carries its own knockback and hit stun")
+		if spin_target.impact_observations.has(2):
+			var impact: Dictionary = spin_target.impact_observations[2]
+			_check(impact["color"] == Color(0.88, 0.48, 1.0, 1.0) and impact["width"] < 5.0, "Num5 impact uses a lighter violet radial burst distinct from Num4")
 	_check(player.get("skill_cooldowns")[1] > 0.0, "skill 2 starts its own cooldown")
 	_check(player.get_node("Hitboxes/Skill2Hitbox").monitoring == false, "skill 2 hitbox turns off after active phase")
 

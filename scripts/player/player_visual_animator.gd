@@ -1,6 +1,8 @@
 extends Node
 """Sprite-only pose layer driven by the owning Player's existing state."""
 
+const ANIMATION_BANK_SCRIPT := preload("res://scripts/player/player_animation_bank.gd")
+
 const FOLLOW_SPEED := 16.0
 const WALK_SPEED_REFERENCE := 280.0
 const HIT_FLASH_DURATION := 0.12
@@ -28,6 +30,7 @@ var _animation_state := "idle"
 var _state_elapsed := 0.0
 var _state_frame := 0
 var _state_frame_count := 1
+var _animation_bank: RefCounted
 
 ## These timing tables drive temporary transform poses only. They do not claim
 ## that missing walk/jump/hit/landing art has been approved as sprite frames.
@@ -54,6 +57,8 @@ const TEMPORARY_STATE_DURATIONS := {
 }
 
 func _ready() -> void:
+	_animation_bank = ANIMATION_BANK_SCRIPT.new()
+	_animation_bank.load_and_register(pose_blender)
 	if art == null or art.texture == null:
 		return
 	_base_position = art.position
@@ -327,7 +332,11 @@ func _attack_phase_progress(index: int, phase: String, remaining: float) -> floa
 	return clampf((duration - remaining) / duration, 0.0, 1.0)
 
 func _attack_phase_duration(index: int, phase: String) -> float:
-	return ATTACK_STARTUP[index] if phase == "startup" else (ATTACK_ACTIVE[index] if phase == "active" else ATTACK_RECOVERY[index])
+	var fallback: float = ATTACK_STARTUP[index] if phase == "startup" else (ATTACK_ACTIVE[index] if phase == "active" else ATTACK_RECOVERY[index])
+	if _animation_bank == null:
+		return fallback
+	var bank_phase := "contact" if phase == "active" else phase
+	return _animation_bank.get_phase_duration("attack%d" % (index + 1), bank_phase, fallback)
 
 func _ease_in_out(value: float) -> float:
 	var t := clampf(value, 0.0, 1.0)

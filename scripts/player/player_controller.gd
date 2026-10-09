@@ -407,7 +407,7 @@ func _check_skill_hitbox() -> void:
 		})
 		_start_attack_recoil(direction, SKILL_RECOIL_DURATION, SKILL_RECOIL_SPEED)
 		skill_hit.emit(skill_id)
-		_spawn_combat_impact(target, combat_stage, direction)
+		_spawn_combat_impact(target, combat_stage, direction, skill_id, SKILL_HIT_STUN[skill_id - 1])
 		_trigger_hit_stop(0.06 if skill_id == 1 else 0.045)
 		_add_camera_trauma(0.32 if skill_id == 1 else 0.24)
 
@@ -450,7 +450,7 @@ func _check_stage_hitbox(stage: int) -> void:
 		if not _attack_hit_emitted:
 			_attack_hit_emitted = true
 			attack_hit.emit(stage)
-		_spawn_combat_impact(target, stage, direction)
+		_spawn_combat_impact(target, stage, direction, 0, float(hit["hit_stun"]))
 		_trigger_hit_stop(HIT_STOP[stage - 1])
 		_add_camera_trauma(CAMERA_TRAUMA[stage - 1])
 
@@ -471,19 +471,34 @@ func _start_attack_recoil(hit_direction: Vector2, duration: float, speed: float)
 	attack_recoil_remaining = maxf(attack_recoil_remaining, duration)
 	attack_recoil_velocity = recoil_direction * speed
 
-func _spawn_combat_impact(target: Node2D, stage: int, direction: Vector2) -> void:
+func _spawn_combat_impact(target: Node2D, stage: int, direction: Vector2, selected_skill: int = 0, hit_stun: float = 0.2) -> void:
 	if is_ko or not is_instance_valid(target) or not target.is_inside_tree():
+		return
+	if target.is_queued_for_deletion():
 		return
 	var impact := COMBAT_IMPACT_SCENE.instantiate() as Node2D
 	if impact == null:
 		return
 	target.add_child(impact)
-	impact.global_position = target.global_position + Vector2(0.0, -20.0)
-	impact.configure(stage, direction)
+	impact.global_position = _combat_impact_position(target)
+	impact.configure(stage, direction, selected_skill, hit_stun)
 	for index in range(_combat_impacts.size() - 1, -1, -1):
 		if not is_instance_valid(_combat_impacts[index]):
 			_combat_impacts.remove_at(index)
 	_combat_impacts.append(impact)
+
+func _combat_impact_position(target: Node2D) -> Vector2:
+	for path in ["VisualRoot/RaiderArt", "VisualRoot/PlayerArt", "VisualRoot/Body"]:
+		var visual := target.get_node_or_null(path) as Node2D
+		if visual != null:
+			return visual.global_position
+	var receive_area := target.get_node_or_null("ReceiveArea") as Node2D
+	if receive_area != null:
+		return receive_area.global_position
+	var visual_root_node := target.get_node_or_null("VisualRoot") as Node2D
+	if visual_root_node != null:
+		return visual_root_node.global_position
+	return target.global_position + Vector2(0.0, -20.0)
 
 func _clear_combat_impacts() -> void:
 	for impact in _combat_impacts:

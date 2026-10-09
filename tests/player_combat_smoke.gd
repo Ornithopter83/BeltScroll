@@ -7,6 +7,7 @@ class HitReceiver:
 	extends StaticBody2D
 	var received_hits: Array[Dictionary] = []
 	var impact_stage_observations: Array[int] = []
+	var impact_style_observations: Array[Dictionary] = []
 	var duplicate_impact_observation := false
 	var impact_position_mismatch := false
 
@@ -31,6 +32,13 @@ class HitReceiver:
 				effect_count += 1
 				if int(child.get("attack_stage")) == stage:
 					impact_stage_observations.append(stage)
+					impact_style_observations.append({
+						"stage": stage,
+						"color": child.get("impact_color"),
+						"radius": child.get("arc_radius"),
+						"shards": child.get("shard_count"),
+						"lifetime": child.get("lifetime"),
+					})
 					impact_position_mismatch = impact_position_mismatch or child.global_position.distance_to(global_position + Vector2(0.0, -20.0)) > 0.1
 		duplicate_impact_observation = duplicate_impact_observation or effect_count > 1
 
@@ -106,6 +114,14 @@ func _run() -> void:
 				observed_stages.append(stage)
 		duplicate_impacts = duplicate_impacts or receiver.duplicate_impact_observation
 	_check(observed_stages.has(1) and observed_stages.has(2) and observed_stages.has(3), "actual stage hits spawn their matching impact effect")
+	var styles_by_stage: Dictionary = {}
+	for receiver in receivers:
+		for style in receiver.impact_style_observations:
+			styles_by_stage[int(style["stage"])] = style
+	_check(styles_by_stage.size() == 3, "each actual combo hit exposes its impact profile")
+	if styles_by_stage.size() == 3:
+		_check(styles_by_stage[1]["color"] != styles_by_stage[2]["color"] and styles_by_stage[2]["color"] != styles_by_stage[3]["color"], "ordinary hit and finisher use visibly different colors")
+		_check(styles_by_stage[1]["radius"] < styles_by_stage[3]["radius"] and styles_by_stage[1]["shards"] < styles_by_stage[3]["shards"], "finisher has a wider burst and more directional fragments")
 	_check(not duplicate_impacts, "a receiver never gets duplicate impacts from one hit callback")
 	_check(receivers.all(func(receiver: HitReceiver) -> bool: return not receiver.impact_position_mismatch), "impact effects align to the receiver depth and torso position")
 	_check(damage_by_stage[1] < damage_by_stage[2] and damage_by_stage[2] < damage_by_stage[3], "combo damage scales upward")
@@ -174,10 +190,13 @@ func _run() -> void:
 	player.call("_request_skill", 2)
 	player.set("skill_phase", "active")
 	player.call("_set_skill_hitboxes", true)
+	player.call("_spawn_combat_impact", receivers[0], 3, Vector2.RIGHT, 1, 0.42)
+	var active_impact: Node2D = player.get("_combat_impacts").back()
 	var floor_position := player.global_position
 	player.receive_hit({"damage": 99, "direction": Vector2.LEFT, "knockback": 500.0, "hit_stun": 0.2, "attack_stage": 3})
 	_check(player.get("health") == 0 and player.get("is_ko"), "lethal damage enters the terminal KO state")
 	_check(player.get("attack_phase") == "idle" and player.get("attack_stage") == 0 and player.get("skill_phase") == "idle", "KO cancels combo and skill states")
+	_check(is_instance_valid(active_impact) and active_impact.is_queued_for_deletion(), "player KO clears active combat impacts")
 	var hitboxes_off := true
 	for index in range(1, 4):
 		hitboxes_off = hitboxes_off and not player.get_node("Hitboxes/Hitbox%d" % index).monitoring

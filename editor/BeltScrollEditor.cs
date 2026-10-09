@@ -56,6 +56,14 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        int animationAcceptance = Array.FindIndex(args, a => a.Equals("--animation-gui-acceptance", StringComparison.OrdinalIgnoreCase));
+        if (animationAcceptance >= 0 && animationAcceptance + 1 < args.Length)
+        {
+            ApplicationConfiguration.Initialize();
+            using var workspace = new AnimationWorkspaceForm(Path.GetFullPath(args[animationAcceptance + 1]));
+            Application.Run(workspace);
+            return workspace.ExitCode;
+        }
         if (args.Any(a => a.Equals("--self-test", StringComparison.OrdinalIgnoreCase)))
         {
             try { SelfTest(); Console.WriteLine("BeltScrollEditor self-test passed."); return 0; }
@@ -165,7 +173,7 @@ internal sealed class EditorForm : Form
         left.Controls.Add(actions, 0, 2); root.Controls.Add(left, 0, 0); root.Controls.Add(fields, 1, 0);
         var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 }; footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.Controls.Add(status, 0, 0); var fileButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
-        foreach (var (label, action) in new (string label, Action action)[] { ("저장", Save), ("불러오기", LoadFile), ("다른 이름으로 저장", SaveAs) })
+        foreach (var (label, action) in new (string label, Action action)[] { ("아트·애니메이션 작업공간", OpenAnimationWorkspace), ("저장", Save), ("불러오기", LoadFile), ("다른 이름으로 저장", SaveAs) })
         { var b = new Button { Text = label, AutoSize = true }; b.Click += (_, _) => action(); fileButtons.Controls.Add(b); }
         footer.Controls.Add(fileButtons, 1, 0); root.Controls.Add(footer, 0, 1); root.SetColumnSpan(footer, 2); Controls.Add(root);
         category.SelectedIndexChanged += (_, _) => RefreshList(); items.SelectedIndexChanged += (_, _) => SelectItem();
@@ -262,6 +270,12 @@ internal sealed class EditorForm : Form
         if (!File.Exists(currentPath)) { status.Text = $"새 문서: {currentPath}"; return; }
         try { LoadPath(currentPath); status.Text = $"불러옴: {currentPath}"; }
         catch (Exception ex) { status.Text = $"기존 파일을 적용하지 않았습니다: {ex.Message}"; }
+    }
+
+    private void OpenAnimationWorkspace()
+    {
+        using var workspace = new AnimationWorkspaceForm();
+        workspace.ShowDialog(this);
     }
     private void LoadPath(string path)
     {

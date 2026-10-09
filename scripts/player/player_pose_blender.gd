@@ -16,6 +16,7 @@ const PHASES := ["startup", "inbetween", "contact", "recovery"]
 
 var _sprites: Array[Sprite2D] = []
 var _bounds_cache: Dictionary = {}
+var _anchor_overrides: Dictionary = {}
 var _approved_textures: Dictionary = {}
 var _registered_frames: Dictionary = {}
 var _current_key := "idle"
@@ -90,7 +91,7 @@ func approve_pose_texture(action: String, phase: String, texture_source: Variant
 
 ## Adds a reviewed frame to a phase. This is explicit registration: files in
 ## candidate directories are never scanned or loaded automatically.
-func register_pose_frame(action: String, phase: String, texture_source: Variant, duration: float, art_status := "approved frame", label := "") -> bool:
+func register_pose_frame(action: String, phase: String, texture_source: Variant, duration: float, art_status := "approved frame", label := "", foot_anchor := Vector2(-1.0, -1.0), replace_existing := false) -> bool:
 	var key := _pose_key(action, phase)
 	if key.is_empty() or duration <= 0.0 or art_status.begins_with("approved") == false:
 		return false
@@ -101,12 +102,16 @@ func register_pose_frame(action: String, phase: String, texture_source: Variant,
 		texture = load(texture_source) as Texture2D
 	if not _texture_is_usable(texture):
 		return false
-	if not _registered_frames.has(key):
+	if replace_existing or not _registered_frames.has(key):
 		_registered_frames[key] = []
 	var frames: Array = _registered_frames[key]
 	frames.append({"texture": texture, "duration": duration, "status": art_status, "label": label if not label.is_empty() else phase})
 	_registered_frames[key] = frames
 	_approved_textures[key] = texture
+	if foot_anchor.x >= 0.0 and foot_anchor.y >= 0.0 and foot_anchor.x <= 1.0 and foot_anchor.y <= 1.0:
+		_anchor_overrides[texture.get_instance_id()] = foot_anchor
+	else:
+		_anchor_overrides.erase(texture.get_instance_id())
 	return true
 
 ## action is idle, attack1, attack2, or attack3. Attack phases are startup,
@@ -441,10 +446,14 @@ func _place_sprite(sprite: Sprite2D) -> void:
 	if bounds.size.x <= 0 or bounds.size.y <= 0:
 		sprite.visible = false
 		return
-	var foot_x := float(bounds.position.x) + float(bounds.size.x) * 0.5
+	var anchor: Vector2 = _anchor_overrides.get(key, Vector2(-1.0, -1.0))
+	var foot := Vector2(float(bounds.position.x) + float(bounds.size.x) * 0.5, float(bounds.end.y))
+	if anchor.x >= 0.0 and anchor.y >= 0.0:
+		foot = Vector2(anchor.x * sprite.texture.get_width(), anchor.y * sprite.texture.get_height())
+	var foot_x := foot.x
 	if _facing_left:
 		foot_x = float(sprite.texture.get_width()) - foot_x
-	var foot_from_center := (Vector2(foot_x, float(bounds.end.y)) - Vector2(sprite.texture.get_size()) * 0.5) * sprite.scale
+	var foot_from_center := (Vector2(foot_x, foot.y) - Vector2(sprite.texture.get_size()) * 0.5) * sprite.scale
 	sprite.position = common_foot_anchor - foot_from_center
 
 func _transitioning_index() -> int:
