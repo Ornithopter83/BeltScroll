@@ -109,15 +109,16 @@ func _run() -> void:
 	_check(not first_blender.visible and players[0].get_node("VisualRoot/PlayerArt").visible, "hitstun interrupts the blender and restores PlayerArt without double rendering")
 	players[0].set("hitstun_remaining", 0.0)
 	_configure_attack(players[0], 1, "active")
+	players[0].set("facing_direction", Vector2.LEFT)
 	animators[0].call("_process", 1.0 / 60.0)
-	players[0].get_node("VisualRoot").scale.x = -1.0
-	animators[0].call("_process", 1.0 / 60.0)
-	_check(players[0].get_node("VisualRoot").scale.x < 0.0 and not (first_blender.get_child(0) as Sprite2D).flip_h, "left-facing approved pose inherits exactly one visual-root mirror")
+	var first_contact_sprite := first_blender.get_child(0) as Sprite2D
+	_check(players[0].get_node("VisualRoot").scale.x < 0.0 and first_contact_sprite != null and not first_contact_sprite.flip_h, "left-facing approved pose inherits exactly one visual-root mirror from the player facing state")
 
 	# Leave the on-screen comparison in the requested three-panel state, then capture the real Window Viewport.
 	_configure_attack(players[0], 1, "active")
 	_configure_attack(players[1], 2, "active")
 	_configure_attack(players[2], 3, "active")
+	players[0].set("facing_direction", Vector2.RIGHT)
 	players[0].get_node("VisualRoot").scale.x = 1.0
 	for index in range(3):
 		animators[index].call("_process", 1.0 / 60.0)

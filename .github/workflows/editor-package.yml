@@ -1,0 +1,40 @@
+name: Windows editor package
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build and package standalone editor
+        shell: pwsh
+        run: ./tools/package_editor_release.ps1 -Version "${{ github.ref_name }}-${{ github.run_number }}"
+
+      - name: Verify the extracted release package
+        shell: pwsh
+        run: |
+          $package = Get-ChildItem dist/editor-release/BeltScrollEditor-*.zip | Select-Object -First 1
+          if (-not $package) { throw 'Release ZIP was not created.' }
+          ./tests/editor_release_package_smoke.ps1 -PackagePath $package.FullName -AllowGuiUnverified
+
+      - name: Preserve downloadable package
+        uses: actions/upload-artifact@v4
+        with:
+          name: BeltScrollEditor-win-x64-${{ github.run_number }}
+          path: dist/editor-release/BeltScrollEditor-*.zip
+          if-no-files-found: error
+          retention-days: 90

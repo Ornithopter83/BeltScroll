@@ -109,6 +109,79 @@ func _run() -> void:
 	_check(_foot_point(idle).distance_to(idle_foot) <= FLOOR_TOLERANCE, "idle return retains the same foot anchor")
 	_check(idle_animator.get_state_elapsed() > 0.0, "idle state clock advances while its pose loops")
 
+	var turn_player := packed.instantiate() as CharacterBody2D
+	canvas.add_child(turn_player)
+	turn_player.set_physics_process(false)
+	(turn_player.get_node("Camera2D") as Camera2D).queue_free()
+	var turn_animator: Node = turn_player.get_node("VisualAnimator")
+	await process_frame
+	var turn_root := turn_player.get_node("VisualRoot") as Node2D
+	var turn_art := turn_player.get_node("VisualRoot/PlayerArt") as Sprite2D
+	var turn_foot := _foot_point(turn_player)
+	turn_player.set("facing_direction", Vector2.LEFT)
+	for _frame in range(3):
+		turn_root.scale.x = 1.0 # Mirror the controller's requested facing write each physics tick.
+		turn_animator.call("_process", 1.0 / 60.0)
+	_check(turn_animator.call("is_turning") and is_equal_approx(turn_root.scale.x, 1.0), "standing turn holds the original facing during its anticipation")
+	_check(turn_art.scale.y > ART_SCALE.y * 1.01 and turn_art.scale.x < ART_SCALE.x * 0.995, "standing turn shows a procedural windup and body compression")
+	for _frame in range(2):
+		turn_root.scale.x = 1.0
+		turn_animator.call("_process", 1.0 / 60.0)
+	_check(is_equal_approx(turn_root.scale.x, -1.0), "standing turn applies VisualRoot mirroring once after the compression")
+	turn_player.velocity = Vector2(180.0, 0.0)
+	turn_player.set("facing_direction", Vector2.RIGHT)
+	for _frame in range(10):
+		turn_root.scale.x = -1.0
+		turn_animator.call("_process", 1.0 / 60.0)
+	_check(not turn_animator.call("is_turning") and is_equal_approx(turn_root.scale.x, 1.0), "moving turn settles to the latest direction without changing velocity")
+	_check(_foot_point(turn_player).distance_to(turn_foot) <= FLOOR_TOLERANCE, "standing and moving turn keep the alpha foot anchor fixed")
+	turn_player.set("facing_direction", Vector2.LEFT)
+	for _frame in range(8):
+		turn_root.scale.x = 1.0
+		turn_animator.call("_process", 1.0 / 60.0)
+	turn_player.set("facing_direction", Vector2.RIGHT)
+	for _frame in range(2):
+		turn_root.scale.x = -1.0
+		turn_animator.call("_process", 1.0 / 60.0)
+	turn_player.set("facing_direction", Vector2.LEFT)
+	for _frame in range(10):
+		turn_root.scale.x = 1.0
+		turn_animator.call("_process", 1.0 / 60.0)
+	_check(not turn_animator.call("is_turning") and is_equal_approx(turn_root.scale.x, -1.0), "rapid reverse input restarts the turn and settles on the latest facing")
+	turn_player.velocity = Vector2.ZERO
+	turn_player.set("facing_direction", Vector2.RIGHT)
+	turn_animator.call("_process", 1.0 / 60.0)
+	turn_player.set("hitstun_remaining", 0.2)
+	turn_animator.call("_process", 1.0 / 60.0)
+	_check(turn_animator.get_animation_state() == "hit" and not turn_animator.call("is_turning"), "hitstun interrupts the procedural turn")
+	turn_player.set("hitstun_remaining", 0.0)
+	turn_player.set("facing_direction", Vector2.LEFT)
+	turn_animator.call("_process", 1.0 / 60.0)
+	turn_player.set("attack_stage", 1)
+	turn_player.set("attack_phase", "startup")
+	turn_player.set("attack_phase_remaining", 0.075)
+	turn_animator.call("_process", 1.0 / 60.0)
+	_check(turn_animator.get_animation_state() == "attack1_startup" and not turn_animator.call("is_turning"), "attack startup interrupts the procedural turn")
+	turn_player.set("attack_phase", "idle")
+	turn_player.set("attack_stage", 0)
+	turn_player.set("facing_direction", Vector2.RIGHT)
+	turn_animator.call("_process", 1.0 / 60.0)
+	turn_player.set("skill_id", 1)
+	turn_player.set("skill_phase", "startup")
+	turn_player.set("skill_phase_remaining", 0.16)
+	turn_animator.call("_process", 1.0 / 60.0)
+	_check(turn_animator.get_animation_state() == "skill1_startup" and not turn_animator.call("is_turning"), "skill startup interrupts the procedural turn")
+	turn_player.set("skill_phase", "idle")
+	turn_player.set("skill_id", 0)
+	turn_player.set("is_jumping", true)
+	turn_player.set("jump_vertical_velocity", -100.0)
+	turn_player.set("facing_direction", Vector2.LEFT)
+	turn_animator.call("_process", 1.0 / 60.0)
+	_check(turn_animator.get_animation_state() == "jump_rise" and not turn_animator.call("is_turning"), "jump rise interrupts the procedural turn")
+	turn_player.set("is_ko", true)
+	turn_animator.call("_process", 1.0 / 60.0)
+	_check(turn_animator.get_animation_state() == "ko" and not turn_animator.call("is_turning"), "KO interrupts the procedural turn")
+
 	var third_start := poses[9].get_node("VisualRoot/PlayerArt") as Sprite2D
 	var third_active := poses[10].get_node("VisualRoot/PlayerArt") as Sprite2D
 	var second_active := poses[8].get_node("VisualRoot/PlayerArt") as Sprite2D
@@ -153,10 +226,12 @@ func _run() -> void:
 	_check(dash_animator.get_state_frame_count() == 6 and dash_animator.get_pose_art_status().contains("temporary procedural"), "Num4 exposes six explicitly temporary procedural motion frames")
 	_check(dash_art.rotation > 0.0, "Num4 acceleration continues to lean toward its facing direction")
 	var dash_contact_rotation := dash_art.rotation
+	skill_dash.set("facing_direction", Vector2.LEFT)
 	(skill_dash.get_node("VisualRoot") as Node2D).scale.x = -1.0
 	for _frame in range(8):
 		dash_animator.call("_process", 1.0 / 60.0)
 	_check(dash_art.rotation < 0.0, "Num4 forward lean mirrors when facing left")
+	skill_dash.set("facing_direction", Vector2.RIGHT)
 	(skill_dash.get_node("VisualRoot") as Node2D).scale.x = 1.0
 	skill_dash.set("skill_phase", "recovery")
 	skill_dash.set("skill_phase_remaining", 0.21)
@@ -219,6 +294,8 @@ func _run() -> void:
 	await process_frame
 	left_player.get_node("VisualRoot").scale.x = -1.0
 	right_player.get_node("VisualRoot").scale.x = 1.0
+	left_player.set("facing_direction", Vector2.LEFT)
+	right_player.set("facing_direction", Vector2.RIGHT)
 	left_player.set("attack_stage", 3)
 	left_player.set("attack_phase", "active")
 	right_player.set("attack_stage", 3)
@@ -232,6 +309,7 @@ func _run() -> void:
 	_check(_foot_point(left_player).distance_to(_baseline_foot(left_player)) <= FLOOR_TOLERANCE and _foot_point(right_player).distance_to(_baseline_foot(right_player)) <= FLOOR_TOLERANCE, "both mirrored poses keep the foot anchor stable")
 	_check(_alpha_bounds_fit_cell(left_player.get_node("VisualRoot/PlayerArt") as Sprite2D) and _alpha_bounds_fit_cell(right_player.get_node("VisualRoot/PlayerArt") as Sprite2D), "mirrored enlarged art remains within capture bounds")
 	left_player.get_node("VisualRoot").scale.x = 1.0
+	left_player.set("facing_direction", Vector2.RIGHT)
 	left_player.set("attack_phase", "idle")
 	left_player.set("attack_stage", 0)
 	left_player.velocity = Vector2.ZERO

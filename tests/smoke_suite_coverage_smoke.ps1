@@ -1,4 +1,7 @@
 $ErrorActionPreference = 'Stop'
+$utf8 = New-Object System.Text.UTF8Encoding($false)
+[Console]::OutputEncoding = $utf8
+$OutputEncoding = $utf8
 $root = Split-Path -Parent $PSScriptRoot
 $suitePath = Join-Path $root 'tools\smoke_suite.cmd'
 $suite = [IO.File]::ReadAllLines($suitePath, [Text.Encoding]::UTF8)
@@ -62,6 +65,9 @@ $expected = @(
     'headless:combat_vfx_visual_smoke'
     'headless:raider_attack_pose_window_smoke'
     'headless:player_attack2_contact_v6_safe_smoke'
+    'headless:attack2_candidate_motion_review_smoke'
+    'headless:player_attack3_startup_review_smoke'
+    'headless:player_animation_state_matrix_smoke'
 )
 
 $suiteLines = New-Object 'System.Collections.Generic.List[string]'
@@ -99,6 +105,9 @@ $required = @(
     'headless:player_attack2_contact_v6_smoke'
     'headless:combat_vfx_visual_smoke'
     'headless:player_attack2_contact_v6_safe_smoke'
+    'headless:attack2_candidate_motion_review_smoke'
+    'headless:player_attack3_startup_review_smoke'
+    'headless:player_animation_state_matrix_smoke'
 )
 foreach ($entry in $required) {
     if (@($actual | Where-Object { $_ -ceq $entry }).Count -ne 1) {
@@ -118,12 +127,20 @@ $joinedSuite = $suite -join "`n"
 $checks = @(
     @($joinedSuite.Contains('set "SMOKE_ARGS=--headless --path ""%PROJECT_DIR%"" --script ""res://tests/%SMOKE_NAME%.gd"""'), 'Headless tests must invoke their Godot SceneTree scripts with --headless.'),
     @($joinedSuite.Contains('set "SMOKE_ARGS=--path ""%PROJECT_DIR%"" --script ""res://tests/%SMOKE_NAME%.gd"""'), 'Window tests must invoke their Godot SceneTree scripts without --headless.'),
+    @($joinedSuite.Contains('set "SUCCESS_MARKER=%SMOKE_NAME%: all checks passed"'), 'Headless tests must default to the registered script-name success marker.'),
     @($joinedSuite.Contains('set "SMOKE_TIMEOUT=120"') -and $joinedSuite.Contains('call :run_bounded %SMOKE_TIMEOUT%'), 'Headless checks must have a bounded default timeout.'),
     @($joinedSuite.Contains('call :run_bounded 240'), 'Window checks must have a bounded timeout.'),
     @($joinedSuite.Contains('call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SUCCESS_MARKER%" "%ALLOW_MODE%"'), 'Headless checks must verify exit status, success marker, and diagnostics.'),
     @($joinedSuite.Contains('call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SMOKE_NAME%: all checks passed"'), 'Window checks must verify exit status and success marker.'),
     @($joinedSuite.Contains('copy /y "%RUN_LOG%" "%FAILED_LOG_CURRENT%"'), 'Every failed check must preserve its own diagnostic log.'),
     @($joinedSuite.Contains('Actual process exit code:') -and $joinedSuite.Contains('RESULT: TIMEOUT'), 'The bounded runner must record real exit status and timeout failures.')
+    @($joinedSuite.Contains('set "ADDITIONAL_CHECKS=0"') -and $joinedSuite.Contains('set /a ADDITIONAL_CHECKS+=1') -and $joinedSuite.Contains('additional_checks=%ADDITIONAL_CHECKS%'), 'Suite summary must record the number of appended regression checks.')
+    @($joinedSuite.Contains('additional_check=%~1 execution_type=headless process_exit=%RUN_EXIT%'), 'Each appended regression check must log its execution type and actual process exit code.')
+    @($joinedSuite.Contains('additional_checks_process_exit=%~1'), 'Suite summary must record the overall process exit code alongside added-check totals.')
+    @($joinedSuite.Contains('if /I "%~1"=="--rebuild-live-review-captures" goto live_review_captures'), 'Actual review capture regeneration must require the explicit command-line mode.')
+    @($joinedSuite.Contains('Rebuilding live review captures; execution_type=window_capture,visual_approval=not_granted'), 'Capture regeneration must identify Window capture execution and leave visual approval ungranted.')
+    @($joinedSuite.Contains('res://tools/capture_attack2_candidate_motion_review.gd') -and $joinedSuite.Contains('res://tools/capture_player_animation_state_matrix.gd'), 'The explicit mode must invoke both real Window capture tools.')
+    @($joinedSuite.Contains('--headless --path') -and $joinedSuite.Contains('res://tools/build_player_attack3_startup_review.gd'), 'Startup comparison generation must be identified separately from real Window capture.')
 )
 foreach ($check in $checks) {
     if (-not $check[0]) { $failures.Add($check[1]) }
@@ -137,6 +154,9 @@ $explicitTimeouts = @{
     'player_attack2_contact_v6_smoke' = 180
     'combat_vfx_visual_smoke' = 120
     'player_attack2_contact_v6_safe_smoke' = 180
+    'attack2_candidate_motion_review_smoke' = 180
+    'player_attack3_startup_review_smoke' = 120
+    'player_animation_state_matrix_smoke' = 120
 }
 foreach ($name in $explicitTimeouts.Keys) {
     $timeoutLine = "if /I `"%SMOKE_NAME%`"==`"$name`" set `"SMOKE_TIMEOUT=$($explicitTimeouts[$name])`""
@@ -150,6 +170,8 @@ $customMarkers = @(
     'player_attack2_contact_v5_smoke: all mechanical checks passed; visual approval remains human review',
     'player_attack2_contact_v6_smoke: mechanical checks passed; no image approval is implied',
     'player_attack2_contact_v6_safe_smoke: mechanical checks passed; visual approval remains pending'
+	'attack2_candidate_motion_review_smoke: all checks passed; visual motion judgment remains pending'
+    'player_animation_state_matrix_smoke: state coverage and capture evidence present; no art completeness claim'
 )
 foreach ($marker in $customMarkers) {
     if (-not $joinedSuite.Contains($marker)) { $failures.Add("Registered success marker is missing: $marker") }
@@ -160,6 +182,6 @@ if ($failures.Count -gt 0) {
     exit 1
 }
 
-Write-Output "smoke_suite_coverage_smoke: inventory/order verified ($($actual.Count) checks; no duplicates); execution routes, timeouts, markers, and failure logs verified"
+Write-Output "smoke_suite_coverage_smoke: inventory/order verified ($($actual.Count) checks; 56 established checks retained, 3 appended checks; no duplicates); execution routes, timeouts, markers, and failure logs verified"
 Write-Output 'smoke_suite_coverage_smoke: all checks passed'
 exit 0

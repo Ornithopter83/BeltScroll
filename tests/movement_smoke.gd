@@ -98,7 +98,9 @@ func _check_diagonal_movement() -> void:
 func _check_facing() -> void:
 	Input.action_press("move_left")
 	await _frames(1)
-	_check(player.facing_direction.x < -0.9 and visual_root.scale.x < 0.0, "left input updates facing and visual flip")
+	_check(player.facing_direction.x < -0.9, "left input updates facing immediately")
+	await _frames(5)
+	_check(visual_root.scale.x < 0.0, "left-facing turn applies its single visual flip after the procedural windup")
 	_release("move_left")
 	await _frames(1)
 	Input.action_press("move_up")

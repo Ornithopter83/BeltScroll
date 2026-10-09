@@ -6,6 +6,9 @@ const ANIMATION_BANK_SCRIPT := preload("res://scripts/player/player_animation_ba
 const FOLLOW_SPEED := 16.0
 const WALK_SPEED_REFERENCE := 280.0
 const HIT_FLASH_DURATION := 0.12
+const TURN_DURATION := 0.13
+const TURN_WINDUP_DURATION := 0.04
+const TURN_COMPRESS_DURATION := 0.025
 const ATTACK_STARTUP := [0.075, 0.085, 0.10]
 const ATTACK_ACTIVE := [0.105, 0.12, 0.14]
 const ATTACK_RECOVERY := [0.20, 0.22, 0.28]
@@ -35,6 +38,10 @@ var _state_elapsed := 0.0
 var _state_frame := 0
 var _state_frame_count := 1
 var _animation_bank: RefCounted
+var _applied_facing_sign := 1.0
+var _turn_target_sign := 1.0
+var _turn_elapsed := TURN_DURATION
+var _turn_flip_applied := false
 
 ## These timing tables drive temporary transform poses only. They do not claim
 ## that missing walk/jump/hit/landing art has been approved as sprite frames.
@@ -84,6 +91,8 @@ func _ready() -> void:
 	_foot_anchor = _base_position + _alpha_foot_from_center.rotated(_base_rotation)
 	_pose_scale = _base_scale
 	_was_jumping = player.get("is_jumping") == true
+	_applied_facing_sign = -1.0 if visual_root.scale.x < 0.0 else 1.0
+	_turn_target_sign = _applied_facing_sign
 
 func _process(delta: float) -> void:
 	if player == null or art == null or not is_instance_valid(player) or art.texture == null:
@@ -95,8 +104,11 @@ func _process(delta: float) -> void:
 		_landing_remaining = 0.14
 	_was_jumping = jumping
 	_landing_remaining = maxf(0.0, _landing_remaining - maxf(delta, 0.0))
-	var facing_sign := -1.0 if visual_root.scale.x < 0.0 else 1.0
-	_update_animation_clock(_resolve_animation_state(jumping), delta)
+	var next_state := _resolve_animation_state(jumping)
+	_update_animation_clock(next_state, delta)
+	var ordinary_motion: bool = next_state in ["idle", "walk"] and player.get("is_blocking") != true
+	var turning := _advance_facing_turn(delta, ordinary_motion)
+	var facing_sign := _applied_facing_sign
 
 	if player.get("is_ko") == true:
 		# Settle into a restrained defeated lean, then keep it still.
@@ -133,6 +145,20 @@ func _process(delta: float) -> void:
 		var squash := sin(landing * PI)
 		target_scale *= Vector2(1.0 + squash * 0.055, 1.0 - squash * 0.075)
 		target_rotation += facing_sign * squash * 0.025
+	elif turning:
+		var progress := clampf(_turn_elapsed / TURN_DURATION, 0.0, 1.0)
+		if progress < TURN_WINDUP_DURATION / TURN_DURATION:
+			var windup := _ease_in_out(progress * TURN_DURATION / TURN_WINDUP_DURATION)
+			target_rotation -= _turn_target_sign * 0.105 * windup
+			target_scale *= Vector2(1.0 - 0.075 * windup, 1.0 + 0.085 * windup)
+		elif progress < (TURN_WINDUP_DURATION + TURN_COMPRESS_DURATION) / TURN_DURATION:
+			var compression := _ease_in_out((progress * TURN_DURATION - TURN_WINDUP_DURATION) / TURN_COMPRESS_DURATION)
+			target_rotation = _base_rotation + _turn_target_sign * 0.035 * (1.0 - compression)
+			target_scale *= Vector2(1.0 - 0.14 * compression, 1.0 + 0.12 * compression)
+		else:
+			var settle := _ease_out((progress * TURN_DURATION - TURN_WINDUP_DURATION - TURN_COMPRESS_DURATION) / (TURN_DURATION - TURN_WINDUP_DURATION - TURN_COMPRESS_DURATION))
+			target_rotation += _turn_target_sign * 0.075 * (1.0 - settle)
+			target_scale *= Vector2(1.035 - 0.035 * settle, 0.965 + 0.035 * settle)
 	else:
 		var speed := player.velocity.length()
 		if speed > 10.0:
@@ -153,7 +179,8 @@ func _process(delta: float) -> void:
 		target_rotation += frame_wave * 0.009 * facing_sign * motion_weight
 		target_scale *= Vector2(1.0 + frame_wave * 0.004 * motion_weight, 1.0 - frame_wave * 0.004 * motion_weight)
 
-	var blend := 1.0 - exp(-FOLLOW_SPEED * maxf(delta, 0.0))
+	var pose_follow_speed := 42.0 if turning else FOLLOW_SPEED
+	var blend := 1.0 - exp(-pose_follow_speed * maxf(delta, 0.0))
 	_pose_rotation = lerpf(_pose_rotation, target_rotation, blend)
 	_pose_scale = _pose_scale.lerp(target_scale, blend)
 	art.rotation = _pose_rotation
@@ -163,6 +190,45 @@ func _process(delta: float) -> void:
 
 func get_animation_state() -> String:
 	return _animation_state
+
+func get_turn_progress() -> float:
+	return clampf(_turn_elapsed / TURN_DURATION, 0.0, 1.0) if _turn_elapsed < TURN_DURATION else 1.0
+
+func is_turning() -> bool:
+	return _turn_elapsed < TURN_DURATION
+
+func _advance_facing_turn(delta: float, allow_turn: bool) -> bool:
+	var desired_sign := _applied_facing_sign
+	var facing: Vector2 = player.get("facing_direction")
+	if absf(facing.x) > 0.1:
+		desired_sign = -1.0 if facing.x < 0.0 else 1.0
+	if not allow_turn:
+		_turn_elapsed = TURN_DURATION
+		_turn_flip_applied = false
+		_turn_target_sign = desired_sign
+		_applied_facing_sign = desired_sign
+		visual_root.scale.x = desired_sign
+		return false
+	if not is_equal_approx(desired_sign, _turn_target_sign) and (is_turning() or not is_equal_approx(desired_sign, _applied_facing_sign)):
+		_turn_target_sign = desired_sign
+		_turn_elapsed = 0.0
+		_turn_flip_applied = false
+	if not is_turning() and not is_equal_approx(desired_sign, _applied_facing_sign):
+		_turn_target_sign = desired_sign
+		_turn_elapsed = 0.0
+		_turn_flip_applied = false
+	if is_turning():
+		var flip_time := TURN_WINDUP_DURATION + TURN_COMPRESS_DURATION
+		var next_elapsed := minf(TURN_DURATION, _turn_elapsed + maxf(delta, 0.0))
+		if not _turn_flip_applied and _turn_elapsed < flip_time and next_elapsed >= flip_time:
+			_applied_facing_sign = _turn_target_sign
+			_turn_flip_applied = true
+		_turn_elapsed = next_elapsed
+		visual_root.scale.x = _applied_facing_sign
+		return true
+	_applied_facing_sign = desired_sign
+	visual_root.scale.x = _applied_facing_sign
+	return false
 
 func get_state_elapsed() -> float:
 	return _state_elapsed
