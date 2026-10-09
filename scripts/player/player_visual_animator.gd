@@ -56,7 +56,7 @@ const TEMPORARY_STATE_DURATIONS := {
 	"jump_fall": 0.16,
 	"landing": 0.14,
 	"hit": 0.12,
-	"ko": 1.0,
+	"ko": 1.10,
 	"attack1_startup": 0.075,
 	"attack1_inbetween": 0.035,
 	"attack1_contact": 0.105,
@@ -142,16 +142,29 @@ func _process(delta: float) -> void:
 	var facing_sign := _applied_facing_sign
 
 	if player.get("is_ko") == true:
-		# Settle into a restrained defeated lean, then keep it still.
-		target_rotation += facing_sign * 0.12
-		target_scale *= Vector2(1.035, 0.91)
+		# Temporary three-beat fall: stagger, collapse, then a stable side-down.
+		# The sprite stays tied to its alpha-foot anchor throughout the movement.
+		var fall_progress := clampf(_state_elapsed / TEMPORARY_STATE_DURATIONS["ko"], 0.0, 1.0)
+		if fall_progress < 0.18:
+			var stagger := _ease_out(fall_progress / 0.18)
+			target_rotation += -facing_sign * 0.16 * stagger
+			target_scale *= Vector2(0.985, 0.99)
+		elif fall_progress < 0.58:
+			var collapse := _ease_in_out((fall_progress - 0.18) / 0.40)
+			target_rotation += lerpf(-facing_sign * 0.16, facing_sign * 1.28, collapse)
+			target_scale *= Vector2(1.0 - collapse * 0.035, 1.0 - collapse * 0.02)
+		else:
+			var settle := _ease_out((fall_progress - 0.58) / 0.42)
+			target_rotation += lerpf(facing_sign * 1.28, facing_sign * 1.38, settle)
+			target_scale *= Vector2(0.965, 0.98)
 	elif float(player.get("hit_flash_remaining")) > 0.0 or float(player.get("hitstun_remaining")) > 0.0:
 		var flash := clampf(float(player.get("hit_flash_remaining")) / HIT_FLASH_DURATION, 0.0, 1.0)
 		var impulse := signf(player.velocity.x)
 		if is_zero_approx(impulse):
 			impulse = -facing_sign
-		target_rotation -= impulse * (0.10 + flash * 0.08)
-		target_scale *= Vector2(1.035 + flash * 0.015, 0.91 + (1.0 - flash) * 0.05)
+		var stun_ratio := clampf(float(player.get("hitstun_remaining")) / 0.45, 0.0, 1.0)
+		target_rotation -= impulse * (0.075 + flash * 0.07 + stun_ratio * 0.045)
+		target_scale *= Vector2(1.0 + flash * 0.012, 1.0 - flash * 0.018)
 	elif str(player.get("skill_phase")) != "idle":
 		_apply_skill_pose(facing_sign)
 		target_rotation = _skill_rotation
@@ -263,6 +276,9 @@ func _advance_facing_turn(delta: float, allow_turn: bool) -> bool:
 
 func get_state_elapsed() -> float:
 	return _state_elapsed
+
+func is_final_down_settled() -> bool:
+	return _animation_state == "ko" and _state_elapsed >= float(TEMPORARY_STATE_DURATIONS["ko"])
 
 func get_state_frame() -> int:
 	return _state_frame
@@ -393,7 +409,7 @@ func _update_animation_clock(next_state: String, delta: float) -> void:
 		_animation_state = next_state
 		_state_elapsed = 0.0
 		_state_frame = 0
-		_state_frame_count = 1 if next_state == "ko" else (SKILL_TEMPORARY_MOTION_FRAMES if next_state.begins_with("skill") else (4 if next_state == "walk" else (ATTACK_TEMPORARY_MOTION_FRAMES if next_state.begins_with("attack") else 2)))
+		_state_frame_count = 3 if next_state == "ko" else (SKILL_TEMPORARY_MOTION_FRAMES if next_state.begins_with("skill") else (4 if next_state == "walk" else (ATTACK_TEMPORARY_MOTION_FRAMES if next_state.begins_with("attack") else 2)))
 	else:
 		_state_elapsed += maxf(delta, 0.0)
 	var duration: float = TEMPORARY_STATE_DURATIONS.get(_animation_state, 0.16)
@@ -511,19 +527,19 @@ func _apply_skill_pose(facing_sign: float) -> void:
 			"startup":
 				var brace := _ease_in_out(progress)
 				rotation_offset = facing_sign * 0.15 * brace
-				scale_factor = Vector2(1.0 - 0.065 * brace, 1.0 + 0.075 * brace)
+				scale_factor = Vector2(1.0 - 0.025 * brace, 1.0 + 0.03 * brace)
 			"active":
 				var acceleration := _ease_in_out(progress)
-				rotation_offset = facing_sign * lerpf(0.19, 0.34, acceleration)
-				scale_factor = Vector2(1.02 + 0.12 * acceleration, 0.99 - 0.105 * acceleration)
+				rotation_offset = facing_sign * lerpf(0.22, 0.38, acceleration)
+				scale_factor = Vector2(1.015 + 0.035 * acceleration, 1.0 - 0.025 * acceleration)
 				if float(player.get("attack_recoil_remaining")) > 0.0:
 					var recoil := clampf(float(player.get("attack_recoil_remaining")) / 0.08, 0.0, 1.0)
 					rotation_offset -= facing_sign * 0.30 * recoil
-					scale_factor *= Vector2(0.94, 1.06)
+					scale_factor *= Vector2(0.98, 1.02)
 			"recovery":
 				var return_blend := _ease_in_out(progress)
 				rotation_offset = facing_sign * 0.16 * (1.0 - return_blend)
-				scale_factor = Vector2(0.96, 1.04).lerp(Vector2.ONE, return_blend)
+				scale_factor = Vector2(0.985, 1.015).lerp(Vector2.ONE, return_blend)
 	else:
 		# Num5 spin: wind up in the opposite direction, rotate the torso through
 		# a circular strike, then counter-rotate into a balanced recovery.
@@ -531,17 +547,17 @@ func _apply_skill_pose(facing_sign: float) -> void:
 			"startup":
 				var windup := _ease_in_out(progress)
 				rotation_offset = facing_sign * 0.14 * windup
-				scale_factor = Vector2(1.0 - 0.04 * windup, 1.0 + 0.05 * windup)
+				scale_factor = Vector2(1.0 - 0.02 * windup, 1.0 + 0.025 * windup)
 			"active":
 				# A full-body turn gives the radial strike a readable silhouette
 				# even though the current art bank has no spin-specific drawings.
-				rotation_offset = facing_sign * (0.72 - progress * TAU * 1.05)
+				rotation_offset = facing_sign * (0.82 - progress * TAU * 1.05)
 				var pulse := sin(progress * PI)
-				scale_factor = Vector2(1.0 + 0.16 * pulse, 1.0 - 0.12 * pulse)
+				scale_factor = Vector2(1.0 + 0.025 * pulse, 1.0 - 0.02 * pulse)
 			"recovery":
 				var unwind := 1.0 - _ease_in_out(progress)
 				rotation_offset = -facing_sign * 0.17 * unwind
-				scale_factor = Vector2(1.035, 0.965).lerp(Vector2.ONE, _ease_in_out(progress))
+				scale_factor = Vector2(1.012, 0.988).lerp(Vector2.ONE, _ease_in_out(progress))
 	_skill_rotation = _base_rotation + rotation_offset
 	_skill_scale = _base_scale * scale_factor
 
@@ -569,17 +585,17 @@ func _apply_attack_pose(facing_sign: float) -> void:
 			var progress := _attack_phase_progress(index, phase, remaining)
 			amount = _ease_in_out(progress)
 			rotation_offset = facing_sign * [0.045, 0.075, 0.12][index] * amount
-			scale_factor = Vector2(1.0 - [0.025, 0.045, 0.075][index] * amount, 1.0 + [0.018, 0.035, 0.065][index] * amount)
+			scale_factor = Vector2(1.0 - [0.012, 0.018, 0.025][index] * amount, 1.0 + [0.01, 0.014, 0.018][index] * amount)
 		"active":
 			var progress := _attack_phase_progress(index, phase, remaining)
 			var contact_blend := 1.0 if index != 1 else _ease_in_out(clampf(progress / 0.42, 0.0, 1.0))
-			rotation_offset = lerpf(facing_sign * [0.045, 0.075, 0.12][index], -facing_sign * [0.11, 0.19, 0.31][index], contact_blend)
-			scale_factor = Vector2.ONE.lerp(Vector2(1.0 + [0.04, 0.075, 0.12][index], 1.0 - [0.035, 0.065, 0.105][index]), contact_blend)
+			rotation_offset = lerpf(facing_sign * [0.045, 0.075, 0.12][index], -facing_sign * [0.14, 0.24, 0.38][index], contact_blend)
+			scale_factor = Vector2.ONE.lerp(Vector2(1.0 + [0.015, 0.025, 0.035][index], 1.0 - [0.012, 0.02, 0.028][index]), contact_blend)
 		"recovery":
 			var recovery_progress := 1.0 - clampf(remaining / ATTACK_RECOVERY[index], 0.0, 1.0)
 			var return_blend := _ease_in_out(recovery_progress)
-			rotation_offset = -facing_sign * [0.11, 0.19, 0.31][index] * (1.0 - return_blend)
-			scale_factor = Vector2(1.0 + [0.04, 0.075, 0.12][index], 1.0 - [0.035, 0.065, 0.105][index]).lerp(Vector2.ONE, return_blend)
+			rotation_offset = -facing_sign * [0.14, 0.24, 0.38][index] * (1.0 - return_blend)
+			scale_factor = Vector2(1.0 + [0.015, 0.025, 0.035][index], 1.0 - [0.012, 0.02, 0.028][index]).lerp(Vector2.ONE, return_blend)
 	_attack_rotation = _base_rotation + rotation_offset
 	_attack_scale = _base_scale * scale_factor
 

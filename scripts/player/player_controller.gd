@@ -31,6 +31,8 @@ const CAMERA_VERTICAL_FRAME_OFFSET := -360.0
 const COMBO_COUNT := 3
 const HIT_FLASH_COLOR := Color(1.0, 0.42, 0.36, 1.0)
 const KO_COLOR := Color(0.62, 0.62, 0.62, 0.78)
+const HIT_FLASH_DURATION := 0.12
+const HITSTUN_DECELERATION := 900.0
 const STARTUP := [0.075, 0.085, 0.10]
 const ACTIVE := [0.105, 0.12, 0.14]
 const RECOVERY := [0.20, 0.22, 0.28]
@@ -139,7 +141,7 @@ func _physics_process(delta: float) -> void:
 		_cancel_skill()
 	if hitstun_remaining > 0.0:
 		hitstun_remaining = maxf(0.0, hitstun_remaining - delta)
-		velocity = velocity.move_toward(Vector2.ZERO, 900.0 * delta)
+		velocity = velocity.move_toward(Vector2.ZERO, HITSTUN_DECELERATION * delta)
 	elif attack_recoil_remaining > 0.0:
 		attack_recoil_remaining = maxf(0.0, attack_recoil_remaining - delta)
 		velocity = attack_recoil_velocity
@@ -544,7 +546,7 @@ func receive_hit(hit: Dictionary) -> void:
 		incoming_hitstun *= BLOCK_HITSTUN_MULTIPLIER
 	health = maxi(0, health - incoming_damage)
 	if health == 0:
-		hit_flash_remaining = 0.12
+		hit_flash_remaining = HIT_FLASH_DURATION
 		_add_camera_trauma(0.14 + int(hit["attack_stage"]) * 0.04)
 		_enter_ko()
 		return
@@ -558,7 +560,7 @@ func receive_hit(hit: Dictionary) -> void:
 	for index in range(1, COMBO_COUNT + 1):
 		_set_stage_hitbox(index, false)
 	_set_attack_stage_visual(0)
-	hit_flash_remaining = 0.12
+	hit_flash_remaining = maxf(hit_flash_remaining, HIT_FLASH_DURATION)
 	player_art.modulate = HIT_FLASH_COLOR
 	_add_camera_trauma(0.14 + int(hit["attack_stage"]) * 0.04)
 

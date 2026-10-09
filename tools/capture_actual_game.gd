@@ -49,6 +49,11 @@ func _capture() -> void:
 	if not actors.y_sort_enabled or stage.texture == null or not camera.enabled or not camera.is_current():
 		_fail("Gameplay scene background, YSort, or active Player camera is not ready for capture.")
 		return
+	# Render the state immediately after the first progress trigger. The remaining
+	# Raiders stay hidden until their own later triggers, matching the real wave flow.
+	player.global_position.x = maxf(player.global_position.x, 1040.0)
+	game.call("_update_raider_waves")
+	hud.call("refresh")
 
 	# Add a real world-space impact node so the capture reliably includes combat VFX.
 	var impact := COMBAT_IMPACT_SCENE.instantiate() as Node2D

@@ -87,6 +87,12 @@ func _draw_active(facing: float, progress: float) -> void:
 	var tip := center + Vector2(cos(rotation), sin(rotation)) * radius
 	var tangent := Vector2(-sin(rotation), cos(rotation)) * facing
 	draw_line(tip - tangent * 10.0, tip + tangent * 10.0, Color(WHITE, 0.95), 2.8, true)
+	# Tangent knuckles and a short cuff read as a rotating backfist, while the
+	# broad arc continues to communicate the radial hitbox's circular coverage.
+	var fist_center := tip + tangent * 5.0
+	draw_circle(fist_center, 6.5, Color(WHITE, 0.92))
+	draw_line(fist_center - tangent * 15.0, fist_center - tangent * 7.0, Color(PINK, 0.98), 4.0, true)
+	draw_line(fist_center - tangent * 11.0 + Vector2(0.0, -3.0), fist_center - tangent * 5.0 + Vector2(0.0, -3.0), Color(WHITE, 0.82), 1.4, true)
 	# Rotating ground ring makes the radial axis legible from a side-on silhouette.
 	draw_arc(Vector2(0.0, -7.0), 48.0 + 12.0 * sin(progress * PI), -facing * 0.15 * PI, facing * 1.85 * PI, 32, Color(VIOLET, 0.42), 2.8, true)
 

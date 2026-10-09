@@ -27,15 +27,15 @@ arena_bounds = Rect2(237, 722, 1446, 258)
 position = Vector2(1220, 780)
 
 [node name="ForestRaider1" parent="YSortActors" instance=ExtResource("3_raider")]
-position = Vector2(690, 762)
+position = Vector2(1400, 762)
 arena_bounds = Rect2(160, 100, 1600, 880)
 
 [node name="ForestRaider2" parent="YSortActors" instance=ExtResource("3_raider")]
-position = Vector2(1270, 900)
+position = Vector2(1600, 900)
 arena_bounds = Rect2(160, 100, 1600, 880)
 
 [node name="ForestRaider3" parent="YSortActors" instance=ExtResource("3_raider")]
-position = Vector2(1450, 820)
+position = Vector2(1740, 820)
 arena_bounds = Rect2(160, 100, 1600, 880)
 
 [node name="CombatHUD" parent="." instance=ExtResource("5_hud")]

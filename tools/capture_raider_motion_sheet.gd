@@ -140,7 +140,7 @@ func _build_board(forest: Texture2D) -> void:
 	board.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(board)
 	_label(board, "RAIDER 공격 포즈 리그 · 상태별 실제 Window Viewport 캡처", Vector2(28, 12), 27, Color.WHITE)
-	_label(board, "준비 · 접촉 · 회수는 분리 파츠 키프레임 리그 표현이며 정식 신규 프레임 원화가 아닙니다", Vector2(32, 47), 18, Color("#ffe1a6"))
+	_label(board, "준비 · 접촉 · 회수는 분리 파츠 키프레임 리그 표현이며 정식 신규 프레임 원화가 아닙니다 · 게임 HUD 제외", Vector2(32, 47), 18, Color("#ffe1a6"))
 	for index in range(COLUMNS * ROWS):
 		var cell := _cell_rect(index)
 		var shade := ColorRect.new()
@@ -153,12 +153,6 @@ func _build_board(forest: Texture2D) -> void:
 		heading.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
 		heading.add_theme_constant_override("shadow_offset_x", 1)
 		heading.add_theme_constant_override("shadow_offset_y", 1)
-		var hud := ColorRect.new()
-		hud.position = Vector2(cell.position) + Vector2(16, 111)
-		hud.size = Vector2(cell.size.x - 32, 22)
-		hud.color = Color(0.015, 0.025, 0.03, 0.82)
-		board.add_child(hud)
-		_label(board, "RAIDER   ♥ ♥ ♥", Vector2(cell.position) + Vector2(24, 112), 14, Color("#f2e6cf"))
 		if index < STATES.size():
 			var baseline := ColorRect.new()
 			baseline.position = Vector2(cell.position.x + 20, cell.end.y - FOOT_MARGIN)
@@ -169,7 +163,7 @@ func _build_board(forest: Texture2D) -> void:
 		else:
 			_label(board, "• 상태별 실제 Window Viewport 프레임", Vector2(cell.position.x + 18, cell.position.y + 155), 16, Color.WHITE)
 			_label(board, "• 좌우 방향을 번갈아 배치", Vector2(cell.position.x + 18, cell.position.y + 190), 16, Color.WHITE)
-			_label(board, "• HUD 표식과 발 기준선으로 가림 확인", Vector2(cell.position.x + 18, cell.position.y + 225), 16, Color.WHITE)
+			_label(board, "• 게임 HUD를 제외한 포즈 실루엣 확인", Vector2(cell.position.x + 18, cell.position.y + 225), 16, Color.WHITE)
 			_label(board, "• AI / 물리 업데이트 없이 시각 상태 재현", Vector2(cell.position.x + 18, cell.position.y + 260), 16, Color.WHITE)
 			_label(board, "공격 실루엣: 분리 파츠 리그 애니메이션", Vector2(cell.position.x + 18, cell.position.y + 318), 16, Color("#ffe1a6"))
 		var border := ReferenceRect.new()
@@ -179,7 +173,7 @@ func _build_board(forest: Texture2D) -> void:
 		border.border_width = 1.0
 		border.editor_only = false
 		board.add_child(border)
-	_label(board, "Forest Ruins · HUD와 실루엣의 겹침 및 좌우 방향 확인", Vector2(32, VIEW_SIZE.y - 28), 16, Color.WHITE)
+	_label(board, "Forest Ruins · 상태별 실루엣 및 좌우 방향 확인 (게임 HUD 제외)", Vector2(32, VIEW_SIZE.y - 28), 16, Color.WHITE)
 
 func _label(parent: Control, value: String, at: Vector2, size: int, color: Color) -> Label:
 	var label := Label.new()

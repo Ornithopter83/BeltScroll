@@ -46,7 +46,13 @@ func _run() -> void:
 	_check(raider.get("max_health") == 3 and raider.get("health") == 3 and raider.get("attack_damage") == 1, "runtime applies ForestRaider data by ID")
 	_check(player.get("arena_bounds") == Rect2(Vector2(237, 722), Vector2(1446, 258)), "stage player boundary preserves the original HUD-safe movement bounds")
 	_check(raider.get("arena_bounds") == Rect2(Vector2(160, 100), Vector2(1600, 880)), "stage boundary overrides apply to ForestRaider")
-	_check(player.position == Vector2(960, 780) and raider.position == Vector2(690, 762), "stage placements override scene positions")
+	var raider2: Node2D = main.get_node("YSortActors/ForestRaider2") as Node2D
+	var raider3: Node2D = main.get_node("YSortActors/ForestRaider3") as Node2D
+	_check(player.position == Vector2(960, 780) and raider.position == Vector2(1400, 762) and raider2.position == Vector2(1600, 900) and raider3.position == Vector2(1740, 820), "editor spawn overrides apply the forward, staged Raider positions")
+	_check(not raider.visible and not raider2.visible and not raider3.visible and not bool(raider.get("combat_active")), "editor spawn overrides remain gated until player progress")
+	player.global_position.x = 1040.0
+	main.call("_update_raider_waves")
+	_check(raider.visible and bool(raider.get("combat_active")) and not raider2.visible and not raider3.visible and raider.global_position.x - player.global_position.x >= 320.0, "first editor-positioned Raider activates ahead at the first progress point")
 
 	# Original player attack payload and hitbox sizing remain the combat regression baseline.
 	var player_scene := (load(PLAYER_SCENE) as PackedScene).instantiate()

@@ -43,9 +43,9 @@
       },
       "spawns": [
         { "actor_id": "Player", "x": 960.0, "y": 780.0 },
-        { "actor_id": "ForestRaider", "x": 690.0, "y": 762.0 },
-        { "actor_id": "ForestRaider2", "x": 1270.0, "y": 900.0 },
-        { "actor_id": "ForestRaider3", "x": 1450.0, "y": 820.0 }
+        { "actor_id": "ForestRaider", "x": 1400.0, "y": 762.0 },
+        { "actor_id": "ForestRaider2", "x": 1600.0, "y": 900.0 },
+        { "actor_id": "ForestRaider3", "x": 1740.0, "y": 820.0 }
       ]
     }
   ]

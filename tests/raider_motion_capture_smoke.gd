@@ -73,6 +73,8 @@ func _run() -> void:
 			push_error("capture output: " + str(line))
 	else:
 		_check(_verify_saved_sheet(), "saved PNG dimensions, state frame differences, and rendered content are valid")
+		var capture_source := FileAccess.get_file_as_string(CAPTURE_SCRIPT)
+		_check(not capture_source.contains("♥") and capture_source.contains("게임 HUD 제외"), "pose review sheet does not depict a gameplay health bar")
 	_finish()
 
 func _verify_saved_sheet() -> bool:

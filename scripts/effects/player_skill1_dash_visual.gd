@@ -72,6 +72,11 @@ func _draw_active(facing: float, progress: float) -> void:
 		var point := Vector2(facing * (end_x - 2.0), -126.0 + offset)
 		draw_line(point + Vector2(-facing * 15.0, -8.0), point, Color(WHITE, 0.9 * pulse), 2.4, true)
 		draw_line(point, point + Vector2(-facing * 15.0, 8.0), Color(CYAN, 0.9 * pulse), 2.4, true)
+	# A compact knuckle and cuff at the tip makes this read as an extended fist.
+	var fist_center := tip + Vector2(facing * 8.0, 0.0)
+	draw_circle(fist_center, 7.0, Color(WHITE, 0.92 * pulse))
+	draw_arc(fist_center, 8.5, -PI * 0.5, PI * 0.5, 12, Color(CYAN, pulse), 2.2, true)
+	draw_line(fist_center - Vector2(facing * 14.0, 0.0), fist_center - Vector2(facing * 7.0, 0.0), Color(WHITE, 0.88 * pulse), 3.0, true)
 	draw_line(Vector2(-facing * 4.0, -8.0), Vector2(-facing * 30.0, -8.0), Color(CYAN, 0.7), 2.0, true)
 
 func _draw_recovery(facing: float, progress: float) -> void:

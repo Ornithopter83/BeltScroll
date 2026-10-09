@@ -2,6 +2,7 @@ extends SceneTree
 
 const MAIN_SCENE := "res://scenes/game/main.tscn"
 const TITLE_SCENE := "res://scenes/ui/title_menu.tscn"
+const DEFEAT_RESULT_DELAY := 1.3
 
 var failures: Array[String] = []
 
@@ -62,6 +63,8 @@ func _run() -> void:
 	for state in result_states:
 		session = await _new_session(packed)
 		session.call("_finish_session", state)
+		if state == 1:
+			await create_timer(DEFEAT_RESULT_DELAY).timeout
 		var result_overlay := session.get("result_overlay") as CanvasLayer
 		_check(result_overlay.visible, "DEFEAT and VICTORY retain result overlay contract")
 		_check((session.get("_result_restart_button") as Button).focus_mode == Control.FOCUS_ALL, "result actions support keyboard and gamepad focus")
@@ -78,6 +81,8 @@ func _run() -> void:
 	for state in result_states:
 		session = await _new_session(packed)
 		session.call("_finish_session", state)
+		if state == 1:
+			await create_timer(DEFEAT_RESULT_DELAY).timeout
 		var result_title := session.get("_result_title_button") as Button
 		result_title.emit_signal("pressed")
 		await process_frame

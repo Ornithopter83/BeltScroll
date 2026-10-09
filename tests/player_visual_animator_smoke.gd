@@ -88,6 +88,8 @@ func _run() -> void:
 			_check(_alpha_bounds_fit_cell(pose_art), POSE_NAMES[index] + " enlarged art remains inside its capture cell")
 		_check(animator.get_animation_state() == _expected_state(index), POSE_NAMES[index] + " resolves to a timed animation state")
 		_check(animator.get_state_frame_count() >= 1 and animator.get_state_frame() >= 0, POSE_NAMES[index] + " exposes its current frame in the state sequence")
+		if index == 13:
+			_check(animator.get_state_frame_count() == 3, "KO exposes three timed temporary final-down beats")
 		_check(animator.is_current_pose_temporary() == (index not in [7, 8, 10]), POSE_NAMES[index] + " identifies temporary poses separately from approved attack contact art")
 		_check(animator.get_state_frame_duration() > 0.0 and not animator.get_displayed_texture_path().is_empty(), POSE_NAMES[index] + " exposes frame timing and the texture actually selected for display")
 		if index in [6, 9, 11]:
@@ -224,16 +226,30 @@ func _run() -> void:
 	turn_player.set("is_ko", true)
 	turn_animator.call("_process", 1.0 / 60.0)
 	_check(turn_animator.get_animation_state() == "ko" and not turn_animator.call("is_turning"), "KO interrupts the procedural turn")
+	var down_foot := _baseline_foot(turn_player)
+	var down_art := turn_player.get_node("VisualRoot/PlayerArt") as Sprite2D
+	for _frame in range(8):
+		turn_animator.call("_process", 1.0 / 60.0)
+	var stagger_rotation := down_art.rotation
+	for _frame in range(20):
+		turn_animator.call("_process", 1.0 / 60.0)
+	var collapse_rotation := down_art.rotation
+	for _frame in range(40):
+		turn_animator.call("_process", 1.0 / 60.0)
+	var final_down_rotation := down_art.rotation
+	_check(absf(collapse_rotation) > absf(stagger_rotation) + 0.30 and absf(final_down_rotation) > absf(collapse_rotation) + 0.04, "KO progresses from stagger through collapse into final-down")
+	_check(absf(final_down_rotation) > 1.0 and _foot_point(turn_player).distance_to(down_foot) <= FLOOR_TOLERANCE, "final-down settles sideways while preserving the alpha-foot anchor")
 
 	var third_start := poses[9].get_node("VisualRoot/PlayerArt") as Sprite2D
 	var third_active := poses[10].get_node("VisualRoot/PlayerArt") as Sprite2D
 	var second_active := poses[8].get_node("VisualRoot/PlayerArt") as Sprite2D
 	var stage_one_active := poses[7].get_node("VisualRoot/PlayerArt") as Sprite2D
 	var authored_scale := ART_SCALE
-	_check(absf(third_active.rotation) > absf(second_active.rotation) + 0.04 and third_active.scale.y / authored_scale.y < second_active.scale.y / authored_scale.y - 0.025, "third combo active pose has clearly stronger rotation and compression than stage two")
-	_check(absf(second_active.rotation) > absf(stage_one_active.rotation) + 0.04 and second_active.scale.x > stage_one_active.scale.x, "second combo strike reads stronger than the first")
+	_check(absf(third_active.rotation) > absf(second_active.rotation) + 0.08 and absf(third_active.scale.y / authored_scale.y - 1.0) < 0.04, "third combo contact has a stronger torso turn with restrained scale change")
+	_check(absf(second_active.rotation) > absf(stage_one_active.rotation) + 0.04, "second combo strike reads stronger than the first")
 	_check(third_start.scale.y > third_active.scale.y and absf(third_active.rotation) > absf(third_start.rotation), "third combo startup and active poses are distinct")
 	_check(animator_nodes[8].get_state_frame_count() == 5 and animator_nodes[8].get_pose_art_status().contains("approved contact"), "stage two contact exposes timed temporary transform motion while retaining approved art status")
+	_check(absf(stage_one_active.rotation) < absf(second_active.rotation) and absf(second_active.rotation) < absf(third_active.rotation), "all three approved contact poses have distinct increasing turn emphasis")
 	var stage_two := poses[8]
 	var stage_two_animator := animator_nodes[8]
 	_set_attack(stage_two, 2, "active", 0.12)

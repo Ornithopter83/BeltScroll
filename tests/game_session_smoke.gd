@@ -23,7 +23,7 @@ func _run() -> void:
 	var raider3: Node2D = victory_session.get_node("YSortActors/ForestRaider3") as Node2D
 	_check(victory_player.position == Vector2(960.0, 780.0) and victory_dummy.position == Vector2(1220.0, 780.0), "player and training dummy preserve their 260-unit combat spacing in the HUD-safe lane")
 	_check(victory_player.get("arena_bounds") == Rect2(Vector2(237, 722), Vector2(1446, 258)), "player combat bounds use the HUD-safe visible band")
-	_check(raider1.position == Vector2(690.0, 762.0) and raider2.position == Vector2(1270.0, 900.0) and raider3.position == Vector2(1450.0, 820.0), "raiders start in visible Y-sort lanes inside the combat arena")
+	_check(raider1.position == Vector2(1400.0, 762.0) and raider2.position == Vector2(1600.0, 900.0) and raider3.position == Vector2(1740.0, 820.0), "raiders are staged ahead of the player in visible Y-sort lanes")
 	root.add_child(victory_session)
 	current_scene = victory_session
 	await process_frame
@@ -50,6 +50,22 @@ func _run() -> void:
 	_check(not victory_session.get("help_panel").visible, "H hides the controls help")
 	var raiders: Array = victory_session.get("_raiders")
 	_check(raiders.size() == 3, "session tracks all three ForestRaiders")
+	_check(victory_session.get("_next_raider_wave") == 0 and raiders.all(func(raider: Node) -> bool: return not raider.visible and not bool(raider.get("combat_active")) and int(raider.get("collision_layer")) == 0 and not (raider.get_node("AttackArea") as Area2D).monitoring and not (raider.get_node("ReceiveArea") as Area2D).monitorable), "all raiders wait with AI, spacing participation, collision, and receive combat disabled")
+	victory_player.global_position.x = 1040.0
+	victory_session.call("_update_raider_waves")
+	_check(victory_session.get("_next_raider_wave") == 1 and raiders[0].visible and bool(raiders[0].get("combat_active")) and int(raiders[0].get("collision_layer")) == 2 and not raiders[1].visible, "first raider activates after the player reaches the first progress point")
+	_check(raiders[0].global_position.x - victory_player.global_position.x >= 320.0, "first Raider appears ahead of the player with clear approach space")
+	var first_raider_spacing: Dictionary = raiders[0].call("_spacing_adjustment", Vector2.ZERO)
+	var first_raider_velocity: Vector2 = first_raider_spacing["velocity"]
+	_check(is_zero_approx(first_raider_velocity.length()), "active Raider steering ignores nearby waiting Raiders")
+	victory_player.global_position.x = 1240.0
+	victory_session.call("_update_raider_waves")
+	_check(victory_session.get("_next_raider_wave") == 2 and raiders[1].visible and not raiders[2].visible, "second raider activates at the next progress point")
+	_check(raiders[1].global_position.x - victory_player.global_position.x >= 320.0, "second Raider appears ahead of the player with clear approach space")
+	victory_player.global_position.x = 1400.0
+	victory_session.call("_update_raider_waves")
+	_check(victory_session.get("_next_raider_wave") == 3 and raiders[2].visible, "third raider activates at the final progress point")
+	_check(raiders[2].global_position.x - victory_player.global_position.x >= 320.0, "last staged Raider appears ahead with clear approach space")
 	var victory_impact: Node2D = (load("res://scenes/vfx/combat_impact.tscn") as PackedScene).instantiate()
 	victory_session.get_node("YSortActors/ForestRaider1").add_child(victory_impact)
 	var victory_hitbox := victory_player.get_node("Hitboxes/Hitbox2") as Area2D
@@ -83,7 +99,12 @@ func _run() -> void:
 	player.receive_hit(HIT)
 	await process_frame
 	_check(defeat_session.get("result_state") == 1, "Player KO produces DEFEAT")
-	_check(defeat_session.get("result_label").text == "DEFEAT" and defeat_session.get("result_overlay").visible, "defeat result is displayed")
+	_check(defeat_session.get("result_label").text == "DEFEAT" and not defeat_session.get("result_overlay").visible, "defeat result waits while the KO presentation settles")
+	await create_timer(0.8).timeout
+	_check(not defeat_session.get("result_overlay").visible, "defeat result stays hidden during the collapse portion of final-down")
+	await create_timer(0.5).timeout
+	_check((player.get_node("VisualAnimator") as Node).call("is_final_down_settled"), "Player final-down reaches its stable side-down pose before defeat UI")
+	_check(defeat_session.get("result_overlay").visible, "defeat result appears after the KO presentation")
 	_check(not (defeat_session.get_node("YSortActors/ForestRaider1/AttackArea") as Area2D).monitoring, "defeat cancels lingering Raider attack hitboxes")
 	defeat_session.queue_free()
 	await process_frame

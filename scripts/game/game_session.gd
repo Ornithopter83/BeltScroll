@@ -7,6 +7,10 @@ const EXPECTED_RAIDER_COUNT := 3
 const OVERLAY_LAYER := 20
 const HELP_LAYER := 10
 const PANEL_VIEWPORT_MARGIN := 24.0
+const FIRST_WAVE_PROGRESS := 80.0
+const WAVE_PROGRESS_SPACING := 180.0
+const WAVE_TRIGGER_LEAD := 360.0
+const DEFEAT_RESULT_DELAY := 1.25
 const TITLE_SCENE := "res://scenes/ui/title_menu.tscn"
 const MAIN_SCENE := "res://scenes/game/main.tscn"
 const PLAYER_ID := "Player"
@@ -25,6 +29,11 @@ var _transition_pending := false
 var _player: Node
 var _player_skill_cooldowns: Array = []
 var _raiders: Array[Node] = []
+var _wave_order: Array[Node] = []
+var _raider_collision_states: Array[Dictionary] = []
+var _next_raider_wave := 0
+var _furthest_progress_x := 0.0
+var _progress_origin_x := 0.0
 var _pause_resume_button: Button
 var _pause_restart_button: Button
 var _pause_title_button: Button
@@ -45,6 +54,7 @@ func _ready() -> void:
 		if raider is Node and raider.get_parent() == get_node_or_null("YSortActors"):
 			_raiders.append(raider)
 	_apply_editor_overrides()
+	_initialize_raider_waves()
 	_build_result_overlay()
 	_build_pause_overlay()
 	_build_help_overlay()
@@ -115,6 +125,78 @@ func _apply_spawns(stage_values: Dictionary) -> void:
 		if is_instance_valid(actor):
 			actor.global_position = Vector2(float(spawn.x), float(spawn.y))
 
+func _initialize_raider_waves() -> void:
+	_wave_order = _raiders.duplicate()
+	_wave_order.sort_custom(func(left: Node, right: Node) -> bool: return (left as Node2D).global_position.x < (right as Node2D).global_position.x)
+	_raider_collision_states.clear()
+	for raider in _wave_order:
+		var attack_area := raider.get_node_or_null("AttackArea") as Area2D
+		var receive_area := raider.get_node_or_null("ReceiveArea") as Area2D
+		_raider_collision_states.append({
+			"collision_layer": int(raider.get("collision_layer")),
+			"collision_mask": int(raider.get("collision_mask")),
+			"attack_layer": attack_area.collision_layer if attack_area != null else 0,
+			"attack_mask": attack_area.collision_mask if attack_area != null else 0,
+			"receive_layer": receive_area.collision_layer if receive_area != null else 0,
+			"receive_mask": receive_area.collision_mask if receive_area != null else 0,
+			"receive_monitorable": receive_area.monitorable if receive_area != null else false,
+		})
+		_set_raider_active(raider, false)
+	_next_raider_wave = 0
+	_progress_origin_x = (_player as Node2D).global_position.x if is_instance_valid(_player) else 0.0
+	_furthest_progress_x = _progress_origin_x
+
+func _set_raider_active(raider: Node, active: bool) -> void:
+	var index := _wave_order.find(raider)
+	if index < 0 or index >= _raider_collision_states.size():
+		return
+	var state: Dictionary = _raider_collision_states[index]
+	raider.set("combat_active", active)
+	var attack_area := raider.get_node_or_null("AttackArea") as Area2D
+	var receive_area := raider.get_node_or_null("ReceiveArea") as Area2D
+	if active:
+		raider.visible = true
+		raider.set("collision_layer", int(state.collision_layer))
+		raider.set("collision_mask", int(state.collision_mask))
+		if attack_area != null:
+			attack_area.collision_layer = int(state.attack_layer)
+			attack_area.collision_mask = int(state.attack_mask)
+		if receive_area != null:
+			receive_area.collision_layer = int(state.receive_layer)
+			receive_area.collision_mask = int(state.receive_mask)
+			receive_area.monitorable = bool(state.receive_monitorable)
+		raider.set_physics_process(true)
+	else:
+		_cancel_raider_attack(raider)
+		if attack_area != null:
+			attack_area.monitoring = false
+			attack_area.collision_layer = 0
+			attack_area.collision_mask = 0
+		if receive_area != null:
+			receive_area.monitoring = false
+			receive_area.monitorable = false
+			receive_area.collision_layer = 0
+			receive_area.collision_mask = 0
+		raider.set("collision_layer", 0)
+		raider.set("collision_mask", 0)
+		raider.set_physics_process(false)
+		raider.velocity = Vector2.ZERO
+		raider.visible = false
+
+func _update_raider_waves() -> void:
+	if not is_instance_valid(_player) or _next_raider_wave >= _wave_order.size():
+		return
+	var player_position := (_player as Node2D).global_position
+	_furthest_progress_x = maxf(_furthest_progress_x, player_position.x)
+	while _next_raider_wave < _wave_order.size():
+		var raider := _wave_order[_next_raider_wave] as Node2D
+		var minimum_progress := _progress_origin_x + FIRST_WAVE_PROGRESS + float(_next_raider_wave) * WAVE_PROGRESS_SPACING
+		var spawn_trigger := raider.global_position.x - WAVE_TRIGGER_LEAD
+		if _furthest_progress_x < maxf(minimum_progress, spawn_trigger):
+			break
+		_set_raider_active(raider, true)
+		_next_raider_wave += 1
+
 func _find_override(records: Array, id: String, kind: String) -> Dictionary:
 	for index in range(records.size()):
 		var record: Dictionary = DATA_LOADER.validate_record(records[index], kind, index)
@@ -127,10 +209,11 @@ func _process(_delta: float) -> void:
 		return
 	if not is_instance_valid(_player):
 		_player = get_node_or_null("YSortActors/Player")
+	_update_raider_waves()
 	if is_instance_valid(_player) and int(_player.get("health")) <= 0:
 		_finish_session(ResultState.DEFEAT)
 		return
-	if _raiders.size() == EXPECTED_RAIDER_COUNT:
+	if _next_raider_wave == EXPECTED_RAIDER_COUNT and _raiders.size() == EXPECTED_RAIDER_COUNT:
 		for raider in _raiders:
 			if is_instance_valid(raider) and int(raider.get("health")) > 0:
 				return
@@ -199,6 +282,25 @@ func _finish_session(result: ResultState) -> void:
 		camera.zoom = Vector2.ONE
 		camera.reset_smoothing()
 	result_label.text = "DEFEAT" if result == ResultState.DEFEAT else "VICTORY"
+	if result == ResultState.DEFEAT:
+		_show_defeat_result_after_ko()
+	else:
+		_show_result_overlay()
+
+func _show_defeat_result_after_ko() -> void:
+	var settle_timeout := get_tree().create_timer(DEFEAT_RESULT_DELAY, true, false, true)
+	var animator := _player.get_node_or_null("VisualAnimator") if is_instance_valid(_player) else null
+	while is_inside_tree() and result_state == ResultState.DEFEAT and not _transition_pending:
+		if animator != null and animator.has_method("is_final_down_settled") and animator.is_final_down_settled():
+			break
+		if settle_timeout.time_left <= 0.0:
+			break
+		await get_tree().process_frame
+	if not is_inside_tree() or result_state != ResultState.DEFEAT or _transition_pending:
+		return
+	_show_result_overlay()
+
+func _show_result_overlay() -> void:
 	_position_panel_away_from_actors(_result_panel)
 	result_overlay.visible = true
 	_result_restart_button.grab_focus.call_deferred()

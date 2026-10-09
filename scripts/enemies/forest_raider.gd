@@ -36,6 +36,7 @@ const HIT_COLOR := Color(1.0, 0.78, 0.58, 1.0)
 const KNOCKED_OUT_COLOR := Color(0.62, 0.62, 0.62, 0.78)
 
 var health: int
+var combat_active := true
 var attack_phase := "idle"
 var attack_phase_remaining := 0.0
 var hitstun_remaining := 0.0
@@ -208,7 +209,7 @@ func _spacing_adjustment(desired: Vector2) -> Dictionary:
 	var escape_speed := maxf(SPACING_ESCAPE_SPEED, separation_strength * 0.4)
 	for candidate in get_tree().get_nodes_in_group("forest_raiders"):
 		var other := candidate as Node2D
-		if other == self or not is_instance_valid(other) or int(other.get("health")) <= 0:
+		if other == self or not is_instance_valid(other) or not bool(other.get("combat_active")) or int(other.get("health")) <= 0:
 			continue
 		var away: Vector2 = global_position - other.global_position
 		var distance := away.length()
@@ -249,7 +250,7 @@ func _enforce_nearby_raider_spacing(delta: float) -> void:
 	var live_raiders: Array[Node2D] = []
 	for candidate in get_tree().get_nodes_in_group("forest_raiders"):
 		var raider := candidate as Node2D
-		if raider != null and is_instance_valid(raider) and raider != self and int(raider.get("health")) > 0:
+		if raider != null and is_instance_valid(raider) and bool(raider.get("combat_active")) and raider != self and int(raider.get("health")) > 0:
 			live_raiders.append(raider)
 	var max_step := SPACING_ESCAPE_SPEED * delta
 	for _iteration in range(2):
