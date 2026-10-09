@@ -61,6 +61,8 @@ func _run() -> void:
 		"elven_fighter_run_stride_v3_left_lead_candidate_1254x1254.png",
 		"elven_fighter_run_stride_v4_opposite_contact_candidate_1254x1254.png",
 		"elven_fighter_run_stride_v4_safe_candidate_1254x1254.png",
+		"elven_fighter_run_stride_v5_far_leg_forward_candidate_1254x1254.png",
+		"elven_fighter_run_stride_v5_safe_candidate_1254x1254.png",
 	]
 	var expected_run_files: Array[String] = []
 	for candidate_file in known_run_files:

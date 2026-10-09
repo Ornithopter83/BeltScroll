@@ -9,6 +9,7 @@ $ErrorActionPreference = 'Stop'
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 [Console]::OutputEncoding = $utf8
 $OutputEncoding = $utf8
+$EditorPublishExecutable = '.qa_logs/editor-publish-current/BeltScrollEditor.exe'
 if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) {
     $RepositoryRoot = Split-Path -Parent $PSScriptRoot
 }
@@ -49,6 +50,43 @@ function Get-IndexedEntries {
 try {
     $RepositoryRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path
     $trackedEntries = @(Get-IndexedEntries)
+    $findings = New-Object System.Collections.Generic.List[string]
+
+    # This known publish artifact is a hard block while it is present in either
+    # the index or the remote baseline. Its local working-copy presence alone
+    # is intentionally irrelevant.
+    $indexedEditorExecutable = @(Invoke-GitText -GitArguments @('ls-files', '--stage', '--', $EditorPublishExecutable))
+    foreach ($record in $indexedEditorExecutable) {
+        if ([string]::IsNullOrWhiteSpace($record)) { continue }
+        $separator = $record.IndexOf([char]9)
+        $sizeLabel = '크기 확인 불가'
+        if ($separator -ge 0) {
+            $metadata = $record.Substring(0, $separator).Split(' ')
+            if ($metadata.Length -ge 2) {
+                $sizeText = Invoke-GitText -GitArguments @('cat-file', '-s', $metadata[1])
+                $sizeLabel = ('{0:N0} bytes' -f [long]::Parse(
+                    [string]::Join('', [string[]]$sizeText).Trim(),
+                    [Globalization.CultureInfo]::InvariantCulture))
+            }
+        }
+        $findings.Add("명시적 위생 차단: index에서 추적 중 ($sizeLabel): $EditorPublishExecutable")
+    }
+
+    $remoteEditorExecutable = @(Invoke-GitText -GitArguments @(
+        'ls-tree', '-r', '-l', '--full-tree', $BaselineRef, '--', $EditorPublishExecutable))
+    foreach ($record in $remoteEditorExecutable) {
+        if ([string]::IsNullOrWhiteSpace($record)) { continue }
+        $sizeLabel = '크기 확인 불가'
+        $separator = $record.IndexOf([char]9)
+        if ($separator -ge 0) {
+            $metadata = $record.Substring(0, $separator) -split '\s+'
+            if ($metadata.Length -ge 4 -and $metadata[3] -ne '-') {
+                $remoteSize = [long]::Parse($metadata[3], [Globalization.CultureInfo]::InvariantCulture)
+                $sizeLabel = ('{0:N0} bytes' -f $remoteSize)
+            }
+        }
+        $findings.Add("명시적 위생 차단: $BaselineRef 에서 추적 중 ($sizeLabel): $EditorPublishExecutable")
+    }
 
     $baselinePaths = @{}
     try {
@@ -61,11 +99,14 @@ try {
         exit 2
     }
 
-    $findings = New-Object System.Collections.Generic.List[string]
     foreach ($entry in $trackedEntries) {
         $relativePath = $entry.Path
         $normalized = $relativePath.Replace('\', '/')
         $inBaseline = $baselinePaths.ContainsKey($relativePath)
+
+        # The explicit check above reports this path and both tracking sources
+        # separately. Avoid reporting it again through generic executable rules.
+        if ($normalized -ceq $EditorPublishExecutable) { continue }
 
         if ($normalized -match '(^|/)(\.godot|\.vs|\.cache|obj|build|publish|artifacts)(/|$)' -or
             $normalized -match '^(bin|editor/bin|editor/obj|tools/bin|tools/obj)/') {
