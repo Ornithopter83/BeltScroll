@@ -6,7 +6,7 @@ const ART_PATH := "res://assets/art/player/elven_fighter_reference_v8_clean_cand
 const CAPTURE_PATH := "res://assets/art/review/player_v8_ingame_capture.png"
 const CAPTURE_SIZE := Vector2i(1920, 1080)
 const CAMERA_ZOOM := Vector2(1.2, 1.2)
-const TARGET_SCREEN_HEIGHT := 192.0
+const TARGET_SCREEN_HEIGHT := 576.0
 const HIT_COLOR := Color(1.0, 0.42, 0.36, 1.0)
 const KO_COLOR := Color(0.62, 0.62, 0.62, 0.78)
 
@@ -40,11 +40,11 @@ func _run() -> void:
 	_check(alpha_bounds == Rect2i(110, 90, 1034, 1074), "integrated image keeps the approved 1254-square alpha bounds")
 	if sprite != null and sprite.texture != null:
 		var displayed_height := float(alpha_bounds.size.y) * sprite.scale.y * CAMERA_ZOOM.y
-		_check(absf(displayed_height - TARGET_SCREEN_HEIGHT) <= 0.1, "alpha silhouette displays approximately 192 screen pixels at zoom 1.2")
+		_check(absf(displayed_height - TARGET_SCREEN_HEIGHT) <= 0.1, "alpha silhouette displays approximately 576 screen pixels at zoom 1.2")
 		var alpha_bottom_local := sprite.position.y + (float(alpha_bounds.end.y) - float(sprite.texture.get_height()) * 0.5) * sprite.scale.y
 		var floor_y: float = (player_scene.get_node("VisualRoot") as Node2D).position.y + alpha_bottom_local
 		_check(absf(floor_y) <= 0.1, "sprite alpha foot bottom aligns to the Player physics floor")
-		_check(absf(sprite.scale.x - sprite.scale.y) < 0.00001 and absf(sprite.scale.y - 160.0 / 1074.0) < 0.00001, "sprite scale preserves aspect ratio and targets 160 world pixels")
+		_check(absf(sprite.scale.x - sprite.scale.y) < 0.00001 and absf(sprite.scale.y - 480.0 / 1074.0) < 0.00001, "sprite scale preserves aspect ratio and targets 480 world pixels")
 	_check(not FileAccess.get_file_as_string(PLAYER_SCENE).contains("SpriteFrames"), "integrated artwork is represented as a still image, not completed frame animation")
 	player_scene.free()
 
@@ -90,16 +90,13 @@ func _run() -> void:
 		if save_error == OK:
 			print("player-art-capture: saved real 1920x1080 Window Viewport frame to %s" % CAPTURE_PATH)
 
-	Input.action_press("sit")
-	await _physics_frames(2)
 	var visual_root := player.get_node("VisualRoot") as Node2D
 	sprite = player.get_node("VisualRoot/PlayerArt") as Sprite2D
-	var sit_floor_y: float = visual_root.position.y + sprite.position.y * visual_root.scale.y + (float(alpha_bounds.end.y) - float(sprite.texture.get_height()) * 0.5) * sprite.scale.y * visual_root.scale.y
-	var sit_height: float = float(alpha_bounds.size.y) * sprite.scale.y * visual_root.scale.y * CAMERA_ZOOM.y
-	_check(player.is_sitting and is_equal_approx(visual_root.scale.y, 0.78), "sit input keeps the existing crouch pose on the Sprite2D")
-	_check(absf(sit_floor_y) <= 1.0 and sit_height >= TARGET_SCREEN_HEIGHT * 0.70 and sit_height <= TARGET_SCREEN_HEIGHT * 0.80, "sitting artwork stays floor-anchored and remains legible through the crouch pose")
-	Input.action_release("sit")
-	await _physics_frames(1)
+	_check(not InputMap.has_action("sit") and is_equal_approx(visual_root.scale.y, 1.0), "removed sit input has no crouch state or pose scaling")
+	var alpha_foot_local := Vector2(float(alpha_bounds.position.x) + float(alpha_bounds.size.x) * 0.5, float(alpha_bounds.end.y)) - Vector2(sprite.texture.get_size()) * 0.5
+	var standing_floor_y := sprite.to_global(alpha_foot_local).y - player.global_position.y
+	var standing_height := float(alpha_bounds.size.y) * absf(sprite.scale.y) * visual_root.scale.y * CAMERA_ZOOM.y
+	_check(absf(standing_floor_y) <= 1.0 and absf(standing_height - TARGET_SCREEN_HEIGHT) <= 5.0, "full-size artwork remains floor-anchored at the revised 3x target")
 	var shadow_floor_y := (player.get_node("GroundShadow") as Polygon2D).global_position.y
 	player._start_jump()
 	await _physics_frames(2)

@@ -46,6 +46,18 @@ func _capture() -> void:
 	if source == null or source.get_size() != CAPTURE_SIZE:
 		_finish()
 		return
+	# This sheet compares the stage texture at the viewport boundary. Hide the
+	# enlarged actors and HUD so their foreground pixels do not invalidate those
+	# background-only samples; actor framing is checked by gameplay window tests.
+	var hud := game.get_node_or_null("CombatHUD") as CanvasLayer
+	if hud != null:
+		hud.visible = false
+	for actor in game.get_node("YSortActors").get_children():
+		var art := actor.get_node_or_null("VisualRoot/PlayerArt") as Sprite2D
+		if art == null:
+			art = actor.get_node_or_null("VisualRoot/RaiderArt") as Sprite2D
+		if art != null:
+			art.visible = false
 
 	var comparison := Image.create(CAPTURE_SIZE.x, CAPTURE_SIZE.y, false, Image.FORMAT_RGBA8)
 	comparison.fill(Color.BLACK)

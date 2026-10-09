@@ -62,7 +62,7 @@ func _run() -> void:
 	_check(_effects().is_empty(), "airborne floor travel does not emit footstep dust")
 	player.set("jump_height_offset", 0.1)
 	player.set("jump_vertical_velocity", 100.0)
-	var landed: bool = player.call("_update_jump", 1.0 / 60.0, 1.0)
+	var landed: bool = player.call("_update_jump", 1.0 / 60.0)
 	player.call("_update_ground_dust", player.global_position, landed)
 	_check(_count_landing_effects() == 1, "jump landing emits one landing burst")
 	_check(landed and player.get("is_jumping") == false, "landing effect follows the actual jump landing state")

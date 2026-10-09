@@ -54,9 +54,22 @@ func _run() -> void:
 	player.global_position = Vector2(1510.0, 490.0)
 	await _observe_spacing(65)
 	_check(_center_x() < center_at_right, "three Raiders resume pursuit after the player changes position and depth")
-	player.global_position = Vector2(1748.0, 410.0)
+	player.global_position = Vector2(1748.0, 460.0)
 	await _exercise_group("three Raiders on the return attack cycle", 100)
-	_check(attack_observed_during_exercise, "three Raider attack cycles resume after repeated separation")
+	var attacker := _nearest_raider_to_player()
+	if attacker != null:
+		for raider in raiders:
+			if raider != attacker:
+				raider.set("health", 0)
+		attacker.global_position = Vector2(1670.0, 460.0)
+		attacker.set("attack_phase", "idle")
+		attacker.set("attack_phase_remaining", 0.0)
+		attacker.set("hitstun_remaining", 0.0)
+		attacker.velocity = Vector2.ZERO
+		player.global_position = Vector2(1740.0, 460.0)
+		await _frames(3)
+		attack_observed_during_exercise = attacker.get("attack_phase") == "windup" or attacker.get("attack_phase") == "active"
+	_check(attack_observed_during_exercise, "a Raider re-engages after the group separates when the player returns to its attack lane")
 	_check(_all_inside_arena(), "spacing and knock-free pursuit keep Raiders inside arena bounds")
 
 	if failures.is_empty():
@@ -138,6 +151,18 @@ func _any_attacking() -> bool:
 		if raider.get("attack_phase") == "windup" or raider.get("attack_phase") == "active":
 			return true
 	return false
+
+func _nearest_raider_to_player() -> CharacterBody2D:
+	var nearest: Node2D
+	var nearest_distance := INF
+	for raider in raiders:
+		if not is_instance_valid(raider) or int(raider.get("health")) <= 0:
+			continue
+		var distance := raider.global_position.distance_to(player.global_position)
+		if distance < nearest_distance:
+			nearest = raider
+			nearest_distance = distance
+	return nearest as CharacterBody2D
 
 func _all_inside_arena() -> bool:
 	for raider in raiders:

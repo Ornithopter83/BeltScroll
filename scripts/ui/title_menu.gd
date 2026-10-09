@@ -77,7 +77,7 @@ func _build_menu() -> void:
 	_quit_button.pressed.connect(_request_quit)
 	_menu_content.add_child(_quit_button)
 
-	var footer := _label("WASD / 방향키 / 스틱 / 십자키 이동  ·  Enter / 남쪽 버튼 선택", 13, Color(0.72, 0.79, 0.73, 0.82))
+	var footer := _label("WASD 이동  ·  Num1 공격  ·  Num2 점프  ·  Num3 막기", 13, Color(0.72, 0.79, 0.73, 0.82))
 	footer.add_theme_constant_override("margin_top", 18)
 	_menu_content.add_child(footer)
 
@@ -120,7 +120,7 @@ func _build_controls_panel() -> void:
 	divider.color = Color(GOLD, 0.72)
 	layout.add_child(divider)
 
-	var controls := _label("이동     WASD / 방향키 / 왼쪽 스틱 / 십자키\n점프     Space / 남쪽 버튼\n앉기     C / 동쪽 버튼\n공격     J / 왼쪽 마우스 / 서쪽 버튼\n메뉴 선택  Enter / 남쪽 버튼\n돌아가기  Esc / 동쪽 버튼", 18, MUTED)
+	var controls := _label("이동       WASD\n공격       Num1\n점프       Num2\n막기       Num3\n확장 입력  Num4 ~ Num9 (예약)\n메뉴 선택  Enter\n돌아가기   Esc", 18, MUTED)
 	controls.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	controls.add_theme_constant_override("line_spacing", 7)
 	layout.add_child(controls)

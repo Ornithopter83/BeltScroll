@@ -6,8 +6,8 @@ enum ResultState { PLAYING, DEFEAT, VICTORY }
 const EXPECTED_RAIDER_COUNT := 3
 const OVERLAY_LAYER := 20
 const HELP_LAYER := 10
-const RESULT_SAFE_TOP := 150.0
-const RESULT_SAFE_BOTTOM := 510.0
+const RESULT_SAFE_TOP := 760.0
+const RESULT_SAFE_BOTTOM := 1050.0
 const TITLE_SCENE := "res://scenes/ui/title_menu.tscn"
 const MAIN_SCENE := "res://scenes/game/main.tscn"
 
@@ -111,6 +111,10 @@ func _finish_session(result: ResultState) -> void:
 	Engine.time_scale = 1.0
 	_clear_combat_impacts()
 	_set_combat_active(false)
+	var camera := _player.get_node_or_null("Camera2D") as Camera2D if is_instance_valid(_player) else null
+	if camera != null:
+		camera.zoom = Vector2.ONE
+		camera.reset_smoothing()
 	result_label.text = "DEFEAT" if result == ResultState.DEFEAT else "VICTORY"
 	result_overlay.visible = true
 	_result_restart_button.grab_focus.call_deferred()

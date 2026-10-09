@@ -25,7 +25,7 @@ func _run() -> void:
 	await _check_cardinal_movement()
 	await _check_diagonal_movement()
 	await _check_facing()
-	await _check_crouch()
+	await _check_blocking()
 	await _check_arena_clamp()
 	await _check_camera_bounds()
 	await _check_visual_jump_and_landing()
@@ -103,27 +103,28 @@ func _check_facing() -> void:
 	_release("move_up")
 	await _frames(1)
 
-func _check_crouch() -> void:
+func _check_blocking() -> void:
 	await _reset_player(Vector2(960, 540))
+	Input.action_press("block")
 	Input.action_press("move_right")
 	await _frames(10)
-	var normal_distance := player.global_position.x - 960.0
+	_check(player.get("is_blocking") == true, "block input enters guarding state")
+	_check(absf(player.global_position.x - 960.0) < EPSILON, "blocking prevents movement")
+	Input.action_press("attack")
+	await _frames(1)
+	_check(player.get("attack_phase") == "idle", "blocking prevents starting an attack")
+	_release("attack")
 	_release("move_right")
+	_release("block")
 	await _frames(1)
 	await _reset_player(Vector2(960, 540))
-	Input.action_press("move_right")
-	Input.action_press("sit")
-	await _frames(10)
-	var crouch_distance := player.global_position.x - 960.0
-	var crouch_foot_anchor := visual_root.position.y + 15.0 * visual_root.scale.y
-	_check(player.get("is_sitting") == true and is_equal_approx(visual_root.scale.y, 0.78), "sit input applies crouch visual state")
-	_check(absf(crouch_distance / normal_distance - 0.45) < 0.03, "crouch applies configured movement multiplier")
-	_check(absf(crouch_foot_anchor - (-3.0)) < EPSILON, "crouch keeps the visual foot anchor fixed")
-	_check(visual_root.scale.x > 0.0 and player.facing_direction.x > 0.9, "crouch preserves horizontal facing")
-	_release("move_right")
-	_release("sit")
+	player.set("is_blocking", true)
+	var health_before: int = player.get("health")
+	player.call("receive_hit", {"damage": 2, "direction": Vector2.LEFT, "knockback": 200.0, "hit_stun": 0.4, "attack_stage": 2})
+	_check(player.get("health") == health_before - 1, "blocking reduces incoming damage")
+	_check(absf(float(player.get("hitstun_remaining")) - 0.2) < EPSILON, "blocking reduces hit stun")
+	_check(absf(player.velocity.length() - 70.0) < EPSILON, "blocking reduces knockback")
 	await _frames(1)
-	_check(player.get("is_sitting") == false and is_equal_approx(visual_root.scale.y, 1.0), "releasing sit restores standing state")
 
 func _check_arena_clamp() -> void:
 	await _reset_player(Vector2(180, 540))
@@ -248,6 +249,8 @@ func _reset_player(position: Vector2) -> void:
 	player.set("jump_buffer_remaining", 0.0)
 	player.set("coyote_remaining", 0.0)
 	player.set("is_jumping", false)
+	player.set("is_blocking", false)
+	player.set("hitstun_remaining", 0.0)
 	visual_root.position = Vector2(0, -18)
 	visual_root.scale = Vector2.ONE
 	ground_shadow.modulate.a = 0.42
@@ -261,7 +264,7 @@ func _release(action: String) -> void:
 	Input.action_release(action)
 
 func _release_all_actions() -> void:
-	for action in ["move_left", "move_right", "move_up", "move_down", "sit", "jump", "attack"]:
+	for action in ["move_left", "move_right", "move_up", "move_down", "block", "jump", "attack"]:
 		Input.action_release(action)
 
 func _check(condition: bool, description: String) -> void:

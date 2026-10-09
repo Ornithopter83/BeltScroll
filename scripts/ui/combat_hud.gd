@@ -5,18 +5,34 @@ const BORDER_COLOR := Color(0.72, 0.65, 0.39, 0.62)
 const TEXT_COLOR := Color(0.94, 0.93, 0.84, 1.0)
 const MUTED_COLOR := Color(0.69, 0.75, 0.66, 1.0)
 const ACCENT_COLOR := Color(0.78, 0.72, 0.42, 1.0)
+const PLAYER_BAR_SPEED := 7.0
+const PLAYER_DAMAGE_DELAY := 0.42
+const PLAYER_DAMAGE_BAR_SPEED := 2.0
+const RAIDER_BAR_SPEED := 8.0
+const RAIDER_DAMAGE_DELAY := 0.28
+const RAIDER_DAMAGE_BAR_SPEED := 3.0
+const RAIDER_INDICATOR_SIZE := Vector2(92.0, 29.0)
+const RAIDER_HEAD_PADDING := 12.0
 
 var health_value_label: Label
 var health_bar: ProgressBar
+var health_damage_bar: ProgressBar
 var combo_value_label: Label
 var raider_value_label: Label
 var _player: Node
+var _player_bar_value := 5.0
+var _player_damage_value := 5.0
+var _player_damage_delay := 0.0
+var _player_health_initialized := false
+var _player_health_target := 5.0
+var _raider_indicators: Dictionary = {}
 
 func _ready() -> void:
 	_build_hud()
 	refresh()
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_advance_health_bars(delta)
 	refresh()
 
 func refresh() -> void:
@@ -29,19 +45,159 @@ func refresh() -> void:
 		var current := clampi(int(_player.get("health")), 0, maximum)
 		health_value_label.text = "%d / %d" % [current, maximum]
 		health_bar.max_value = maximum
-		health_bar.value = current
+		health_damage_bar.max_value = maximum
+		if not _player_health_initialized:
+			_player_health_initialized = true
+			_player_bar_value = float(current)
+			_player_damage_value = float(current)
+			_player_health_target = float(current)
+		elif float(current) != _player_health_target:
+			if float(current) > _player_health_target:
+				# Healing removes the damage tail immediately, including partial heals.
+				_player_damage_value = maxf(_player_bar_value, float(current))
+				_player_damage_delay = 0.0
+			else:
+				_player_damage_delay = PLAYER_DAMAGE_DELAY
+			_player_health_target = float(current)
 		var stage := int(_player.get("attack_stage"))
 		combo_value_label.text = "%d / 3" % stage if stage > 0 else "—"
 	else:
 		health_value_label.text = "— / —"
-		health_bar.value = 0.0
+		_player_health_target = 0.0
 		combo_value_label.text = "—"
+	health_bar.value = _player_bar_value
+	health_damage_bar.value = _player_damage_value
 
 	var remaining := 0
+	var live_ids: Dictionary = {}
 	for raider in get_tree().get_nodes_in_group("forest_raiders"):
-		if is_instance_valid(raider) and int(raider.get("health")) > 0:
-			remaining += 1
+		if is_instance_valid(raider):
+			var raider_id := raider.get_instance_id()
+			live_ids[raider_id] = true
+			_update_raider_indicator(raider, raider_id)
+			if int(raider.get("health")) > 0:
+				remaining += 1
+	for raider_id in _raider_indicators.keys():
+		if not live_ids.has(raider_id):
+			var stale: Control = _raider_indicators[raider_id]["root"]
+			if is_instance_valid(stale):
+				stale.queue_free()
+			_raider_indicators.erase(raider_id)
 	raider_value_label.text = "%02d" % remaining
+	_ensure_player_indicator_order()
+
+func _advance_health_bars(delta: float) -> void:
+	if not _player_health_initialized:
+		return
+	_player_bar_value = move_toward(_player_bar_value, _player_health_target, PLAYER_BAR_SPEED * delta)
+	if _player_damage_delay > 0.0:
+		_player_damage_delay = maxf(0.0, _player_damage_delay - delta)
+	elif _player_damage_value > _player_health_target:
+		_player_damage_value = move_toward(_player_damage_value, _player_health_target, PLAYER_DAMAGE_BAR_SPEED * delta)
+	else:
+		_player_damage_value = _player_bar_value
+	for indicator in _raider_indicators.values():
+		var target := float(indicator["target"])
+		indicator["bar_value"] = move_toward(float(indicator["bar_value"]), target, RAIDER_BAR_SPEED * delta)
+		if float(indicator["damage_delay"]) > 0.0:
+			indicator["damage_delay"] = maxf(0.0, float(indicator["damage_delay"]) - delta)
+		elif float(indicator["damage_value"]) > target:
+			indicator["damage_value"] = move_toward(float(indicator["damage_value"]), target, RAIDER_DAMAGE_BAR_SPEED * delta)
+		else:
+			indicator["damage_value"] = float(indicator["bar_value"])
+		indicator["bar"].value = float(indicator["bar_value"])
+		indicator["damage_bar"].value = float(indicator["damage_value"])
+
+func _update_raider_indicator(raider: Node2D, raider_id: int) -> void:
+	var indicator: Dictionary
+	if _raider_indicators.has(raider_id):
+		indicator = _raider_indicators[raider_id]
+	else:
+		indicator = _create_raider_indicator(raider_id)
+		_raider_indicators[raider_id] = indicator
+	var health := maxi(0, int(raider.get("health")))
+	var maximum := maxi(1, int(raider.get("max_health")))
+	var target := float(health)
+	indicator["label"].text = "%d / %d" % [health, maximum]
+	indicator["bar"].max_value = maximum
+	indicator["damage_bar"].max_value = maximum
+	if not bool(indicator["initialized"]):
+		indicator["bar_value"] = target
+		indicator["damage_value"] = target
+		indicator["target"] = target
+		indicator["initialized"] = true
+	elif target != float(indicator["target"]):
+		if target > float(indicator["target"]):
+			indicator["damage_value"] = maxf(float(indicator["bar_value"]), target)
+			indicator["damage_delay"] = 0.0
+		else:
+			indicator["damage_delay"] = RAIDER_DAMAGE_DELAY
+		indicator["target"] = target
+	var root_control: Control = indicator["root"]
+	if health <= 0:
+		root_control.visible = false
+		return
+	root_control.visible = true
+	var camera := get_viewport().get_camera_2d()
+	if camera == null:
+		root_control.visible = false
+		return
+	var raider_art := raider.get_node_or_null("VisualRoot/RaiderArt") as Sprite2D
+	if raider_art == null or raider_art.texture == null:
+		root_control.visible = false
+		return
+	var alpha_bounds: Rect2i = indicator["alpha_bounds"]
+	var local_head := (Vector2(alpha_bounds.position.x + alpha_bounds.size.x * 0.5, alpha_bounds.position.y) - Vector2(raider_art.texture.get_size()) * 0.5) * raider_art.scale
+	var screen_head: Vector2 = raider_art.get_global_transform_with_canvas() * local_head
+	var view_size: Vector2 = get_viewport().get_visible_rect().size
+	var half_size := RAIDER_INDICATOR_SIZE * 0.5
+	root_control.position = Vector2(
+		clampf(screen_head.x - half_size.x, 4.0, maxf(4.0, view_size.x - RAIDER_INDICATOR_SIZE.x - 4.0)),
+		clampf(screen_head.y - RAIDER_INDICATOR_SIZE.y - RAIDER_HEAD_PADDING, 4.0, maxf(4.0, view_size.y - RAIDER_INDICATOR_SIZE.y - 4.0))
+	)
+	indicator["bar"].value = float(indicator["bar_value"])
+	indicator["damage_bar"].value = float(indicator["damage_value"])
+
+func _create_raider_indicator(raider_id: int) -> Dictionary:
+	var root_control := Control.new()
+	root_control.name = "RaiderHealth_%d" % raider_id
+	root_control.size = RAIDER_INDICATOR_SIZE
+	root_control.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root_control.z_index = 5
+	$Overlay.add_child(root_control)
+	var raider := instance_from_id(raider_id) as Node2D
+	var raider_art := raider.get_node_or_null("VisualRoot/RaiderArt") as Sprite2D if is_instance_valid(raider) else null
+	var alpha_bounds := raider_art.texture.get_image().get_used_rect() if raider_art != null and raider_art.texture != null else Rect2i()
+	var label := Label.new()
+	label.position = Vector2(0.0, 0.0)
+	label.size = Vector2(RAIDER_INDICATOR_SIZE.x, 14.0)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 11)
+	label.add_theme_color_override("font_color", TEXT_COLOR)
+	root_control.add_child(label)
+	var damage_bar := ProgressBar.new()
+	damage_bar.position = Vector2(4.0, 16.0)
+	damage_bar.size = Vector2(RAIDER_INDICATOR_SIZE.x - 8.0, 9.0)
+	damage_bar.show_percentage = false
+	damage_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_style_health_bar(damage_bar, Color(0.72, 0.25, 0.18, 1.0))
+	root_control.add_child(damage_bar)
+	var bar := ProgressBar.new()
+	bar.position = damage_bar.position
+	bar.size = damage_bar.size
+	bar.show_percentage = false
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_style_health_bar(bar, Color(0.73, 0.77, 0.45, 1.0))
+	_set_transparent_bar_background(bar)
+	root_control.add_child(bar)
+	return {"root": root_control, "label": label, "bar": bar, "damage_bar": damage_bar, "alpha_bounds": alpha_bounds,
+		"bar_value": 0.0, "damage_value": 0.0, "damage_delay": 0.0, "target": 0.0, "initialized": false}
+
+func _ensure_player_indicator_order() -> void:
+	if health_damage_bar == null or health_bar == null:
+		return
+	health_damage_bar.value = _player_damage_value
+	health_bar.value = _player_bar_value
 
 func _build_hud() -> void:
 	var overlay := Control.new()
@@ -58,23 +214,29 @@ func _build_hud() -> void:
 	health_value_label = _make_value("5 / 5", 23)
 	health_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	health_layout.add_child(health_value_label)
+	var health_bar_stack := Control.new()
+	health_bar_stack.name = "HealthBarStack"
+	health_bar_stack.custom_minimum_size = Vector2(0.0, 14.0)
+	health_layout.add_child(health_bar_stack)
+	health_damage_bar = ProgressBar.new()
+	health_damage_bar.name = "HealthDamageBar"
+	health_damage_bar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	health_damage_bar.show_percentage = false
+	health_damage_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_style_health_bar(health_damage_bar, Color(0.72, 0.25, 0.18, 1.0))
+	health_bar_stack.add_child(health_damage_bar)
 	health_bar = ProgressBar.new()
+	health_bar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	health_bar.name = "HealthBar"
-	health_bar.custom_minimum_size = Vector2(0.0, 10.0)
 	health_bar.show_percentage = false
 	health_bar.max_value = 5.0
 	health_bar.value = 5.0
-	var bar_background := StyleBoxFlat.new()
-	bar_background.bg_color = Color(0.13, 0.19, 0.15, 1.0)
-	bar_background.set_corner_radius_all(5)
-	health_bar.add_theme_stylebox_override("background", bar_background)
-	var bar_fill := StyleBoxFlat.new()
-	bar_fill.bg_color = Color(0.73, 0.77, 0.45, 1.0)
-	bar_fill.set_corner_radius_all(5)
-	health_bar.add_theme_stylebox_override("fill", bar_fill)
-	health_layout.add_child(health_bar)
+	health_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_style_health_bar(health_bar, Color(0.73, 0.77, 0.45, 1.0))
+	_set_transparent_bar_background(health_bar)
+	health_bar_stack.add_child(health_bar)
 
-	var combo_panel := _make_panel("ComboPanel", Vector2(836.0, 34.0), Vector2(248.0, 94.0))
+	var combo_panel := _make_panel("ComboPanel", Vector2(42.0, 162.0), Vector2(248.0, 94.0))
 	overlay.add_child(combo_panel)
 	var combo_layout := _make_layout()
 	combo_layout.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -130,6 +292,21 @@ func _make_value(value: String, font_size: int) -> Label:
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", ACCENT_COLOR if value == "—" else TEXT_COLOR)
 	return label
+
+func _style_health_bar(bar: ProgressBar, fill_color: Color) -> void:
+	var bar_background := StyleBoxFlat.new()
+	bar_background.bg_color = Color(0.13, 0.19, 0.15, 1.0)
+	bar_background.set_corner_radius_all(5)
+	bar.add_theme_stylebox_override("background", bar_background)
+	var bar_fill := StyleBoxFlat.new()
+	bar_fill.bg_color = fill_color
+	bar_fill.set_corner_radius_all(5)
+	bar.add_theme_stylebox_override("fill", bar_fill)
+
+func _set_transparent_bar_background(bar: ProgressBar) -> void:
+	var transparent_background := StyleBoxFlat.new()
+	transparent_background.bg_color = Color(0.0, 0.0, 0.0, 0.0)
+	bar.add_theme_stylebox_override("background", transparent_background)
 
 func _find_player(node: Node) -> Node:
 	if node is CharacterBody2D and node.name == "Player" and node.get("health") != null:

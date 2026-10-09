@@ -9,10 +9,10 @@ signal raider_ko
 @export var arena_bounds: Rect2 = Rect2(Vector2(160, 100), Vector2(1600, 880))
 @export var max_health: int = 3
 @export var notice_range: float = 560.0
-@export var attack_range: float = 72.0
+@export var attack_range: float = 96.0
 @export var attack_depth_tolerance: float = 34.0
-@export var separation_radius: float = 42.0
-@export var separation_strength: float = 92.0
+@export var separation_radius: float = 108.0
+@export var separation_strength: float = 120.0
 @export var windup_duration: float = 0.34
 @export var active_duration: float = 0.16
 @export var recovery_duration: float = 0.62
@@ -26,13 +26,13 @@ signal raider_ko
 @onready var attack_area: Area2D = $AttackArea
 @onready var receive_area: Area2D = $ReceiveArea
 
-const BODY_HALF_WIDTH := 15.0
-const BODY_TOP_OFFSET := -43.0
+const BODY_HALF_WIDTH := 18.0
+const BODY_TOP_OFFSET := -40.0
 const BODY_BOTTOM_OFFSET := 2.0
-const SPACING_TARGET := 48.0
-const SPACING_ENTER_RADIUS := 54.0
-const SPACING_EXIT_RADIUS := 62.0
-const SPACING_ESCAPE_SPEED := 36.0
+const SPACING_TARGET := 120.0
+const SPACING_ENTER_RADIUS := 132.0
+const SPACING_EXIT_RADIUS := 144.0
+const SPACING_ESCAPE_SPEED := 48.0
 const HIT_COLOR := Color(1.0, 0.78, 0.58, 1.0)
 const KNOCKED_OUT_COLOR := Color(0.62, 0.62, 0.62, 0.78)
 
@@ -95,7 +95,7 @@ func _physics_process(delta: float) -> void:
 			if absf(offset.x) < attack_range * 0.82 and not in_depth_lane:
 				desired.x = 0.0
 			var spacing := _spacing_adjustment(desired)
-			if offset.length() <= attack_range and in_depth_lane and spacing.minimum_gap >= SPACING_TARGET:
+			if offset.length() <= attack_range and in_depth_lane and spacing.minimum_gap >= SPACING_TARGET - 0.5:
 				_begin_attack()
 			else:
 				velocity = spacing.velocity
@@ -142,7 +142,7 @@ func _physics_process(delta: float) -> void:
 func _begin_attack() -> void:
 	attack_phase = "windup"
 	attack_phase_remaining = windup_duration
-	attack_area.position = facing_direction * (attack_range * 0.57) + Vector2(0.0, -20.0)
+	attack_area.position = facing_direction * (attack_range * 0.57) + Vector2(0.0, -30.0)
 	attack_flash.position.x = facing_direction.x * 25.0
 	attack_flash.visible = true
 	attack_area.monitoring = false

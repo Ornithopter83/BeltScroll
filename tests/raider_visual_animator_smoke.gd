@@ -2,6 +2,7 @@ extends SceneTree
 
 const RAIDER_SCENE := "res://scenes/enemies/forest_raider.tscn"
 const FLOOR_TOLERANCE := 0.05
+const ART_SCALE := Vector2(0.446928, 0.446928)
 
 var failures: Array[String] = []
 
@@ -43,7 +44,14 @@ func _run() -> void:
 	var baseline_foot := _foot_point(art)
 	var sprite_parent_position := (art.get_parent() as Node2D).position
 	var ysort_enabled := ysort.y_sort_enabled
-	_check(art_position.is_equal_approx(Vector2(0.0, -59.028)) and art_scale.is_equal_approx(Vector2(0.148976, 0.148976)), "RaiderArt retains its authored node position and scale")
+	_check(art_position.is_equal_approx(Vector2(0.149, -219.028)) and art_scale.is_equal_approx(ART_SCALE), "RaiderArt uses the enlarged scale and adjusted alpha-foot anchor")
+	var alpha_bounds := art.texture.get_image().get_used_rect()
+	var alpha_foot := Vector2(float(alpha_bounds.position.x) + float(alpha_bounds.size.x) * 0.5, float(alpha_bounds.end.y))
+	var centered_foot := alpha_foot - Vector2(art.texture.get_size()) * 0.5
+	var local_foot := centered_foot * art.scale
+	var expected_ground_anchor := Vector2(0.0, -59.028) + centered_foot * Vector2(0.148976, 0.148976)
+	_check(alpha_bounds.position.x >= 0 and alpha_bounds.position.y >= 0 and alpha_bounds.end.x <= art.texture.get_width() and alpha_bounds.end.y <= art.texture.get_height(), "enlarged Raider texture has an in-bounds alpha silhouette")
+	_check((art.position + local_foot).distance_to(expected_ground_anchor) < FLOOR_TOLERANCE, "enlarged Raider alpha foot stays at its authored ground anchor")
 
 	# Idle breath stays subtle and keeps the authored alpha-edge floor anchor fixed.
 	animator.call("_process", 1.0 / 60.0)
@@ -103,6 +111,12 @@ func _run() -> void:
 
 	_check(raider.position == root_position and raider.velocity == Vector2.ZERO, "visual animation leaves the physics root and movement state unchanged")
 	_check(body_shape == raider.get_node("CollisionShape2D") and attack_shape == raider.get_node("AttackArea/CollisionShape2D") and receive_shape == raider.get_node("ReceiveArea/CollisionShape2D"), "body, attack, and receive hitboxes retain their nodes")
+	var body_capsule := body_shape.shape as CapsuleShape2D
+	var attack_rect := attack_shape.shape as RectangleShape2D
+	var receive_circle := receive_shape.shape as CircleShape2D
+	_check(body_capsule != null and is_equal_approx(body_capsule.radius, 18.0) and is_equal_approx(body_capsule.height, 42.0), "enlarged Raider collision body matches the new footprint")
+	_check(attack_rect != null and attack_rect.size.is_equal_approx(Vector2(78.0, 48.0)) and receive_circle != null and is_equal_approx(receive_circle.radius, 30.0), "attack and receive judgment areas grow with the enlarged Raider")
+	_check(float(raider.get("separation_radius")) >= 108.0 and float(raider.get("attack_range")) >= 96.0, "larger Raider attack reach and spacing are configured")
 	_check((raider.get_node("AttackArea") as Area2D).position == attack_area_position and (raider.get_node("ReceiveArea") as Area2D).position == receive_area_position, "attack and receive hitbox positions remain unchanged")
 	_check((art.get_parent() as Node2D).position == sprite_parent_position and ysort.y_sort_enabled == ysort_enabled, "VisualRoot placement and YSort contract remain unchanged")
 	ysort.queue_free()

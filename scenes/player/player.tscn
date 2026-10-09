@@ -6,17 +6,17 @@
 [ext_resource type="Script" path="res://scripts/player/player_pose_blender.gd" id="4_pose_blender"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_body"]
-radius = 13.0
+radius = 16.0
 height = 40.0
 
 [sub_resource type="RectangleShape2D" id="HitboxShape_stage_1"]
-size = Vector2(44, 28)
+size = Vector2(60, 40)
 
 [sub_resource type="RectangleShape2D" id="HitboxShape_stage_2"]
-size = Vector2(60, 36)
+size = Vector2(78, 52)
 
 [sub_resource type="RectangleShape2D" id="HitboxShape_stage_3"]
-size = Vector2(78, 46)
+size = Vector2(100, 66)
 
 [node name="Player" type="CharacterBody2D"]
 collision_layer = 1
@@ -36,14 +36,14 @@ color = Color(0.02, 0.025, 0.03, 0.42)
 position = Vector2(0, -18)
 
 [node name="PlayerArt" type="Sprite2D" parent="VisualRoot"]
-position = Vector2(0, -62.0)
+position = Vector2(0.0, -222.0)
 texture = ExtResource("2_player_art")
-scale = Vector2(0.1489758, 0.1489758)
+scale = Vector2(0.4469274, 0.4469274)
 
 [node name="PoseBlender" type="Node2D" parent="VisualRoot"]
 visible = false
 script = ExtResource("4_pose_blender")
-sprite_scale = Vector2(0.1489758, 0.1489758)
+sprite_scale = Vector2(0.4469274, 0.4469274)
 crossfade_duration = 0.06
 
 [node name="VisualAnimator" type="Node" parent="."]

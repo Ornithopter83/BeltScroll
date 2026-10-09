@@ -5,14 +5,14 @@
 [ext_resource type="Script" path="res://scripts/enemies/raider_visual_animator.gd" id="3_visual_animator"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_raider"]
-radius = 15.0
-height = 38.0
+radius = 18.0
+height = 42.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_attack"]
-size = Vector2(58, 34)
+size = Vector2(78, 48)
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_receive"]
-radius = 22.0
+radius = 30.0
 
 [node name="ForestRaider" type="CharacterBody2D"]
 collision_layer = 2
@@ -32,8 +32,8 @@ color = Color(0.02, 0.025, 0.03, 0.42)
 position = Vector2(0, -21)
 
 [node name="RaiderArt" type="Sprite2D" parent="VisualRoot"]
-position = Vector2(0, -59.028)
-scale = Vector2(0.148976, 0.148976)
+position = Vector2(0.149, -219.028)
+scale = Vector2(0.446928, 0.446928)
 texture = ExtResource("2_raider_art")
 
 [node name="VisualAnimator" type="Node" parent="."]

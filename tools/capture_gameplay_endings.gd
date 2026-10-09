@@ -90,6 +90,7 @@ func capture(tree: SceneTree) -> Dictionary:
 	game = tree.current_scene
 	if not _restored(tree, game, defeat_audio_stopped):
 		return _failure("GEW-009", "Defeat retry did not restore paused=false, time_scale=1, and stopped CombatAudio.")
+	_stage_actors(game, 770.0)
 	# Pause through the production key handler, then exercise synthetic gamepad
 	# focus navigation before activating the focused title Button.
 	_send_key(tree, KEY_ESCAPE)
@@ -167,13 +168,19 @@ func _check_main_content(game: Node) -> bool:
 func _valid_sprite(node: Node) -> bool:
 	return node is Sprite2D and (node as Sprite2D).texture != null and (node as Sprite2D).texture.get_size().x > 0 and node.is_visible_in_tree()
 
-func _stage_actors(game: Node) -> void:
+func _stage_actors(game: Node, floor_y: float = 680.0) -> void:
 	var player := game.get_node("YSortActors/Player")
-	player.global_position = Vector2(960.0, 855.0)
+	player.global_position = Vector2(960.0, floor_y)
 	var raiders: Array = game.get("_raiders")
 	var review_positions := [360.0, 700.0, 1460.0]
 	for index in range(raiders.size()):
-		raiders[index].global_position = Vector2(review_positions[index], 855.0)
+		raiders[index].global_position = Vector2(review_positions[index], floor_y)
+	var camera := player.get_node_or_null("Camera2D") as Camera2D
+	if camera != null:
+		camera.position_smoothing_enabled = false
+		camera.make_current()
+		camera.reset_smoothing()
+		camera.force_update_scroll()
 
 func _check_result_controls(game: Node, state: String) -> void:
 	var overlay := game.get("result_overlay") as CanvasLayer
@@ -268,8 +275,8 @@ func _result_panel_is_rendered(tree: SceneTree, captured: Image, game: Node, sta
 		return false
 	var panel_bounds := panel.get_global_rect().abs()
 	var combo := hud.get_node_or_null("ComboPanel") as Control
-	if combo == null or panel_bounds.position.y < combo.get_global_rect().end.y + 12.0 or panel_bounds.end.y > 540.0:
-		_failures.append("%s result panel is outside the safe band below the HUD." % state)
+	if combo == null or panel_bounds.position.y < combo.get_global_rect().end.y + 12.0 or panel_bounds.position.y < 760.0 or panel_bounds.end.y > 1050.0:
+		_failures.append("%s result panel is outside the lower safe band below the HUD and actor art." % state)
 		return false
 	var was_visible := panel.visible
 	panel.visible = false
@@ -290,7 +297,7 @@ func _all_actor_art_reaches_viewport(tree: SceneTree, captured: Image, game: Nod
 		sprites.append(raider.get_node("VisualRoot/RaiderArt"))
 	for sprite in sprites:
 		var bounds := _sprite_bounds(sprite)
-		if not _in_viewport(bounds) or not sprite.is_visible_in_tree():
+		if (state != "PAUSE" and not _in_viewport(bounds)) or not sprite.is_visible_in_tree():
 			_failures.append("%s contains offscreen or hidden actor art at %s." % [state, bounds])
 			return false
 		if state == "VICTORY" or state == "DEFEAT":

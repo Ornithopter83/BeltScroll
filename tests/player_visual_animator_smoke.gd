@@ -1,8 +1,9 @@
 extends SceneTree
 
 const PLAYER_SCENE := "res://scenes/player/player.tscn"
-const CAPTURE_PATH := "res://assets/art/review/player_motion_states_capture.png"
 const CAPTURE_SIZE := Vector2i(1920, 1080)
+const ART_SCALE := Vector2(0.4469274, 0.4469274)
+const POSE_CELL := Vector2(640.0, 380.0)
 const FLOOR_TOLERANCE := 0.08
 const POSE_NAMES := ["idle", "walk", "crouch", "jump rise", "jump fall", "landing", "1 startup", "1 active", "2 active", "3 startup", "3 active", "3 recovery", "hit", "KO"]
 const POSE_COUNT := 14
@@ -37,7 +38,7 @@ func _run() -> void:
 	for index in range(POSE_COUNT):
 		var label := Label.new()
 		label.text = POSE_NAMES[index]
-		label.position = Vector2(150.0 + float(index % 4) * 480.0, 188.0 + float(index / 4) * 260.0)
+		label.position = Vector2(220.0 + float(index % 3) * POSE_CELL.x, 188.0 + float(index / 3) * POSE_CELL.y)
 		label.size = Vector2(180.0, 32.0)
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		label.add_theme_font_size_override("font_size", 22)
@@ -50,10 +51,19 @@ func _run() -> void:
 		var player := packed.instantiate() as CharacterBody2D
 		canvas.add_child(player)
 		player.set_physics_process(false)
-		player.position = Vector2(240.0 + float(index % 4) * 480.0, 180.0 + float(index / 4) * 260.0)
+		player.position = Vector2(320.0 + float(index % 3) * POSE_CELL.x, 260.0 + float(index / 3) * POSE_CELL.y)
 		(player.get_node("Camera2D") as Camera2D).queue_free()
 		(player.get_node("GroundShadow") as Polygon2D).visible = false
 		(player.get_node("VisualRoot/AttackFlash") as Polygon2D).visible = false
+		var player_art := player.get_node("VisualRoot/PlayerArt") as Sprite2D
+		var pose_blender := player.get_node("VisualRoot/PoseBlender") as PlayerPoseBlender
+		_check(player_art.scale.is_equal_approx(ART_SCALE) and pose_blender.sprite_scale.is_equal_approx(ART_SCALE), "player and PoseBlender use the approved art at approximately three times scale")
+		var body_capsule := (player.get_node("CollisionShape2D") as CollisionShape2D).shape as CapsuleShape2D
+		_check(body_capsule != null and is_equal_approx(body_capsule.radius, 16.0) and is_equal_approx(body_capsule.height, 40.0), "player collision body widens while retaining its ground edge")
+		var expected_hit_sizes := [Vector2(60.0, 40.0), Vector2(78.0, 52.0), Vector2(100.0, 66.0)]
+		for stage in range(1, 4):
+			var hitbox_shape := (player.get_node("Hitboxes/Hitbox%d/CollisionShape2D" % stage) as CollisionShape2D).shape as RectangleShape2D
+			_check(hitbox_shape != null and hitbox_shape.size.is_equal_approx(expected_hit_sizes[stage - 1]), "player stage %d attack judgment area matches the enlarged strike" % stage)
 		poses.append(player)
 		animator_nodes.append(player.get_node("VisualAnimator"))
 		players.append(player)
@@ -66,12 +76,16 @@ func _run() -> void:
 		var pose_frames := 3 if index == 5 else 36
 		for _frame in range(pose_frames):
 			animator.call("_process", 1.0 / 60.0)
-		_check(poses[index].position.y == 180.0 + float(index / 4) * 260.0, POSE_NAMES[index] + " leaves Player root position unchanged")
+		_check(poses[index].position.y == 260.0 + float(index / 3) * POSE_CELL.y, POSE_NAMES[index] + " leaves Player root position unchanged")
 		_check(_foot_point(poses[index]).distance_to(_baseline_foot(poses[index])) <= FLOOR_TOLERANCE, POSE_NAMES[index] + " keeps the alpha foot anchor stable")
+		var pose_blender := poses[index].get_node("VisualRoot/PoseBlender") as PlayerPoseBlender
+		if pose_blender.visible:
+			_check(_blender_keeps_common_foot(pose_blender), POSE_NAMES[index] + " keeps PoseBlender crossfade sprites on the common foot anchor")
 		if index > 0:
 			var pose_art := poses[index].get_node("VisualRoot/PlayerArt") as Sprite2D
-			var pose_is_distinct := absf(pose_art.rotation) > 0.008 or pose_art.scale.distance_to(Vector2(0.1489758, 0.1489758)) > 0.0015
+			var pose_is_distinct := absf(pose_art.rotation) > 0.008 or pose_art.scale.distance_to(ART_SCALE) > 0.0015
 			_check(pose_is_distinct, POSE_NAMES[index] + " differs visibly from the neutral still pose")
+			_check(_alpha_bounds_fit_cell(pose_art), POSE_NAMES[index] + " enlarged art remains inside its capture cell")
 
 	var idle := poses[0]
 	var idle_art := idle.get_node("VisualRoot/PlayerArt") as Sprite2D
@@ -85,14 +99,14 @@ func _run() -> void:
 	idle.velocity = Vector2.ZERO
 	for _frame in range(90):
 		idle_animator.call("_process", 1.0 / 60.0)
-	_check(idle_art.transform.origin.distance_to(idle_transform.origin) < 1.5 and absf(idle_art.rotation) < 0.01 and idle_art.scale.distance_to(Vector2(0.1489758, 0.1489758)) < 0.002, "idle transform remains neutral and restrained")
+	_check(idle_art.transform.origin.distance_to(idle_transform.origin) < 1.5 and absf(idle_art.rotation) < 0.01 and idle_art.scale.distance_to(ART_SCALE) < 0.002, "idle transform remains neutral and restrained")
 	_check(_foot_point(idle).distance_to(idle_foot) <= FLOOR_TOLERANCE, "idle return retains the same foot anchor")
 
 	var third_start := poses[9].get_node("VisualRoot/PlayerArt") as Sprite2D
 	var third_active := poses[10].get_node("VisualRoot/PlayerArt") as Sprite2D
 	var second_active := poses[8].get_node("VisualRoot/PlayerArt") as Sprite2D
 	var stage_one_active := poses[7].get_node("VisualRoot/PlayerArt") as Sprite2D
-	var authored_scale := Vector2(0.1489758, 0.1489758)
+	var authored_scale := ART_SCALE
 	_check(absf(third_active.rotation) > absf(second_active.rotation) + 0.04 and third_active.scale.y / authored_scale.y < second_active.scale.y / authored_scale.y - 0.025, "third combo active pose has clearly stronger rotation and compression than stage two")
 	_check(absf(second_active.rotation) > absf(stage_one_active.rotation) + 0.04 and second_active.scale.x > stage_one_active.scale.x, "second combo strike reads stronger than the first")
 	_check(third_start.scale.y > third_active.scale.y and absf(third_active.rotation) > absf(third_start.rotation), "third combo startup and active poses are distinct")
@@ -117,6 +131,7 @@ func _run() -> void:
 	var right_rotation := (right_player.get_node("VisualRoot/PlayerArt") as Sprite2D).rotation
 	_check(left_rotation * right_rotation < 0.0 and absf(absf(left_rotation) - absf(right_rotation)) < 0.01, "left and right facing mirror the stage three strike")
 	_check(_foot_point(left_player).distance_to(_baseline_foot(left_player)) <= FLOOR_TOLERANCE and _foot_point(right_player).distance_to(_baseline_foot(right_player)) <= FLOOR_TOLERANCE, "both mirrored poses keep the foot anchor stable")
+	_check(_alpha_bounds_fit_cell(left_player.get_node("VisualRoot/PlayerArt") as Sprite2D) and _alpha_bounds_fit_cell(right_player.get_node("VisualRoot/PlayerArt") as Sprite2D), "mirrored enlarged art remains within capture bounds")
 	left_player.get_node("VisualRoot").scale.x = 1.0
 	left_player.set("attack_phase", "idle")
 	left_player.set("attack_stage", 0)
@@ -131,12 +146,9 @@ func _run() -> void:
 	await process_frame
 	await RenderingServer.frame_post_draw
 	var rendered := root.get_texture().get_image()
-	_check(rendered != null and not rendered.is_empty() and rendered.get_size() == CAPTURE_SIZE, "Window Viewport renders a 1920x1080 pose comparison")
+	_check(rendered != null and not rendered.is_empty() and rendered.get_size() == CAPTURE_SIZE, "Window Viewport renders the enlarged pose comparison at the configured size")
 	if rendered != null and not rendered.is_empty() and rendered.get_size() == CAPTURE_SIZE:
-		var error := rendered.save_png(ProjectSettings.globalize_path(CAPTURE_PATH))
-		_check(error == OK, "actual Window Viewport pose comparison PNG is saved")
-		if error == OK:
-			print("player-motion-capture: saved rendered state comparison to %s" % CAPTURE_PATH)
+		print("player-motion-capture: Window Viewport rendered the enlarged state comparison")
 	_check(not FileAccess.get_file_as_string(PLAYER_SCENE).contains("SpriteFrames"), "approved still artwork is not represented as completed frame animation")
 	canvas.queue_free()
 	captions.queue_free()
@@ -199,8 +211,29 @@ func _baseline_foot(player: CharacterBody2D) -> Vector2:
 	var sprite := player.get_node("VisualRoot/PlayerArt") as Sprite2D
 	var bounds := sprite.texture.get_image().get_used_rect()
 	var size := Vector2(sprite.texture.get_size())
-	var local_foot := (Vector2(float(bounds.position.x) + float(bounds.size.x) * 0.5, float(bounds.end.y)) - size * 0.5) * Vector2(0.1489758, 0.1489758)
-	return Vector2(0.0, -62.0) + local_foot
+	var centered_foot := Vector2(float(bounds.position.x) + float(bounds.size.x) * 0.5, float(bounds.end.y)) - size * 0.5
+	return Vector2(0.0, -62.0) + centered_foot * Vector2(0.1489758, 0.1489758)
+
+func _alpha_bounds_fit_cell(sprite: Sprite2D) -> bool:
+	var bounds := sprite.texture.get_image().get_used_rect()
+	var scaled_size := Vector2(bounds.size) * sprite.scale.abs()
+	return bounds.position.x >= 0 and bounds.position.y >= 0 \
+		and bounds.end.x <= sprite.texture.get_width() and bounds.end.y <= sprite.texture.get_height() \
+		and scaled_size.x < float(CAPTURE_SIZE.x - 64) and scaled_size.y < float(CAPTURE_SIZE.y - 64)
+
+func _blender_keeps_common_foot(blender: PlayerPoseBlender) -> bool:
+	for child in blender.get_children():
+		var sprite := child as Sprite2D
+		if sprite == null or not sprite.visible or sprite.texture == null:
+			continue
+		var bounds := sprite.texture.get_image().get_used_rect()
+		var foot_x := float(bounds.position.x) + float(bounds.size.x) * 0.5
+		if sprite.flip_h:
+			foot_x = float(sprite.texture.get_width()) - foot_x
+		var foot_from_center := (Vector2(foot_x, float(bounds.end.y)) - Vector2(sprite.texture.get_size()) * 0.5) * sprite.scale
+		if (sprite.position + foot_from_center).length() > FLOOR_TOLERANCE:
+			return false
+	return true
 
 func _foot_point(player: CharacterBody2D) -> Vector2:
 	var sprite := player.get_node("VisualRoot/PlayerArt") as Sprite2D

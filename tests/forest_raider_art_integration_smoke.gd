@@ -7,7 +7,7 @@ const CAPTURE_PATH := "res://assets/art/review/forest_raider_in_game_capture.png
 const FEEDBACK_CAPTURE_PATH := "res://assets/art/review/forest_raider_feedback_capture.png"
 const CAPTURE_SIZE := Vector2i(1920, 1080)
 const CAMERA_ZOOM := Vector2(1.2, 1.2)
-const TARGET_SCREEN_HEIGHT := 192.0
+const TARGET_SCREEN_HEIGHT := 576.0
 const HIT_COLOR := Color(1.0, 0.78, 0.58, 1.0)
 const KNOCKED_OUT_COLOR := Color(0.62, 0.62, 0.62, 0.78)
 
@@ -47,7 +47,7 @@ func _run() -> void:
 		var alpha_bottom_local := sprite.position.y + (float(alpha_bounds.end.y) - float(sprite.texture.get_height()) * 0.5) * sprite.scale.y
 		var floor_y: float = (scene.get_node("VisualRoot") as Node2D).position.y + alpha_bottom_local
 		_check(absf(floor_y) <= 0.05, "alpha silhouette foot bottom aligns to the Raider physics floor")
-		_check(is_equal_approx(sprite.scale.x, sprite.scale.y) and absf(sprite.scale.y - 160.0 / 1074.0) < 0.00001, "art scale preserves aspect ratio and uses the alpha silhouette target")
+		_check(is_equal_approx(sprite.scale.x, sprite.scale.y) and absf(sprite.scale.y - 480.0 / 1074.0) < 0.00001, "art scale preserves aspect ratio and uses the revised 3x alpha silhouette target")
 	var raider_scene_text := FileAccess.get_file_as_string(RAIDER_SCENE)
 	_check(not raider_scene_text.contains("elven_fighter_reference_v5_final_candidate"), "unapproved Player candidate is not connected to the Raider scene")
 	scene.free()

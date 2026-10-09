@@ -68,6 +68,9 @@ func _process(delta: float) -> void:
 		_apply_attack_pose(facing_sign)
 		target_rotation = _attack_rotation
 		target_scale = _attack_scale
+	elif bool(player.get("is_blocking")):
+		target_rotation -= facing_sign * 0.025
+		target_scale *= Vector2(0.975, 1.025)
 	elif jumping:
 		var vertical_speed := float(player.get("jump_vertical_velocity"))
 		if vertical_speed < -1.0:
@@ -81,9 +84,6 @@ func _process(delta: float) -> void:
 		var squash := sin(landing * PI)
 		target_scale *= Vector2(1.0 + squash * 0.055, 1.0 - squash * 0.075)
 		target_rotation += facing_sign * squash * 0.025
-	elif bool(player.get("is_sitting")):
-		target_rotation += facing_sign * 0.012
-		target_scale *= Vector2(1.015, 0.955)
 	else:
 		var speed := player.velocity.length()
 		if speed > 10.0:

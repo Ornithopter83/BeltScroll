@@ -38,10 +38,10 @@ func _run() -> void:
 		return
 	print("PASS: actual Window frames captured after frame_post_draw at 1920x1080")
 	print("PASS: VICTORY and DEFEAT are evaluated after existing receive_hit calls")
-	print("PASS: result panel stays below HUD in the upper safe band with under 2% actor-bounds overlap")
+	print("PASS: result panel stays below the HUD and actor art in the lower safe band with under 2% actor-bounds overlap")
 	print("PASS: retry restores pause, time scale, and prior CombatAudio")
 	print("PASS: keyboard and synthetic gamepad focus reach result/pause actions")
-	print("PASS: result/pause controls and Player/3 Raider art are visible, inside the frame, and not obscured")
+	print("PASS: result controls and actor art fit; pause controls render over the live actor scene")
 	print("PASS: PAUSE returns through the title scene and restores global state")
 	print(SUCCESS_MARKER)
 	quit(0)
