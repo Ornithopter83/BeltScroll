@@ -82,7 +82,8 @@ func _run() -> void:
 	if check.load(ProjectSettings.globalize_path(CAPTURE_PATH)) != OK or check.get_size() != SHEET_SIZE:
 		_fail("1920x3240 Num5 검토 Window 시트가 없습니다.")
 	if _failures.is_empty():
-		print("player_skill2_visual_telegraph_smoke: 우향·좌향 12개 실제 Window phase/contact/cleanup 확인 완료")
+		print("player_skill2_visual_telegraph_smoke: 우향·좌향 12개 실제 Window phase contact cleanup 확인 완료")
+		print("SKILL2_WINDOW_SMOKE_PASS")
 		quit(0)
 		return
 	for message in _failures:

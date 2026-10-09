@@ -24,7 +24,7 @@ function Assert-AccountingLog {
     $records = New-Object 'System.Collections.Generic.List[object]'
     foreach ($line in $lines) {
         if ([string]::IsNullOrWhiteSpace($line)) { continue }
-        $parts = $line.Split('|')
+        $parts = $line.Split(';')
         if ($parts.Count -ne 4) { throw "Malformed accounting record: $line" }
         $sequence = 0
         $exitCode = 0

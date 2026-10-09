@@ -103,29 +103,71 @@ call :run_smoke combat_vfx_visual_smoke
 call :run_smoke raider_attack_pose_window_smoke
 call :run_smoke player_attack2_contact_v6_safe_smoke
 call :run_smoke attack2_candidate_motion_review_smoke
-call :record_additional_check attack2_candidate_motion_review_smoke
+set /a ADDITIONAL_CHECKS+=1
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%PROJECT_DIR%\tools\record_smoke_additional_check.ps1" -LogPath "%ADDITIONAL_LOG%" -Sequence %ADDITIONAL_CHECKS% -Name attack2_candidate_motion_review_smoke -ExecutionType headless -ProcessExit %RUN_EXIT%
+if errorlevel 1 set "SUITE_FAILED=1"
+if not "%RUN_EXIT%"=="0" set "SUITE_FAILED=1"
 call :run_smoke player_attack3_startup_review_smoke
-call :record_additional_check player_attack3_startup_review_smoke
+set /a ADDITIONAL_CHECKS+=1
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%PROJECT_DIR%\tools\record_smoke_additional_check.ps1" -LogPath "%ADDITIONAL_LOG%" -Sequence %ADDITIONAL_CHECKS% -Name player_attack3_startup_review_smoke -ExecutionType headless -ProcessExit %RUN_EXIT%
+if errorlevel 1 set "SUITE_FAILED=1"
+if not "%RUN_EXIT%"=="0" set "SUITE_FAILED=1"
 call :run_smoke player_animation_state_matrix_smoke
-call :record_additional_check player_animation_state_matrix_smoke
+set /a ADDITIONAL_CHECKS+=1
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%PROJECT_DIR%\tools\record_smoke_additional_check.ps1" -LogPath "%ADDITIONAL_LOG%" -Sequence %ADDITIONAL_CHECKS% -Name player_animation_state_matrix_smoke -ExecutionType headless -ProcessExit %RUN_EXIT%
+if errorlevel 1 set "SUITE_FAILED=1"
+if not "%RUN_EXIT%"=="0" set "SUITE_FAILED=1"
 call :run_smoke player_attack1_startup_safe_smoke
-call :record_additional_check player_attack1_startup_safe_smoke
+set /a ADDITIONAL_CHECKS+=1
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%PROJECT_DIR%\tools\record_smoke_additional_check.ps1" -LogPath "%ADDITIONAL_LOG%" -Sequence %ADDITIONAL_CHECKS% -Name player_attack1_startup_safe_smoke -ExecutionType headless -ProcessExit %RUN_EXIT%
+if errorlevel 1 set "SUITE_FAILED=1"
+if not "%RUN_EXIT%"=="0" set "SUITE_FAILED=1"
 call :run_smoke player_attack3_startup_safe_smoke
-call :record_additional_check player_attack3_startup_safe_smoke
+set /a ADDITIONAL_CHECKS+=1
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%PROJECT_DIR%\tools\record_smoke_additional_check.ps1" -LogPath "%ADDITIONAL_LOG%" -Sequence %ADDITIONAL_CHECKS% -Name player_attack3_startup_safe_smoke -ExecutionType headless -ProcessExit %RUN_EXIT%
+if errorlevel 1 set "SUITE_FAILED=1"
+if not "%RUN_EXIT%"=="0" set "SUITE_FAILED=1"
 call :run_smoke player_run_stride_safe_smoke
-call :record_additional_check player_run_stride_safe_smoke
+set /a ADDITIONAL_CHECKS+=1
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%PROJECT_DIR%\tools\record_smoke_additional_check.ps1" -LogPath "%ADDITIONAL_LOG%" -Sequence %ADDITIONAL_CHECKS% -Name player_run_stride_safe_smoke -ExecutionType headless -ProcessExit %RUN_EXIT%
+if errorlevel 1 set "SUITE_FAILED=1"
+if not "%RUN_EXIT%"=="0" set "SUITE_FAILED=1"
 call :run_smoke player_run_cycle_review_smoke
-call :record_additional_check player_run_cycle_review_smoke
+set /a ADDITIONAL_CHECKS+=1
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%PROJECT_DIR%\tools\record_smoke_additional_check.ps1" -LogPath "%ADDITIONAL_LOG%" -Sequence %ADDITIONAL_CHECKS% -Name player_run_cycle_review_smoke -ExecutionType headless -ProcessExit %RUN_EXIT%
+if errorlevel 1 set "SUITE_FAILED=1"
+if not "%RUN_EXIT%"=="0" set "SUITE_FAILED=1"
 call :run_smoke m5_art_review_board_smoke
-call :record_additional_check m5_art_review_board_smoke
+set /a ADDITIONAL_CHECKS+=1
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%PROJECT_DIR%\tools\record_smoke_additional_check.ps1" -LogPath "%ADDITIONAL_LOG%" -Sequence %ADDITIONAL_CHECKS% -Name m5_art_review_board_smoke -ExecutionType headless -ProcessExit %RUN_EXIT%
+if errorlevel 1 set "SUITE_FAILED=1"
+if not "%RUN_EXIT%"=="0" set "SUITE_FAILED=1"
 call :run_smoke player_run_stride_v2_safe_smoke
-call :record_additional_check player_run_stride_v2_safe_smoke headless
+set /a ADDITIONAL_CHECKS+=1
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%PROJECT_DIR%\tools\record_smoke_additional_check.ps1" -LogPath "%ADDITIONAL_LOG%" -Sequence %ADDITIONAL_CHECKS% -Name player_run_stride_v2_safe_smoke -ExecutionType headless -ProcessExit %RUN_EXIT%
+if errorlevel 1 set "SUITE_FAILED=1"
+if not "%RUN_EXIT%"=="0" set "SUITE_FAILED=1"
 call :run_smoke player_run_v3_antiphase_smoke
-call :record_additional_check player_run_v3_antiphase_smoke headless
+set /a ADDITIONAL_CHECKS+=1
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%PROJECT_DIR%\tools\record_smoke_additional_check.ps1" -LogPath "%ADDITIONAL_LOG%" -Sequence %ADDITIONAL_CHECKS% -Name player_run_v3_antiphase_smoke -ExecutionType headless -ProcessExit %RUN_EXIT%
+if errorlevel 1 set "SUITE_FAILED=1"
+if not "%RUN_EXIT%"=="0" set "SUITE_FAILED=1"
 call :run_smoke player_jump_rise_safe_smoke
-call :record_additional_check player_jump_rise_safe_smoke headless
+set /a ADDITIONAL_CHECKS+=1
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%PROJECT_DIR%\tools\record_smoke_additional_check.ps1" -LogPath "%ADDITIONAL_LOG%" -Sequence %ADDITIONAL_CHECKS% -Name player_jump_rise_safe_smoke -ExecutionType headless -ProcessExit %RUN_EXIT%
+if errorlevel 1 set "SUITE_FAILED=1"
+if not "%RUN_EXIT%"=="0" set "SUITE_FAILED=1"
 call :run_smoke player_skill1_rush_safe_smoke
-call :record_additional_check player_skill1_rush_safe_smoke headless
+set /a ADDITIONAL_CHECKS+=1
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%PROJECT_DIR%\tools\record_smoke_additional_check.ps1" -LogPath "%ADDITIONAL_LOG%" -Sequence %ADDITIONAL_CHECKS% -Name player_skill1_rush_safe_smoke -ExecutionType headless -ProcessExit %RUN_EXIT%
+if errorlevel 1 set "SUITE_FAILED=1"
+if not "%RUN_EXIT%"=="0" set "SUITE_FAILED=1"
+
+rem Live skill telegraphs and interruption use the real Window renderer; spin art is an isolated headless asset gate.
+call :run_window_smoke player_skill1_visual_telegraph_smoke 360 "SKILL1_WINDOW_SMOKE_PASS"
+call :run_window_smoke player_skill2_visual_telegraph_smoke 360 "SKILL2_WINDOW_SMOKE_PASS"
+call :run_window_smoke player_skill_interruption_smoke 360
+call :run_smoke player_skill2_spin_art_smoke
 
 call :run_suite_coverage
 if errorlevel 1 (
@@ -211,6 +253,7 @@ if /I "%SMOKE_NAME%"=="player_run_stride_v2_safe_smoke" set "SMOKE_TIMEOUT=120"
 if /I "%SMOKE_NAME%"=="player_run_v3_antiphase_smoke" set "SMOKE_TIMEOUT=120"
 if /I "%SMOKE_NAME%"=="player_jump_rise_safe_smoke" set "SMOKE_TIMEOUT=120"
 if /I "%SMOKE_NAME%"=="player_skill1_rush_safe_smoke" set "SMOKE_TIMEOUT=120"
+if /I "%SMOKE_NAME%"=="player_skill2_spin_art_smoke" set "SMOKE_TIMEOUT=120"
 if /I "%SMOKE_NAME%"=="player_run_cycle_review_smoke" set "SMOKE_TIMEOUT=120"
 if /I "%SMOKE_NAME%"=="m5_art_review_board_smoke" set "SMOKE_TIMEOUT=120"
 echo [smoke] Type=headless timeout=%SMOKE_TIMEOUT%s log=%RUN_LOG%
@@ -246,6 +289,7 @@ if /I "%SMOKE_NAME%"=="player_run_stride_v2_safe_smoke" set "SUCCESS_MARKER=play
 if /I "%SMOKE_NAME%"=="player_run_v3_antiphase_smoke" set "SUCCESS_MARKER=player_run_v3_antiphase_smoke: v3 capture path available; #70 finding retained; no approval or integration"
 if /I "%SMOKE_NAME%"=="player_jump_rise_safe_smoke" set "SUCCESS_MARKER=player_jump_rise_safe_smoke: mechanical checks passed; airborne feet and identity require human review"
 if /I "%SMOKE_NAME%"=="player_skill1_rush_safe_smoke" set "SUCCESS_MARKER=player_skill1_rush_safe_smoke: mechanical checks passed; face/clothing identity, drive-leg readability, and Num5 rotational distinction remain human review gates"
+if /I "%SMOKE_NAME%"=="player_skill2_spin_art_smoke" set "SUCCESS_MARKER=player_skill2_spin_art_smoke: mechanical checks passed; no production registration without human approval"
 call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SUCCESS_MARKER%" "%ALLOW_MODE%"
 if errorlevel 1 (
     set "SUITE_FAILED=1"
@@ -257,12 +301,16 @@ exit /b 0
 
 :run_window_smoke
 set "SMOKE_NAME=%~1"
+set "SMOKE_TIMEOUT=%~2"
+if not defined SMOKE_TIMEOUT set "SMOKE_TIMEOUT=240"
+set "SUCCESS_MARKER=%~3"
+if not defined SUCCESS_MARKER set "SUCCESS_MARKER=%SMOKE_NAME%: all checks passed"
 echo [smoke] Running %SMOKE_NAME% with the window renderer
 set "SMOKE_ARGS=--path ""%PROJECT_DIR%"" --script ""res://tests/%SMOKE_NAME%.gd"""
-echo [smoke] Type=window timeout=240s log=%RUN_LOG%
-call :run_bounded 240
+echo [smoke] Type=window timeout=%SMOKE_TIMEOUT%s log=%RUN_LOG%
+call :run_bounded %SMOKE_TIMEOUT%
 if /I "%SMOKE_NAME%"=="camera_boundary_window_smoke" call :report_camera_run
-call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SMOKE_NAME%: all checks passed"
+call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SUCCESS_MARKER%"
 if errorlevel 1 (
     set "SUITE_FAILED=1"
     echo [smoke] FAILED: %SMOKE_NAME%
@@ -292,6 +340,10 @@ exit /b 0
 set "FAILED_LOG_CURRENT=%TEMP%\beltscroll_smoke_failure_%~1_%RANDOM%.log"
 if not defined FAILED_LOG set "FAILED_LOG=%FAILED_LOG_CURRENT%"
 copy /y "%RUN_LOG%" "%FAILED_LOG_CURRENT%" >nul
+if not exist "%FAILED_LOG_CURRENT%" echo [smoke] ERROR: diagnostic log was not preserved for %~1
+if not exist "%FAILED_LOG_CURRENT%" set "SUITE_FAILED=1"
+for %%A in ("%FAILED_LOG_CURRENT%") do if %%~zA LEQ 0 echo [smoke] ERROR: diagnostic log is empty for %~1
+for %%A in ("%FAILED_LOG_CURRENT%") do if %%~zA LEQ 0 set "SUITE_FAILED=1"
 echo [smoke] Diagnostic log for %~1: %FAILED_LOG_CURRENT%
 exit /b 0
 
@@ -371,7 +423,7 @@ if not "%RUN_EXIT%"=="0" set "SUITE_FAILED=1"
 if "%~2"=="" (set "CHECK_EXECUTION_TYPE=headless") else set "CHECK_EXECUTION_TYPE=%~2"
 if not defined RUN_EXIT set "RUN_EXIT=125"
 echo [smoke] additional_check=%ADDITIONAL_CHECKS% name=%~1 execution_type=%CHECK_EXECUTION_TYPE% process_exit=%RUN_EXIT% cumulative=%ADDITIONAL_CHECKS%
->>"%ADDITIONAL_LOG%" echo %ADDITIONAL_CHECKS%^|%~1^|%CHECK_EXECUTION_TYPE%^|%RUN_EXIT%
+>>"%ADDITIONAL_LOG%" echo %ADDITIONAL_CHECKS%;%~1;%CHECK_EXECUTION_TYPE%;%RUN_EXIT%
 set "CHECK_EXECUTION_TYPE="
 exit /b 0
 

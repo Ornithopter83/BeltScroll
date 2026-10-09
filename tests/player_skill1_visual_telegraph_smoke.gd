@@ -88,6 +88,7 @@ func _run() -> void:
 		_fail("최종 1920x3240 Window 검토 이미지가 없거나 크기가 다릅니다.")
 	if _failures.is_empty():
 		print("player_skill1_visual_telegraph_smoke: 우향·좌향 12개 Window phase 프레임 확인 완료")
+		print("SKILL1_WINDOW_SMOKE_PASS")
 		quit(0)
 		return
 	for message in _failures:

@@ -19,11 +19,21 @@ function Assert-ReviewPolicy([bool]$condition, [string]$description) {
 $registered = @(
     'call :run_smoke attack2_candidate_motion_review_smoke',
     'call :run_smoke player_attack3_startup_review_smoke',
-    'call :run_smoke player_animation_state_matrix_smoke'
+    'call :run_smoke player_animation_state_matrix_smoke',
+    'call :run_window_smoke player_skill_interruption_smoke 360',
+    'call :run_smoke player_skill2_spin_art_smoke'
 )
 foreach ($line in $registered) {
-    Assert-ReviewPolicy (@($suite | Where-Object { $_.Trim() -ceq $line }).Count -eq 1) "independent headless review smoke appears exactly once: $line"
+    Assert-ReviewPolicy (@($suite | Where-Object { $_.Trim() -ceq $line }).Count -eq 1) "registered review smoke appears exactly once: $line"
 }
+
+foreach ($name in @('player_skill1_visual_telegraph_smoke', 'player_skill2_visual_telegraph_smoke', 'player_skill_interruption_smoke')) {
+    $line = @($suite | Where-Object { $_ -match ('^call :run_window_smoke ' + [regex]::Escape($name) + ' 360(?:\s|$)') })
+    Assert-ReviewPolicy ($line.Count -eq 1 -and $line[0] -notmatch '--headless') "$name is routed through the real Window smoke helper with a 360 second timeout"
+}
+$spinLine = @($suite | Where-Object { $_.Trim() -ceq 'call :run_smoke player_skill2_spin_art_smoke' })
+Assert-ReviewPolicy ($spinLine.Count -eq 1) 'player_skill2_spin_art_smoke runs once through the headless helper'
+Assert-ReviewPolicy ($joined.Contains('player_skill2_spin_art_smoke: mechanical checks passed; no production registration without human approval')) 'spin-art mechanical results do not claim human art approval'
 
 $liveStart = [Array]::IndexOf($suite, ':rebuild_live_review_captures')
 $liveEnd = [Array]::IndexOf($suite, ':failed_capture')

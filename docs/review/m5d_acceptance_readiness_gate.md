@@ -1,14 +1,14 @@
 # M5D 최종 인수 준비 독립 감사
 
-## 기준
+## 기준과 개수
 
-이 감사는 [초기 설계의 2026-10-09 개정 최종 완료 기준](../projecthub/initial-plan.md)의 제품 요구를 바꾸지 않는다. 전체화면·3배·Num1~9·앉기 제거·플레이어/상대 체력바·외부 GUI 편집 흐름·애니메이션 요구를 각각 증거 위치와 함께 나열한다. 증거 파일, 후보 원화, 자동 smoke 또는 로컬 빌드는 사람의 통합 인수와 같지 않다.
+제품 필수 동작은 **10종**이다: `idle`, `run`, `turn`, `jump`, `hit`, `attack1`, `attack2`, `attack3`, `skill1`, `skill2`. 편집기 JSON의 클립은 **11개**이며 `jump`가 `jump_rise`와 `jump_fall`로 나뉜다. Num5 회전 증명은 필수 동작 수를 늘리는 별도 clip이 아니라 `skill2`의 별도 수용 조건이다.
 
-11개 검토 슬롯은 기존 기준에서 이름을 열거한 동작(대기, 달리기, 방향 전환, 점프, 피격, 3종 공격, 2종 스킬)을 별도로 기록하고, Num5 skill2 v1 회전 입증을 열한 번째 독립 증거 항목으로 추적한다. 이는 새 제품 요구나 승인 애니메이션을 추가하지 않는다. 현재 매트릭스의 `run/walk` 표기는 전용 run 클립을 뜻하지 않으며, 절차 변형과 원화 클립을 구분한다.
+감사기는 최종 PASS를 생성하지 않는다. 증거 파일 경로의 존재는 검토 자료가 있다는 뜻만 나타내며 원화 승인, 동작 수용 또는 제품 최종 인수를 의미하지 않는다. 기준 출처는 [개정 최종 완료 기준](../projecthub/initial-plan.md#개정-최종-완료-기준)과 [애니메이션 현황 분해표](m5_animation_acceptance_matrix.md)다.
 
 ## 실행
 
-Windows PowerShell 5.1에서 저장소 루트 기준으로 실행한다. 스크립트는 UTF-8 JSON을 표준 출력에 기록하고, 차단 상태일 때 종료 코드 `2`를 반환한다. Git index와 작업 트리는 실제 `git ls-files` 및 `git status --short` 읽기 명령으로 점검한다. 기본 설정은 문서에 기록된 Actions run `37921763731`을 `gh`로 조회한다. 네트워크/인증/도구가 없으면 Actions 상태를 `UNVERIFIED`로 둔다.
+Windows PowerShell 5.1에서 저장소 루트 기준으로 실행한다. JSON 출력은 UTF-8이며 차단 상태 종료 코드는 `2`다.
 
 ```powershell
 $OutputEncoding = [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
@@ -16,49 +16,75 @@ Get-Content -Encoding UTF8 .\docs\review\m5d_acceptance_readiness_gate.md
 & .\tools\audit_m5d_acceptance.ps1
 ```
 
-다른 프로젝트 루트나 Actions run을 감사할 수 있다. 오프라인 실행에서는 `-SkipActionsQuery`를 지정하며 Actions 결과는 미검증으로 남는다. 검증 경로를 시험하는 스크립트는 `tests/m5d_acceptance_audit_smoke.ps1`이다.
+기본 실행은 고정 Actions run 번호를 사용하지 않는다. GitHub CLI가 인증된 경우 GitHub의 현재 `main` SHA를 조회하고, 그 SHA를 대상으로 한 `editor-package.yml` 실행 중 최신 run을 찾는다. `LatestMain`, `Actions`, `Artifact`, `RemoteZipVerification`은 서로 독립 필드다. `-ActionsRunId`를 지정하면 해당 run을 직접 조사하지만, head SHA가 최신 main SHA와 다르면 `MatchesLatestMain`은 `false`다. `-SkipActionsQuery`는 원격 SHA와 run을 조회하지 않고 각각 미검증으로 남긴다.
 
-## 현재 인수 항목 및 증거 경로
+원격 ZIP 검증을 별도로 마친 뒤 검증기의 `verification-report.json` 경로를 전달할 수 있다.
 
-| 인수 기준 | 증거 경로 | 현재 증거가 뜻하는 범위 |
+```powershell
+& .\tools\verify_actions_editor_artifact.ps1 -OutputDirectory "$env:TEMP\BeltScrollRemoteArtifact"
+& .\tools\audit_m5d_acceptance.ps1 -RemoteZipVerificationReport "$env:TEMP\BeltScrollRemoteArtifact\verification-report.json"
+```
+
+감사기는 보고서가 `github-actions-artifact` source, `PASS`, 64자리 ZIP SHA-256, run 성공·artifact 존재·다운로드·압축 해제·EXE 해시·패키지 smoke의 필수 검사를 모두 `PASS`로 기록하고 조사한 최신 run ID 및 artifact 이름과 일치할 때만 원격 ZIP을 `PASS`로 표시한다. 보고서가 가리키는 다운로드 ZIP 파일도 현재 존재하는지 확인하고 SHA-256을 다시 계산한다. 파일이 있거나 내부 status 문자열만 `PASS`인 것으로는 충분하지 않다. 보고서가 없으면 `NOT_VERIFIED`, 지정 경로가 없으면 `REPORT_MISSING`, 조건을 만족하지 못하면 `UNVERIFIED`다.
+
+## 독립 상태 필드
+
+| 필드 | 확인 내용 | 성공으로 인정되는 상태 |
 | --- | --- | --- |
-| 전체화면 | `docs/projecthub/initial-plan.md`, `docs/review/window_runtime_gate.md`, `tests/display_num_input_window_smoke.gd` | 요구 및 자동 Window 경로. 통합 사람 인수는 별도다. |
-| 3배 표시 | `docs/projecthub/initial-plan.md`, `docs/review/window_runtime_gate.md`, `tests/display_num_input_window_smoke.gd` | 요구 및 표시 검사 경로. 캡처/설정 검사는 최종 시각 인수가 아니다. |
-| Num1~9 | `docs/projecthub/initial-plan.md`, `docs/review/manual_input_acceptance_gate.md`, `tests/display_num_input_window_smoke.gd` | 자동 입력 검사와 실제 물리 키 입력 검수는 분리한다. |
-| 앉기 제거 | `docs/projecthub/initial-plan.md`, `scripts/player/player_controller.gd`, `tests/player_animation_state_matrix_smoke.gd` | 적용 기준은 개정 기준의 제거 요구다. 초기 역사 기록의 앉기 기준은 되살리지 않는다. |
-| 양측 체력바 | `docs/projecthub/initial-plan.md`, `docs/review/combat_skill_hud_gate.md`, `tests/combat_hud_smoke.gd`, `tests/raider_healthbar_window_smoke.gd` | 플레이어와 적 HUD의 구현/자동 검사 자료. 통합 화면 검수는 별도다. |
-| 독립 편집기 | `dist/BeltScrollEditor.exe`, `docs/review/editor_acceptance_gate.md`, `tests/editor_executable_smoke.ps1` | EXE/self-test 증거와 GUI 수동 확인을 구별한다. `.qa_logs/qa_editor_exe_acceptance_20261009.json`은 GUI 인수가 `blocked`였음을 기록한다. |
-| 원격 릴리스 ZIP | `.github/workflows/editor-package.yml`, `docs/review/editor_release_package_gate.md`, `docs/review/editor_remote_artifact_gate.md`, `tools/verify_actions_editor_artifact.ps1` | 워크플로 정의는 성공한 원격 run·artifact 다운로드·ZIP 검증 증거를 대신하지 않는다. 실패 conclusion은 차단으로 기록한다. |
+| `LatestMain` | GitHub `main` branch의 현재 commit SHA | `VERIFIED` 및 SHA 기록 |
+| `Actions` | 해당 최신 SHA의 editor-package run, status/conclusion | SHA 일치와 `completed`/`success` 모두 충족 |
+| `Artifact` | 선택된 run의 GitHub artifact metadata와 만료 여부 | `PRESENT`, 만료 안 됨 |
+| `RemoteZipVerification` | 원격 artifact 다운로드 및 배포 ZIP의 SHA/self-test/GUI 검증 보고서 | 보고서 전체 일치 검증 후 `PASS` |
 
-### 애니메이션 11개 검토 슬롯
+위 상태는 서로 대체되지 않는다. 예를 들어 Actions 성공이 artifact 존재를 뜻하지 않고, artifact metadata 존재도 배포 ZIP의 다운로드·압축 해제·검증 완료를 뜻하지 않는다. GitHub 접근이 안 되거나 원격 확인을 건너뛰면 그 필드만 `UNVERIFIED`로 남긴다.
 
-| # | 클립/검토 슬롯 | 근거 경로 | 준비 상태의 제한 |
-| ---: | --- | --- | --- |
-| 1 | idle | `data/art/animation_manifest.json`, `assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png` | 승인 idle 1장과 호흡 변형. 정지 원화는 프레임 시퀀스가 아니다. |
-| 2 | run | `docs/review/m5_animation_acceptance_matrix.md`, `docs/review/player_run_cycle_gate.md`, `assets/art/player/elven_fighter_run_stride_v1_candidate_1254x1254.png` | v1~v4 동일 보폭 판정은 미수용이다. v4 반대 보폭 게이트: `docs/review/player_run_v4_opposition_gate.md`. |
-| 3 | turn | `docs/review/m5_animation_acceptance_matrix.md`, `docs/review/player_turn_motion_gate.md`, `assets/art/review/player_turn_motion_strip.png` | 기존 화면 매트릭스는 좌우 flip과 별도 turn clip을 구분한다. |
-| 4 | jump | `docs/review/m5_animation_acceptance_matrix.md`, `docs/review/player_jump_motion_gate.md`, `docs/review/player_jump_rise_safe_gate.md`, `assets/art/review/player_jump_motion_strip.png` | 현재 rise/fall은 절차 변형. 후보 jump 원화는 미승인이다. |
-| 5 | hit | `docs/review/m5_animation_acceptance_matrix.md`, `tests/player_animation_state_matrix_smoke.gd` | 현재는 knockback/flash 절차 변형이며 전용 hit 원화 프레임 증거가 아니다. |
-| 6 | attack1 | `docs/review/m5_animation_acceptance_matrix.md`, `docs/review/player_attack1_startup_safe_gate.md`, `assets/art/player/elven_fighter_attack1_startup_v1_candidate_1254x1254.png` | 승인 contact 한 장과 미승인 startup/recovery를 분리한다. |
-| 7 | attack2 | `docs/review/m5_animation_acceptance_matrix.md`, `docs/review/player_attack2_contact_v6_gate.md`, `assets/art/player/elven_fighter_attack2_contact_v6_safe_candidate_1254x1254.png` | 승인 contact 한 장과 미승인 접촉/중간 후보를 분리한다. |
-| 8 | attack3 | `docs/review/m5_animation_acceptance_matrix.md`, `docs/review/player_attack3_startup_gate.md`, `assets/art/player/elven_fighter_attack3_startup_v1_safe_candidate_1254x1254.png` | 승인 contact 한 장과 미승인 startup/recovery를 분리한다. |
-| 9 | skill1 startup/contact | `docs/review/m5_animation_acceptance_matrix.md`, `docs/review/player_skill1_contact_motion_gate.md`, `assets/art/player/elven_fighter_skill1_rush_contact_v1_candidate_1254x1254.png` | 게임 상태/절차 변형과 승인 전용 원화가 다르다. 후보 원화는 미승인이다. |
-| 10 | skill2 startup/contact | `docs/review/m5_animation_acceptance_matrix.md`, `docs/review/player_skill_motion_gate.md`, `assets/art/player/elven_fighter_skill2_spin_contact_v1_candidate_1254x1254.png` | Num5 v1 몸통 회전의 본편 시각 입증이 없다. |
-| 11 | Num5 skill2 v1 회전 입증 | `docs/projecthub/initial-plan.md`, `docs/review/player_skill_motion_gate.md`, `docs/review/player_skill1_contact_motion_gate.md` | skill2 애니메이션의 회전 동작 증거를 별도로 추적한다. 현재 본편 회전은 입증되지 않았다. 별도 승인 clip 요구를 추가하지 않는다. |
+## 제품 기준 및 현재 알려진 상태
 
-애니메이션 기준 원문은 `docs/projecthub/initial-plan.md` 및 현황 분해표 `docs/review/m5_animation_acceptance_matrix.md`다. 감사 표의 후보 파일 존재는 승인 기록이 아니다. 사람 승인 상태는 manifest 및 [프레임 레지스트리 게이트](animation_frame_registry_gate.md)를 따른다.
+| 항목 | 상태 | 근거와 제한 |
+| --- | --- | --- |
+| 전체화면 | 사람의 통합 인수 미완료 | `docs/review/window_runtime_gate.md`, `tests/display_num_input_window_smoke.gd` |
+| 3배 표시 | 사람의 통합 인수 미완료 | `docs/review/window_runtime_gate.md`; 자동 표시 자료와 화면 인수는 구분 |
+| Num1~9 | 실제 물리 키 입력 미검증 | `docs/review/manual_input_acceptance_gate.md` |
+| 앉기 제거 | 개정 기준 적용 | `scripts/player/player_controller.gd`; 초기 문서의 과거 앉기 요구는 사용하지 않음 |
+| 양측 체력바 | 구현 및 자동 검사 자료 있음 | `docs/review/combat_skill_hud_gate.md`; 통합 사람 인수는 별도 |
+| 독립 편집기 | 수동 GUI 인수 미검증 | `docs/review/editor_acceptance_gate.md`, `.qa_logs/qa_editor_exe_acceptance_20261009.json` |
+| Num5 skill2 v2 원화 | 원본 파일 확보, 사람 승인 및 본편 등록 전 | `assets/art/player/elven_fighter_skill2_spin_backfist_v2_candidate_1254x1254.png`; 기존 v1은 회전을 입증하지 못함 |
+| 신규 승인 원화 | 0건 | 후보 파일 및 safe 산출물은 승인 기록이 아님. `data/art/animation_manifest.json`, `docs/review/animation_frame_registry_gate.md` |
+| run v1~v4 | 모두 동일 보폭, 반대 보폭 인수 미수용 | `docs/review/player_run_v3_antiphase_gate.md`, `docs/review/player_run_v4_opposition_gate.md` |
+| QA 편집기 EXE | Git 추적 위반 상태 | `.qa_logs/editor-publish-current/BeltScrollEditor.exe`; 감사기는 `git ls-files`와 해당 경로의 `git status --short`를 직접 확인 |
+| 최신 main/Actions/artifact/원격 ZIP | 실행 시점에 각각 조회·보고 | 감사 출력의 `LatestMain`, `Actions`, `Artifact`, `RemoteZipVerification`을 따로 확인 |
 
-## 현재 차단 항목
+## 필수 동작 10개 검토 슬롯
 
-- run v1~v4 동일 보폭은 미수용이다. 증거: `docs/review/player_run_v4_opposition_gate.md`, `docs/review/player_run_v3_antiphase_gate.md`.
-- Num5 v1 회전은 본편 동작으로 입증되지 않았다. 증거: `docs/review/player_skill1_contact_motion_gate.md`, `docs/review/player_skill_motion_gate.md`.
-- startup, jump, skill 원화 후보는 승인되지 않았다. 증거: `docs/review/m5_art_visual_decision_gate.md`, `docs/review/player_jump_rise_safe_gate.md`, `docs/review/player_skill1_rush_safe_gate.md`.
-- 신규 승인 원화는 0건이다. 후보·safe 산출·자동 smoke는 승인 상태를 만들지 않는다. 증거: `data/art/animation_manifest.json`, `docs/review/animation_frame_registry_gate.md`.
-- 실제 물리 키보드/마우스 입력 인수는 미완료다. 이벤트 로그만으로 장치 출처를 증명할 수 없다. 증거: `docs/review/manual_input_acceptance_gate.md`.
-- 사람이 확인하는 통합 GUI 인수는 미완료다. GUI 승인 결과 JSON도 현재 `blocked`다. 증거: `docs/review/editor_acceptance_gate.md`, `.qa_logs/qa_editor_exe_acceptance_20261009.json`.
-- Actions run이 실패하거나 `completed/success`가 아니면 차단이다. 상태 조회 불가도 성공으로 간주하지 않는다. 원격 artifact와 release ZIP은 `tools/verify_actions_editor_artifact.ps1`로 실제 다운로드/해시/self-test/GUI 결과를 확인해야 한다. 이 감사는 ZIP을 직접 받거나 검증 보고서를 만들지 않는다.
-- `.qa_logs/editor-publish-current/BeltScrollEditor.exe`는 현재 인덱스에 추적된 산출물이다. 감사 스크립트는 파일 존재뿐 아니라 `git ls-files --error-unmatch`와 해당 경로의 `git status --short`를 확인한다. 현재 문서 기록에서도 Worker finalize가 인덱스 제거를 수행해야 하는 상태다. 이 작업은 Git 변경 명령을 실행하지 않는다.
+| # | 제품 동작 | 편집기 JSON 클립 | 검토 경로 | 제한 |
+| ---: | --- | --- | --- | --- |
+| 1 | idle | `idle` | `data/art/animation_manifest.json`, `assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png` | 정지 원화는 프레임 시퀀스가 아니다. |
+| 2 | run | `run` | `docs/review/m5_animation_acceptance_matrix.md`, `docs/review/player_run_cycle_gate.md` | v1~v4가 같은 보폭이며 사이클 인수 미완료다. |
+| 3 | turn | `turn` | `docs/review/m5_animation_acceptance_matrix.md`, `docs/review/player_turn_motion_gate.md` | 좌우 flip과 별도 turn clip을 구분한다. |
+| 4 | jump | `jump_rise`, `jump_fall` | `docs/review/m5_animation_acceptance_matrix.md`, `docs/review/player_jump_motion_gate.md` | 두 JSON 클립은 제품 동작 하나에 속한다. 원화 후보는 미승인이다. |
+| 5 | hit | `hit` | `docs/review/m5_animation_acceptance_matrix.md`, `tests/player_animation_state_matrix_smoke.gd` | 현재 절차 변형 자료는 전용 승인 원화가 아니다. |
+| 6 | attack1 | `attack1` | `docs/review/player_attack1_startup_safe_gate.md` | contact와 미승인 startup/recovery를 분리한다. |
+| 7 | attack2 | `attack2` | `docs/review/player_attack2_contact_v6_gate.md` | 접촉 및 중간 후보의 승인을 별도로 본다. |
+| 8 | attack3 | `attack3` | `docs/review/player_attack3_startup_gate.md` | startup/recovery 후보는 미승인이다. |
+| 9 | skill1 | `skill1` | `docs/review/player_skill1_contact_motion_gate.md` | 절차 변형과 승인 전용 원화를 구분한다. |
+| 10 | skill2 | `skill2` | `docs/review/player_skill_motion_gate.md`, `docs/review/player_skill2_spin_art_gate.md` | v2 원화는 확보됐으나 미승인이다. Num5 회전 증명은 이 동작의 별도 조건이다. |
 
-## 판정 정책
+### skill2의 별도 Num5 회전 조건
 
-감사 출력은 증거 존재와 누락, 원격 Actions 상태, 실제 Git 추적 상태 및 차단 사유를 보여준다. 결과 `BLOCKED`와 종료 코드 `2`는 현재 인수 준비가 완료되지 않았다는 뜻이다. 이 스크립트에는 자동 `PASS` 경로가 없다. 설계 기준을 수정하지 않고 모든 차단 해소와 별도 사람 인수 후에만 기존 M5D 최종 완료 기준으로 최종 판정한다.
+Num5 v1 접촉 원화와 본편 시각 입증은 회전을 입증하지 못했다. v2 원본은 확보했지만 회전축 발, 후방 회전 몸통, 백피스트, 교차 팔, 좌우 방향에서의 식별 가능성을 사람 검토 및 승인해야 한다. 이 항목은 위 10개 슬롯 수에 추가되지 않는다.
+
+## 차단 및 판정 정책
+
+- 신규 승인 원화는 0건이다. 후보와 비교 자료는 사람 승인을 대신하지 않는다.
+- run v1~v4는 같은 보폭 상태로 기록되어 반대 보폭 기준을 충족하지 못했다.
+- 물리 입력과 수동 GUI 인수는 미검증이다.
+- `.qa_logs/editor-publish-current/BeltScrollEditor.exe`가 Git 추적 중이므로 저장소 위생 위반이 남아 있다.
+- 최신 main SHA, Actions 성공, artifact 존재 및 실제 원격 ZIP 검증 결과를 각각 확인한다. 어느 하나의 증거도 다른 상태를 자동 PASS로 만들지 않는다.
+- 감사 출력은 항상 `Verdict: BLOCKED`, `FinalPassAllowed: false`다. 자료가 전부 존재해도 이 도구가 최종 인수를 판정하지 않는다.
+
+## HIGH 재검증 기록 (2026-10-10)
+
+- 제품 필수 동작 10종, 편집기 JSON 11클립, Num5 회전 별도 수용 조건을 분리했다. Num5 v2 원화는 파일을 확보했으나 미승인이고 신규 승인 원화는 0건이다. run v1~v4 동일 보폭 미수용, 수동 GUI 및 물리 입력 미검증, Git 추적 EXE 상태를 유지한다.
+- 저장된 원격 Actions ZIP 검증 보고서의 외부/내부 ZIP 및 EXE 해시를 재확인하고 실제 내부 배포 ZIP의 self-test와 GUI acceptance 재실행을 통과했다. 감사기의 원격 ZIP 검증 상태는 `PASS`로 독립 표시되며, 최신 원격 main SHA/Actions/artifact API 상태는 새 인증 실패로 `UNVERIFIED`다.
+- 전체 smoke에서 skill Window 세 항목, spin-art headless, suite 구성 검사와 PowerShell gate들은 종료 코드와 성공 표식을 통과했다. 전체 suite는 14개 추가 recorder 행 중 실제 12개만 발견해 실패했으며 PASS를 만들지 않았다.
+- `.qa_logs/editor-publish-current/BeltScrollEditor.exe`는 계속 Git 추적 중이다. 최신 원격 API 확인, 사람의 GUI 및 원화 승인, 물리 입력 인수가 끝나기 전 M5D는 `BLOCKED`다.

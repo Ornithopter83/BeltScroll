@@ -22,8 +22,13 @@ $candidateSmokes = @(
 )
 foreach ($name in $candidateSmokes) {
     $invoke = @($suite | Where-Object { $_.Trim() -ceq "call :run_smoke $name" })
-    $record = @($suite | Where-Object { $_.Trim() -ceq "call :record_additional_check $name headless" })
-    Assert-Coverage ($invoke.Count -eq 1 -and $record.Count -eq 1) "$name has one headless invocation and one actual-exit record"
+    $invokeIndex = [Array]::IndexOf($suite, "call :run_smoke $name")
+    $record = @($suite | Where-Object { $_ -match "record_smoke_additional_check\.ps1.*-Name $name -ExecutionType headless -ProcessExit %RUN_EXIT%" })
+    $recordIndex = -1
+    for ($index = 0; $index -lt $suite.Count; $index++) {
+        if ($suite[$index] -match "record_smoke_additional_check\.ps1.*-Name $name -ExecutionType headless -ProcessExit %RUN_EXIT%") { $recordIndex = $index; break }
+    }
+    Assert-Coverage ($invoke.Count -eq 1 -and $record.Count -eq 1 -and $recordIndex -eq ($invokeIndex + 2)) "$name has one headless invocation followed by an actual-exit record"
     Assert-Coverage (Test-Path -LiteralPath (Join-Path $PSScriptRoot ($name + '.gd')) -PathType Leaf) "$name script exists"
 }
 

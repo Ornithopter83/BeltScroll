@@ -5,7 +5,6 @@ const SAFE_PATH := "res://assets/art/player/elven_fighter_reference_v8_clean_can
 const ATTACK1_PATH := "res://assets/art/player/elven_fighter_attack1_reference_v1_contour_candidate_1254x1254.png"
 const ATTACK2_PATH := "res://assets/art/player/elven_fighter_attack2_reference_v4_ink_final_candidate_1254x1254.png"
 const ATTACK3_PATH := "res://assets/art/player/elven_fighter_attack3_reference_v2_contour_candidate_1254x1254.png"
-const CAPTURE_PATH := "res://assets/art/review/player_attack_pose_ingame_capture.png"
 const CAPTURE_SIZE := Vector2i(1920, 1080)
 const BASE_SCALE := Vector2(0.1489758, 0.1489758)
 
@@ -129,10 +128,13 @@ func _run() -> void:
 	_check(image != null and not image.is_empty() and image.get_size() == CAPTURE_SIZE, "Window Viewport returns a real 1920x1080 comparison frame")
 	if image != null and not image.is_empty() and image.get_size() == CAPTURE_SIZE:
 		_check(_has_visible_variation(image), "rendered comparison remains readable at gameplay scale")
-		var error := image.save_png(ProjectSettings.globalize_path(CAPTURE_PATH))
+		var capture_dir := OS.get_environment("TEMP").path_join("BeltScrollSmokeCaptures")
+		DirAccess.make_dir_recursive_absolute(capture_dir)
+		var capture_path := capture_dir.path_join("player_attack_pose_%d.png" % OS.get_process_id())
+		var error := image.save_png(capture_path)
 		_check(error == OK, "actual Window Viewport comparison PNG is saved")
 		if error == OK:
-			print("player-attack-pose-capture: saved real Window Viewport comparison to %s" % CAPTURE_PATH)
+			print("player-attack-pose-capture: saved real Window Viewport comparison to %s" % capture_path)
 	canvas.queue_free()
 	await process_frame
 	_finish()

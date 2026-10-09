@@ -7,7 +7,7 @@ $suitePath = Join-Path $root 'tools\smoke_suite.cmd'
 $suite = [IO.File]::ReadAllLines($suitePath, [Text.Encoding]::UTF8)
 $failures = New-Object 'System.Collections.Generic.List[string]'
 
-# This ordered inventory protects the established sequence as well as new coverage.
+# This ordered inventory protects all 68 established calls and appends the four skill checks.
 $expected = @(
     'headless:movement_smoke'
     'headless:ground_dust_smoke'
@@ -77,6 +77,10 @@ $expected = @(
     'headless:player_run_v3_antiphase_smoke'
     'headless:player_jump_rise_safe_smoke'
     'headless:player_skill1_rush_safe_smoke'
+    'window:player_skill1_visual_telegraph_smoke'
+    'window:player_skill2_visual_telegraph_smoke'
+    'window:player_skill_interruption_smoke'
+    'headless:player_skill2_spin_art_smoke'
 )
 
 $suiteLines = New-Object 'System.Collections.Generic.List[string]'
@@ -126,6 +130,10 @@ $required = @(
     'headless:player_run_v3_antiphase_smoke'
     'headless:player_jump_rise_safe_smoke'
     'headless:player_skill1_rush_safe_smoke'
+    'window:player_skill1_visual_telegraph_smoke'
+    'window:player_skill2_visual_telegraph_smoke'
+    'window:player_skill_interruption_smoke'
+    'headless:player_skill2_spin_art_smoke'
 )
 foreach ($entry in $required) {
     if (@($actual | Where-Object { $_ -ceq $entry }).Count -ne 1) {
@@ -148,7 +156,10 @@ foreach ($line in $suite) {
     $productionDispatch.Add($line)
 }
 $recordLines = @($productionDispatch | Where-Object { $_ -match '^call :record_additional_check\s+' })
-$recordNames = @($recordLines | ForEach-Object { if ($_ -match '^call :record_additional_check\s+([a-z0-9_]+)') { $Matches[1] } })
+$powerShellRecordNames = @($recordLines | ForEach-Object { if ($_ -match '^call :record_additional_check\s+([a-z0-9_]+)') { $Matches[1] } })
+$godotRecordLines = @($productionDispatch | Where-Object { $_ -match 'record_smoke_additional_check\.ps1.*-Name [a-z0-9_]+ -ExecutionType headless -ProcessExit %RUN_EXIT%' })
+$godotRecordNames = @($godotRecordLines | ForEach-Object { if ($_ -match 'record_smoke_additional_check\.ps1.*-Name ([a-z0-9_]+) -ExecutionType headless -ProcessExit %RUN_EXIT%') { $Matches[1] } })
+$recordNames = @($godotRecordNames) + @($powerShellRecordNames)
 $expectedRecords = @(
     'attack2_candidate_motion_review_smoke', 'player_attack3_startup_review_smoke',
     'player_animation_state_matrix_smoke', 'player_attack1_startup_safe_smoke',
@@ -192,19 +203,31 @@ $checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('set "SUCCESS_MARK
 $checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('set "SMOKE_TIMEOUT=120"') -and $joinedSuite.Contains('call :run_bounded %SMOKE_TIMEOUT%'); Message = 'Headless checks must have a bounded default timeout.' })
 $checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('call :run_bounded 240'); Message = 'Window checks must have a bounded timeout.' })
 $checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SUCCESS_MARKER%" "%ALLOW_MODE%"'); Message = 'Headless tests must verify exit status, success marker, and diagnostics.' })
-$checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SMOKE_NAME%: all checks passed"'); Message = 'Window tests must verify exit status and success marker.' })
+$checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SUCCESS_MARKER%"') -and $joinedSuite.Contains('if not defined SUCCESS_MARKER set "SUCCESS_MARKER=%SMOKE_NAME%: all checks passed"'); Message = 'Window tests must verify exit status and the configured final success marker.' })
 $checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('copy /y "%RUN_LOG%" "%FAILED_LOG_CURRENT%"'); Message = 'Every failed check must preserve its own diagnostic log.' })
 $checks.Add([pscustomobject]@{ Passed = $boundedRunnerProbe.Contains('Actual process exit code:') -and $boundedRunnerProbe.Contains('RESULT: TIMEOUT') -and $joinedSuite.Contains('call :run_bounded'); Message = 'The bounded runner must record real exit status and timeout failures.' })
-$checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('set "ADDITIONAL_CHECKS=0"') -and $joinedSuite.Contains('set /a ADDITIONAL_CHECKS+=1') -and $joinedSuite.Contains('additional_checks=%ADDITIONAL_CHECKS%') -and $joinedSuite.Contains('ADDITIONAL_TYPES=headless,powershell') -and $joinedSuite.Contains('set "ADDITIONAL_EXPECTED=14"'); Message = 'Suite summary must record the expected 14 appended Godot and PowerShell verifications.' })
-$checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('additional_check=%ADDITIONAL_CHECKS% name=%~1 execution_type=%CHECK_EXECUTION_TYPE% process_exit=%RUN_EXIT% cumulative=%ADDITIONAL_CHECKS%') -and $joinedSuite.Contains('>>"%ADDITIONAL_LOG%" echo %ADDITIONAL_CHECKS%^|%~1^|%CHECK_EXECUTION_TYPE%^|%RUN_EXIT%') -and $joinedSuite.Contains('if not "%RUN_EXIT%"=="0" set "SUITE_FAILED=1"'); Message = 'Each recorder must log a unique name, execution type, fresh process exit code, and cumulative number.' })
-$checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('additional_checks_process_exit=%~1'); Message = 'Suite summary must record the overall process exit code alongside added-check totals.' })
-$checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('set "RUN_EXIT="') -and $joinedSuite.Contains('call :verify_additional_checks 0') -and $joinedSuite.Contains('ReportedCount %ADDITIONAL_CHECKS%') -and $joinedSuite.IndexOf('call :verify_additional_checks 0') -lt $joinedSuite.IndexOf('echo [smoke] All independent smoke checks passed.') -and $joinedSuite.Contains('set "SUITE_REPORTED=1"') -and $joinedSuite.Contains('duplicate suite summary requested'); Message = 'The suite must clear stale exits, compare the batch total with recorder rows before success, and reject duplicate summaries.' })
 $accountingSmokePath = Join-Path $PSScriptRoot 'smoke_additional_accounting_smoke.ps1'
 $accountingSmoke = [IO.File]::ReadAllText($accountingSmokePath, [Text.Encoding]::UTF8)
+$checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('set "ADDITIONAL_CHECKS=0"') -and $joinedSuite.Contains('set /a ADDITIONAL_CHECKS+=1') -and $joinedSuite.Contains('additional_checks=%ADDITIONAL_CHECKS%') -and $joinedSuite.Contains('ADDITIONAL_TYPES=headless,powershell') -and $joinedSuite.Contains('set "ADDITIONAL_EXPECTED=14"') -and $godotRecordNames.Count -eq 12; Message = 'The 14 established recorder rows must remain unchanged and independently accounted.' })
+$recorderWriterPath = Join-Path $root 'tools\record_smoke_additional_check.ps1'
+$recorderWriter = [IO.File]::ReadAllText($recorderWriterPath, [Text.Encoding]::UTF8)
+$checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('record_smoke_additional_check.ps1') -and $godotRecordLines.Count -eq 12 -and $joinedSuite.Contains('-ProcessExit %RUN_EXIT%') -and $recorderWriter.Contains('[IO.File]::AppendAllText') -and $recorderWriter -match '\{0\};\{1\};\{2\};\{3\}' -and $accountingSmoke.Contains('$parts = $line.Split('';'')') -and $joinedSuite.Contains('if not "%RUN_EXIT%"=="0" set "SUITE_FAILED=1"'); Message = 'The explicit post-smoke recorder writes actual exit codes through a pipe-free writer and validates its ordered inventory.' })
+$checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('additional_checks_process_exit=%~1'); Message = 'Suite summary must record the overall process exit code alongside added-check totals.' })
+$checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('set "RUN_EXIT="') -and $joinedSuite.Contains('call :verify_additional_checks 0') -and $joinedSuite.Contains('ReportedCount %ADDITIONAL_CHECKS%') -and $joinedSuite.IndexOf('call :verify_additional_checks 0') -lt $joinedSuite.IndexOf('echo [smoke] All independent smoke checks passed.') -and $joinedSuite.Contains('set "SUITE_REPORTED=1"') -and $joinedSuite.Contains('duplicate suite summary requested'); Message = 'The suite must clear stale exits, compare the batch total with recorder rows before success, and reject duplicate summaries.' })
 $checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('call :run_additional_accounting_fixture') -and $joinedSuite.Contains('Verifying additional-check accounting in Windows cmd.exe') -and $joinedSuite.Contains('call :run_bounded 45') -and $accountingSmoke.Contains('fixture_timeout') -and $accountingSmoke.Contains('fixture_powershell_failure') -and $accountingSmoke.Contains('cmd.exe accounting fixture trace:'); Message = 'The suite must execute a bounded real cmd.exe accounting fixture covering pass, failure, timeout, and PowerShell failure.' })
 $checks.Add([pscustomobject]@{ Passed = $recordNames.Count -eq $expectedRecords.Count; Message = 'Every added Godot and PowerShell verification contributes exactly once to the additional-check total.' })
-$checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('call :run_smoke player_run_stride_v2_safe_smoke') -and $joinedSuite.Contains('call :record_additional_check player_run_stride_v2_safe_smoke') -and $joinedSuite.Contains('call :run_smoke player_run_v3_antiphase_smoke') -and $joinedSuite.Contains('call :record_additional_check player_run_v3_antiphase_smoke') -and $joinedSuite.Contains('call :run_smoke player_jump_rise_safe_smoke') -and $joinedSuite.Contains('call :record_additional_check player_jump_rise_safe_smoke') -and $joinedSuite.Contains('call :run_smoke player_skill1_rush_safe_smoke') -and $joinedSuite.Contains('call :record_additional_check player_skill1_rush_safe_smoke'); Message = 'All four new headless candidate checks have a matching actual invocation record.' })
+$checks.Add([pscustomobject]@{ Passed = $godotRecordNames -contains 'player_run_stride_v2_safe_smoke' -and $godotRecordNames -contains 'player_run_v3_antiphase_smoke' -and $godotRecordNames -contains 'player_jump_rise_safe_smoke' -and $godotRecordNames -contains 'player_skill1_rush_safe_smoke'; Message = 'All four new headless candidate checks are recorded once after their smoke invocation.' })
 $checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('if /I "%~1"=="--rebuild-live-review-captures" goto live_review_captures'); Message = 'Actual review capture regeneration must require the explicit command-line mode.' })
+$checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('call :run_window_smoke player_skill1_visual_telegraph_smoke 360 "SKILL1_WINDOW_SMOKE_PASS"') -and $joinedSuite.Contains('call :run_window_smoke player_skill2_visual_telegraph_smoke 360 "SKILL2_WINDOW_SMOKE_PASS"') -and $joinedSuite.Contains('call :run_window_smoke player_skill_interruption_smoke 360') -and $joinedSuite.Contains('call :run_smoke player_skill2_spin_art_smoke'); Message = 'The three live skill checks use Window execution and spin-art uses headless execution, each exactly once in the ordered inventory.' })
+$checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('set "SMOKE_TIMEOUT=%~2"') -and $joinedSuite.Contains('call :run_bounded %SMOKE_TIMEOUT%') -and $joinedSuite.Contains('call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SUCCESS_MARKER%"'); Message = 'Window skill checks use individual bounded timeouts and verify both process exit and their final success marker.' })
+$skill1WindowSmoke = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'player_skill1_visual_telegraph_smoke.gd'), [Text.Encoding]::UTF8)
+$skill2WindowSmoke = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'player_skill2_visual_telegraph_smoke.gd'), [Text.Encoding]::UTF8)
+$interruptionSmoke = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'player_skill_interruption_smoke.gd'), [Text.Encoding]::UTF8)
+$spinArtSmoke = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'player_skill2_spin_art_smoke.gd'), [Text.Encoding]::UTF8)
+$skillMarkerMatch = $joinedSuite.Contains('player_skill2_spin_art_smoke: mechanical checks passed; no production registration without human approval') -and $spinArtSmoke.Contains('player_skill2_spin_art_smoke: mechanical checks passed; no production registration without human approval') -and $skill1WindowSmoke.Contains('SKILL1_WINDOW_SMOKE_PASS') -and $skill2WindowSmoke.Contains('SKILL2_WINDOW_SMOKE_PASS') -and $interruptionSmoke.Contains('player_skill_interruption_smoke: all checks passed') -and $spinArtSmoke.Contains('HUMAN REVIEW GATE:')
+if (-not $skillMarkerMatch) { Write-Output ("Skill marker diagnostics: suiteSpin={0}; spinScript={1}; skill1Window={2}; skill2Window={3}; interruption={4}; humanGate={5}" -f $joinedSuite.Contains('player_skill2_spin_art_smoke: mechanical checks passed; no production registration without human approval'), $spinArtSmoke.Contains('player_skill2_spin_art_smoke: mechanical checks passed; no production registration without human approval'), $skill1WindowSmoke.Contains('player_skill1_visual_telegraph_smoke:'), $skill2WindowSmoke.Contains('player_skill2_visual_telegraph_smoke:'), $interruptionSmoke.Contains('player_skill_interruption_smoke: all checks passed'), $spinArtSmoke.Contains('HUMAN REVIEW GATE:')) }
+$checks.Add([pscustomobject]@{ Passed = $skillMarkerMatch; Message = 'Skill success markers match their actual stdout and retain the human review boundary.' })
+$checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('if not exist "%FAILED_LOG_CURRENT%" echo [smoke] ERROR: diagnostic log was not preserved') -and $joinedSuite.Contains('if not exist "%FAILED_LOG_CURRENT%" set "SUITE_FAILED=1"') -and $joinedSuite.Contains('if %%~zA LEQ 0 set "SUITE_FAILED=1"'); Message = 'Missing or empty failure diagnostic logs must keep the suite failed.' })
 $checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('Rebuilding live review captures; execution_type=window_capture,visual_approval=not_granted'); Message = 'Capture regeneration must identify Window capture execution and leave visual approval ungranted.' })
 $checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('res://tools/capture_attack2_candidate_motion_review.gd') -and $joinedSuite.Contains('res://tools/capture_player_animation_state_matrix.gd'); Message = 'The explicit mode must invoke both real Window capture tools.' })
 $checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('--headless --path') -and $joinedSuite.Contains('res://tools/build_player_attack3_startup_review.gd'); Message = 'Startup comparison generation must be identified separately from real Window capture.' })
@@ -232,6 +255,7 @@ $explicitTimeouts = @{
     'player_run_cycle_review_smoke' = 120
     'm5_art_review_board_smoke' = 120
     'player_skill1_rush_safe_smoke' = 120
+    'player_skill2_spin_art_smoke' = 120
 }
 foreach ($name in $explicitTimeouts.Keys) {
     $timeoutLine = "if /I `"%SMOKE_NAME%`"==`"$name`" set `"SMOKE_TIMEOUT=$($explicitTimeouts[$name])`""
@@ -266,6 +290,6 @@ if ($failures.Count -gt 0) {
     exit 1
 }
 
-Write-Output "smoke_suite_coverage_smoke: inventory/order verified ($($actual.Count) Godot checks; 64 established retained, 4 appended Godot checks; 12 headless additional checks; 2 PowerShell gates; 14 added verifications total; no duplicates); execution routes, timeouts, markers, and failure logs verified"
+Write-Output "smoke_suite_coverage_smoke: inventory/order verified ($($actual.Count) Godot checks; 68 established retained, 4 appended skill checks; 13 headless and 3 Window added calls plus 2 PowerShell gates; 14 existing recorder rows preserved; no duplicates); execution routes, timeouts, markers, and failure logs verified"
 Write-Output 'smoke_suite_coverage_smoke: all checks passed'
 exit 0
