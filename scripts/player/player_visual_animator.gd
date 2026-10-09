@@ -26,8 +26,8 @@ const SKILL_TEMPORARY_MOTION_FRAMES := 6
 var _base_position := Vector2.ZERO
 var _base_scale := Vector2.ONE
 var _base_rotation := 0.0
-var _foot_anchor := Vector2.ZERO
-var _alpha_foot_from_center := Vector2.ZERO
+var _combat_anchor := Vector2.ZERO
+var _idle_reference_from_center := Vector2.ZERO
 var _pose_rotation := 0.0
 var _pose_scale := Vector2.ONE
 var _stride_phase := 0.0
@@ -76,6 +76,12 @@ const TEMPORARY_STATE_DURATIONS := {
 func _ready() -> void:
 	_animation_bank = ANIMATION_BANK_SCRIPT.new()
 	_animation_bank.load_and_register(pose_blender)
+	# Approved contact drawings use pose-specific support candidates. These
+	# normalized points select the planted lead shoe in each approved drawing;
+	# the sprite mirror selects its counterpart for the opposite facing.
+	pose_blender.set_ground_candidate("attack1", "contact", Vector2(0.85, 0.91))
+	pose_blender.set_ground_candidate("attack2", "contact", Vector2(0.86, 0.91))
+	pose_blender.set_ground_candidate("attack3", "contact", Vector2(0.80, 0.91))
 	if art == null or art.texture == null:
 		return
 	_base_position = art.position
@@ -87,8 +93,8 @@ func _ready() -> void:
 		float(alpha_bounds.position.x) + float(alpha_bounds.size.x) * 0.5,
 		float(alpha_bounds.end.y)
 	)
-	_alpha_foot_from_center = (alpha_foot - texture_size * 0.5) * _base_scale
-	_foot_anchor = _base_position + _alpha_foot_from_center.rotated(_base_rotation)
+	_idle_reference_from_center = (alpha_foot - texture_size * 0.5) * _base_scale
+	_combat_anchor = _base_position + _idle_reference_from_center.rotated(_base_rotation)
 	_pose_scale = _base_scale
 	_was_jumping = player.get("is_jumping") == true
 	_applied_facing_sign = -1.0 if visual_root.scale.x < 0.0 else 1.0
@@ -185,7 +191,7 @@ func _process(delta: float) -> void:
 	_pose_scale = _pose_scale.lerp(target_scale, blend)
 	art.rotation = _pose_rotation
 	art.scale = _pose_scale
-	_keep_foot_anchor()
+	_keep_combat_anchor()
 	_update_approved_attack_pose()
 
 func get_animation_state() -> String:
@@ -511,9 +517,9 @@ func _ease_out(value: float) -> float:
 	var t := clampf(value, 0.0, 1.0)
 	return 1.0 - (1.0 - t) * (1.0 - t)
 
-func _keep_foot_anchor() -> void:
+func _keep_combat_anchor() -> void:
 	var scaled_foot := Vector2(
-		_alpha_foot_from_center.x * (_pose_scale.x / _base_scale.x),
-		_alpha_foot_from_center.y * (_pose_scale.y / _base_scale.y)
+		_idle_reference_from_center.x * (_pose_scale.x / _base_scale.x),
+		_idle_reference_from_center.y * (_pose_scale.y / _base_scale.y)
 	)
-	art.position = _foot_anchor - scaled_foot.rotated(_pose_rotation - _base_rotation)
+	art.position = _combat_anchor - scaled_foot.rotated(_pose_rotation - _base_rotation)

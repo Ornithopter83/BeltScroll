@@ -93,6 +93,49 @@ func _run() -> void:
 		if index in [6, 9, 11]:
 			_check(animator.get_state_frame_status().contains("temporary"), POSE_NAMES[index] + " labels missing pose drawings as temporary transforms")
 
+	# Compare the 2 -> 3 contact handoff in both facings. The visual reference
+	# and sprite anchors may animate, while the Player root and live hitbox stay fixed.
+	var right_chain := packed.instantiate() as CharacterBody2D
+	var left_chain := packed.instantiate() as CharacterBody2D
+	canvas.add_child(right_chain)
+	canvas.add_child(left_chain)
+	right_chain.set_physics_process(false)
+	left_chain.set_physics_process(false)
+	(right_chain.get_node("Camera2D") as Camera2D).queue_free()
+	(left_chain.get_node("Camera2D") as Camera2D).queue_free()
+	await process_frame
+	var right_chain_animator: Node = right_chain.get_node("VisualAnimator")
+	var left_chain_animator: Node = left_chain.get_node("VisualAnimator")
+	var chain_samples: Array[float] = []
+	for chain_case in [
+		{"player": right_chain, "animator": right_chain_animator, "sign": 1.0},
+		{"player": left_chain, "animator": left_chain_animator, "sign": -1.0},
+	]:
+		var chain_player: CharacterBody2D = chain_case["player"]
+		var chain_animator: Node = chain_case["animator"]
+		var facing_sign: float = chain_case["sign"]
+		var chain_root := chain_player.get_node("VisualRoot") as Node2D
+		var chain_art := chain_player.get_node("VisualRoot/PlayerArt") as Sprite2D
+		var chain_blender := chain_player.get_node("VisualRoot/PoseBlender") as PlayerPoseBlender
+		var root_position := chain_player.global_position
+		var hitbox := chain_player.get_node("Hitboxes/Hitbox3") as Area2D
+		var hitbox_position := hitbox.global_position
+		chain_player.set("facing_direction", Vector2(facing_sign, 0.0))
+		chain_root.scale.x = facing_sign
+		_set_attack(chain_player, 2, "active", 0.03)
+		chain_animator.call("_process", 1.0 / 60.0)
+		var rotation_before := chain_art.rotation
+		_set_attack(chain_player, 3, "active", 0.12)
+		for _frame in range(7):
+			chain_animator.call("_process", 1.0 / 60.0)
+			chain_root.scale.x = facing_sign
+			_check(_blender_keeps_common_foot(chain_blender), ("right" if facing_sign > 0.0 else "left") + " 2-to-3 crossfade keeps both registered support candidates aligned")
+		_check(chain_player.global_position.is_equal_approx(root_position), ("right" if facing_sign > 0.0 else "left") + " 2-to-3 handoff leaves the physical Player position unchanged")
+		_check(hitbox.global_position.is_equal_approx(hitbox_position), ("right" if facing_sign > 0.0 else "left") + " 2-to-3 handoff leaves the real hitbox position unchanged")
+		_check(_foot_point(chain_player).distance_to(_baseline_foot(chain_player)) <= FLOOR_TOLERANCE, ("right" if facing_sign > 0.0 else "left") + " 2-to-3 handoff has no grounded-foot slide")
+		chain_samples.append(chain_art.rotation - rotation_before)
+	_check(chain_samples.size() == 2 and chain_samples[0] * chain_samples[1] < 0.0, "2-to-3 torso rotation is mirrored across right-facing and left-facing playback")
+
 	var idle := poses[0]
 	var idle_art := idle.get_node("VisualRoot/PlayerArt") as Sprite2D
 	var idle_transform := idle_art.transform
@@ -441,12 +484,27 @@ func _blender_keeps_common_foot(blender: PlayerPoseBlender) -> bool:
 		var sprite := child as Sprite2D
 		if sprite == null or not sprite.visible or sprite.texture == null:
 			continue
-		var bounds := sprite.texture.get_image().get_used_rect()
-		var foot_x := float(bounds.position.x) + float(bounds.size.x) * 0.5
-		if sprite.flip_h:
-			foot_x = float(sprite.texture.get_width()) - foot_x
-		var foot_from_center := (Vector2(foot_x, float(bounds.end.y)) - Vector2(sprite.texture.get_size()) * 0.5) * sprite.scale
-		if (sprite.position + foot_from_center).length() > FLOOR_TOLERANCE:
+		var candidate := Vector2(-1.0, -1.0)
+		match sprite.texture.resource_path.get_file():
+			"elven_fighter_attack1_reference_v1_contour_candidate_1254x1254.png":
+				candidate = Vector2(0.85, 0.91)
+			"elven_fighter_attack2_reference_v4_ink_final_candidate_1254x1254.png":
+				candidate = Vector2(0.86, 0.91)
+			"elven_fighter_attack3_reference_v2_contour_candidate_1254x1254.png":
+				candidate = Vector2(0.80, 0.91)
+		var foot_from_center: Vector2
+		if candidate.x >= 0.0:
+			var candidate_x := candidate.x * float(sprite.texture.get_width())
+			if sprite.flip_h:
+				candidate_x = float(sprite.texture.get_width()) - candidate_x
+			foot_from_center = (Vector2(candidate_x, candidate.y * float(sprite.texture.get_height())) - Vector2(sprite.texture.get_size()) * 0.5) * sprite.scale
+		else:
+			var bounds := sprite.texture.get_image().get_used_rect()
+			var foot_x := float(bounds.position.x) + float(bounds.size.x) * 0.5
+			if sprite.flip_h:
+				foot_x = float(sprite.texture.get_width()) - foot_x
+			foot_from_center = (Vector2(foot_x, float(bounds.end.y)) - Vector2(sprite.texture.get_size()) * 0.5) * sprite.scale
+		if (sprite.position + foot_from_center - blender.common_combat_anchor).length() > FLOOR_TOLERANCE:
 			return false
 	return true
 

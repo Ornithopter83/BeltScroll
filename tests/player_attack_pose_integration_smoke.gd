@@ -175,18 +175,27 @@ func _approved_pose_bounds(blender: PlayerPoseBlender) -> bool:
 		return false
 	var bounds := texture.get_image().get_used_rect()
 	var height := float(bounds.size.y) * BASE_SCALE.y * 1.2
+	var support_candidate := Vector2(-1.0, -1.0)
+	match key:
+		"attack1_contact":
+			support_candidate = Vector2(0.85, 0.91)
+		"attack2_contact":
+			support_candidate = Vector2(0.86, 0.91)
+		"attack3_contact":
+			support_candidate = Vector2(0.80, 0.91)
 	var sprite: Sprite2D
 	for child in blender.get_children():
 		if child is Sprite2D and child.visible and (child as Sprite2D).texture == texture:
 			sprite = child as Sprite2D
 			break
-	if sprite == null:
+	if sprite == null or support_candidate.x < 0.0:
 		return false
-	var foot_x := float(bounds.position.x) + float(bounds.size.x) * 0.5
+	var foot_x := support_candidate.x * float(texture.get_width())
 	if sprite.flip_h:
 		foot_x = float(texture.get_width()) - foot_x
-	var foot_from_center := (Vector2(foot_x, float(bounds.end.y)) - Vector2(texture.get_size()) * 0.5) * sprite.scale
-	return absf(height - 192.0) <= 2.0 and (sprite.position + foot_from_center).distance_to(blender.common_foot_anchor) < 0.1
+	var foot_y := support_candidate.y * float(texture.get_height())
+	var foot_from_center := (Vector2(foot_x, foot_y) - Vector2(texture.get_size()) * 0.5) * sprite.scale
+	return absf(height - 192.0) <= 2.0 and (sprite.position + foot_from_center).distance_to(blender.common_combat_anchor) < 0.1
 
 func _label(value: String, at: Vector2, font_size: int) -> Label:
 	var label := Label.new()

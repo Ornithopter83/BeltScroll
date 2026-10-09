@@ -112,6 +112,26 @@ godot --headless --path . --script res://tests/player_animation_state_matrix_smo
 
 인수 게이트를 통과하기 전에는 독립 편집기 EXE의 배포가 완료되었다고 간주하지 않습니다.
 
+## Actions 배포 artifact 검증
+
+로컬 ZIP 검증과 GitHub Actions에서 내려받은 원격 artifact 검증은 별도 결과입니다. 지정 실행 `37921763731`의 run 성공 여부와 `BeltScrollEditor-win-x64-1` 존재 확인, artifact ZIP digest 대조, 배포 ZIP 압축 해제 후 EXE SHA-256·`--self-test`·외부 경로 실행·GUI 편집 파일 저장/재열기는 [원격 artifact 검증 게이트](docs/review/editor_remote_artifact_gate.md)를 따릅니다.
+
+Windows PowerShell 5.1에서 GitHub CLI와 네트워크를 준비하고 private 저장소에서는 Actions artifact 읽기 권한으로 로그인한 뒤 프로젝트 루트에서 실행합니다.
+
+```powershell
+gh auth login
+gh auth status
+.\tools\verify_actions_editor_artifact.ps1
+```
+
+검증 보고서와 다운로드 파일은 기본적으로 `%TEMP%` 아래 새 폴더에 보존됩니다. 종료 코드 `0`은 원격 검증 통과, `1`은 실패, `2`는 인증·권한·네트워크 문제로 원격 바이트를 확인하지 못한 상태입니다. 접근 권한이나 네트워크가 없을 때는 `UNVERIFIED`로 남으며 로컬 검증 결과를 원격 검증으로 간주하지 않습니다.
+
+현재 로컬 ZIP의 EXE와 GUI 파일 입출력을 별도로 확인하려면 다음을 실행합니다. 보고서의 출처는 `local-package`입니다.
+
+```powershell
+.\tests\editor_artifact_integrity_smoke.ps1
+```
+
 ## 검수 상태
 
 `tests/title_menu_smoke.gd`는 메뉴 리소스 로드, Tab/Enter/Esc와 마우스 클릭 입력, 포커스 표시, 안내 패널, 종료 요청 및 기존 메인 전투 장면 전환을 확인합니다. `tests/gamepad_input_smoke.gd`는 물리 패드 없이 합성 조이스틱 버튼·축 이벤트로 InputMap 연결, deadzone, 축 해제 시 정지와 결과 화면 재시작을 확인합니다.

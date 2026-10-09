@@ -55,12 +55,19 @@ public sealed class AnimationWorkspaceForm : Form
     private readonly ComboBox clipSelect = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 110 };
     private readonly PicturePreview preview = new() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(54, 58, 66) };
     private readonly PicturePreview leftPreview = new() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(54, 58, 66), Mirror = true };
+    private readonly ArtComparisonPanel comparisonPanel = new() { Dock = DockStyle.Fill };
+    private readonly TabControl previewTabs = new() { Dock = DockStyle.Fill };
     private readonly ComboBox phase = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 135 };
     private readonly NumericUpDown duration = new() { DecimalPlaces = 3, Increment = 0.025M, Minimum = 0.01M, Maximum = 10, Width = 100 };
     private readonly ComboBox approval = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 112 };
     private readonly TextBox clipId = new() { Text = "attack1", Width = 110 };
     private readonly Label status = new() { AutoSize = true, Padding = new Padding(6) };
     private readonly System.Windows.Forms.Timer playback = new() { Interval = 100 };
+    private readonly CheckBox intermediatePlayback = new() { Text = "50ms 중간동작", AutoSize = true };
+    private readonly CheckBox[] reviewChecks = [new() { Text = "얼굴", AutoSize = true }, new() { Text = "귀", AutoSize = true }, new() { Text = "의상", AutoSize = true }, new() { Text = "지지발", AutoSize = true }, new() { Text = "모션 연결", AutoSize = true }];
+    private readonly ComboBox reviewOpinion = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 90 };
+    private readonly TextBox reviewComment = new() { Multiline = true, ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Fill };
+    private double playbackElapsed;
     private AnimationDocument document = new();
     private AnimationClip Clip => document.Clips[Math.Clamp(clipSelect.SelectedIndex, 0, document.Clips.Count - 1)];
     private string workspacePath = "";
@@ -73,7 +80,7 @@ public sealed class AnimationWorkspaceForm : Form
     {
         this.acceptancePath = acceptancePath;
         Text = "BeltScroll · 캐릭터 아트 / 애니메이션 작업공간";
-        Width = 1180; Height = 780; MinimumSize = new Size(920, 620); StartPosition = FormStartPosition.CenterParent;
+        Width = 1360; Height = 900; MinimumSize = new Size(1040, 700); StartPosition = FormStartPosition.CenterParent;
         workspacePath = Path.Combine(Path.GetTempPath(), "BeltScrollAnimationWorkspace", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(workspacePath, "textures"));
         document.Clips.Add(new AnimationClip());
@@ -88,12 +95,20 @@ public sealed class AnimationWorkspaceForm : Form
         AddButton(top, "PNG 프레임 가져오기", ImportPngs); AddButton(top, "JSON 내보내기", ExportJson); AddButton(top, "JSON 불러오기", ImportJson);
         root.Controls.Add(top, 0, 0); root.SetColumnSpan(top, 2);
 
-        var left = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1 };
-        left.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); left.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        var left = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1 };
+        left.RowStyles.Add(new RowStyle(SizeType.Percent, 65)); left.RowStyles.Add(new RowStyle(SizeType.Absolute, 42)); left.RowStyles.Add(new RowStyle(SizeType.Percent, 35));
         left.Controls.Add(frameList, 0, 0);
         var frameButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
         AddButton(frameButtons, "위로", () => MoveFrame(-1)); AddButton(frameButtons, "아래로", () => MoveFrame(1)); AddButton(frameButtons, "삭제", RemoveFrame);
-        left.Controls.Add(frameButtons, 0, 1); root.Controls.Add(left, 0, 1);
+        left.Controls.Add(frameButtons, 0, 1);
+        var review = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4, Padding = new Padding(2) };
+        review.RowStyles.Add(new RowStyle(SizeType.Absolute, 28)); review.RowStyles.Add(new RowStyle(SizeType.Absolute, 58)); review.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); review.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        review.Controls.Add(new Label { Text = "수동 시각 검수 체크리스트", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
+        var checklist = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true, AutoScroll = true }; foreach (var check in reviewChecks) checklist.Controls.Add(check); review.Controls.Add(checklist, 0, 1); review.Controls.Add(reviewComment, 0, 2);
+        var reviewActions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        reviewOpinion.Items.AddRange(["보류", "반려", "승인"]); reviewOpinion.SelectedIndex = 0;
+        reviewActions.Controls.Add(reviewOpinion); AddButton(reviewActions, "의견 내보내기", ExportReviewOpinion); review.Controls.Add(reviewActions, 0, 3);
+        left.Controls.Add(review, 0, 2); root.Controls.Add(left, 0, 1);
 
         var right = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 2, Padding = new Padding(6, 0, 0, 0) };
         right.RowStyles.Add(new RowStyle(SizeType.Absolute, 34)); right.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); right.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
@@ -107,8 +122,11 @@ public sealed class AnimationWorkspaceForm : Form
         edit.Controls.Add(new Label { Text = "지속시간(초)", AutoSize = true, Padding = new Padding(8, 6, 0, 0) }); edit.Controls.Add(duration);
         approval.Items.AddRange(["review", "approved", "unapproved", "temporary"]); approval.SelectedItem = "review";
         edit.Controls.Add(new Label { Text = "검수 상태", AutoSize = true, Padding = new Padding(8, 6, 0, 0) }); edit.Controls.Add(approval);
-        AddButton(edit, "재생", StartPlayback); AddButton(edit, "정지", StopPlayback);
-        right.Controls.Add(edit, 0, 2); right.SetColumnSpan(edit, 2); root.Controls.Add(right, 1, 1);
+        AddButton(edit, "재생", StartPlayback); AddButton(edit, "정지", StopPlayback); edit.Controls.Add(intermediatePlayback);
+        right.Controls.Add(edit, 0, 2); right.SetColumnSpan(edit, 2);
+        var frameTab = new TabPage("프레임 미리보기"); frameTab.Controls.Add(right);
+        var compareTab = new TabPage("원화 3× 비교"); compareTab.Controls.Add(comparisonPanel);
+        previewTabs.TabPages.Add(frameTab); previewTabs.TabPages.Add(compareTab); root.Controls.Add(previewTabs, 1, 1);
         root.Controls.Add(status, 0, 2); root.SetColumnSpan(status, 2); Controls.Add(root);
 
         clipSelect.SelectedIndexChanged += (_, _) => { if (!updating && clipSelect.SelectedIndex >= 0) { updating = true; clipId.Text = Clip.Id; updating = false; SetPhaseOptions(); RefreshFrames(0); } };
@@ -117,7 +135,7 @@ public sealed class AnimationWorkspaceForm : Form
         phase.SelectedIndexChanged += (_, _) => UpdateFrame(); duration.ValueChanged += (_, _) => UpdateFrame(); approval.SelectedIndexChanged += (_, _) => UpdateFrame();
         clipId.TextChanged += (_, _) => RenameClip();
         preview.AnchorChanged += (_, point) => { if (CurrentFrame is { } f) { f.FootAnchor = new FootAnchor { X = point.X, Y = point.Y }; preview.Invalidate(); leftPreview.Invalidate(); SetStatus($"발 anchor: ({point.X:0.000}, {point.Y:0.000})"); } };
-        playback.Tick += (_, _) => AdvancePlayback();
+        playback.Tick += (_, _) => { if (intermediatePlayback.Checked) AdvanceIntermediatePlayback(); else AdvancePlayback(); };
         FormClosed += (_, _) => { playback.Stop(); preview.DisposeImage(); leftPreview.DisposeImage(); };
         SetStatus($"별도 임시 작업 폴더: {workspacePath}");
         if (acceptancePath is not null)
@@ -297,12 +315,13 @@ public sealed class AnimationWorkspaceForm : Form
     private void SelectFrame()
     {
         var f = CurrentFrame; updating = true;
-        if (f is null) { preview.SetImage(null, null); leftPreview.SetImage(null, null); phase.SelectedIndex = -1; approval.SelectedIndex = -1; }
+        if (f is null) { preview.SetImage(null, null); leftPreview.SetImage(null, null); comparisonPanel.SetCurrentImage(null); phase.SelectedIndex = -1; approval.SelectedIndex = -1; }
         else
         {
             phase.SelectedItem = f.Phase; duration.Value = Math.Clamp((decimal)f.Duration, duration.Minimum, duration.Maximum); approval.SelectedItem = f.ApprovalState;
             string? path = f.Texture is null ? null : ResolveTexture(f.Texture);
             preview.SetImage(path, f.FootAnchor); leftPreview.SetImage(path, f.FootAnchor);
+            comparisonPanel.SetCurrentImage(path);
         }
         updating = false;
     }
@@ -323,9 +342,35 @@ public sealed class AnimationWorkspaceForm : Form
         int i = frameList.SelectedIndex; if (i < 0) return;
         Clip.Frames.RemoveAt(i); RefreshFrames(Math.Max(0, i - 1));
     }
-    private void StartPlayback() { if (Clip.Frames.Count == 0) return; if (frameList.SelectedIndex < 0) frameList.SelectedIndex = 0; playback.Interval = Math.Max(20, (int)(CurrentFrame!.Duration * 1000)); playback.Start(); SetStatus("애니메이션 재생 중 · 정지 버튼으로 멈춤"); }
+    private void StartPlayback() { if (Clip.Frames.Count == 0) return; if (frameList.SelectedIndex < 0) frameList.SelectedIndex = 0; playbackElapsed = 0; playback.Interval = intermediatePlayback.Checked ? 50 : Math.Max(20, (int)(CurrentFrame!.Duration * 1000)); playback.Start(); SetStatus(intermediatePlayback.Checked ? "애니메이션 재생 중 · 50ms 중간동작 표시" : "애니메이션 재생 중 · 정지 버튼으로 멈춤"); }
     private void StopPlayback() { playback.Stop(); SetStatus("재생 정지"); }
     private void AdvancePlayback() { if (Clip.Frames.Count == 0) { StopPlayback(); return; } int next = (frameList.SelectedIndex + 1) % Clip.Frames.Count; frameList.SelectedIndex = next; playback.Interval = Math.Max(20, (int)(CurrentFrame!.Duration * 1000)); }
+    private void AdvanceIntermediatePlayback()
+    {
+        if (Clip.Frames.Count == 0 || CurrentFrame is null) { StopPlayback(); return; }
+        playbackElapsed += .05;
+        double mix = Math.Clamp(playbackElapsed / CurrentFrame.Duration, 0, 1);
+        var next = Clip.Frames[(frameList.SelectedIndex + 1) % Clip.Frames.Count];
+        string? firstPath = CurrentFrame.Texture is null ? null : ResolveTexture(CurrentFrame.Texture);
+        string? nextPath = next.Texture is null ? null : ResolveTexture(next.Texture);
+        preview.SetBlendImages(firstPath, nextPath, CurrentFrame.FootAnchor, mix);
+        leftPreview.SetBlendImages(firstPath, nextPath, CurrentFrame.FootAnchor, mix);
+        if (playbackElapsed + .0001 >= CurrentFrame.Duration)
+        {
+            playbackElapsed = 0; frameList.SelectedIndex = (frameList.SelectedIndex + 1) % Clip.Frames.Count;
+        }
+    }
+
+    private void ExportReviewOpinion()
+    {
+        if (acceptancePath is not null) { SetStatus("자동 GUI 검수에서는 사람의 승인 의견 내보내기가 비활성화됩니다."); return; }
+        var frame = CurrentFrame; if (frame is null) { SetStatus("의견을 내보낼 프레임을 선택하세요."); return; }
+        using var dialog = new SaveFileDialog { Title = "수동 시각 검수 의견 내보내기", Filter = "검수 의견 JSON (*.json)|*.json", FileName = $"{Clip.Id}-frame-{frameList.SelectedIndex + 1}-review.json", DefaultExt = "json" };
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+        var report = new { schema_version = 1, clip_id = Clip.Id, frame_index = frameList.SelectedIndex, texture = frame.Texture, opinion = reviewOpinion.SelectedItem?.ToString() ?? "보류", checklist = new { face = reviewChecks[0].Checked, ears = reviewChecks[1].Checked, costume = reviewChecks[2].Checked, supporting_foot = reviewChecks[3].Checked, motion_connection = reviewChecks[4].Checked }, comment = reviewComment.Text, exported_at = DateTimeOffset.Now.ToString("O"), approval_state_changed = false, game_allowlist_changed = false };
+        File.WriteAllText(dialog.FileName, JsonSerializer.Serialize(report, JsonOptions), new UTF8Encoding(false));
+        SetStatus($"사람 검수 의견을 내보냈습니다: {dialog.FileName} · 프레임 approval_state와 게임 allowlist는 변경하지 않았습니다.");
+    }
     private void SetStatus(string text) => status.Text = text;
     private void RunGuiAcceptance()
     {
@@ -342,7 +387,7 @@ public sealed class AnimationWorkspaceForm : Form
             if (Math.Abs(Clip.Frames[0].FootAnchor.Y - 0.5) > 0.02) throw new Exception("Anchor pointer event did not update the foot anchor.");
             foreach (string p in new[] { "inbetween", "contact", "recovery" }) AddPngFiles([fixture]);
             string[] phases = ["startup", "inbetween", "contact", "recovery"];
-            string[] states = ["review", "temporary", "approved", "unapproved"];
+            string[] states = ["review", "review", "review", "review"];
             decimal[] times = [0.075M, 0.035M, 0.105M, 0.2M];
             for (int i = 0; i < phases.Length; i++) { frameList.SelectedIndex = i; phase.SelectedItem = phases[i]; duration.Value = times[i]; approval.SelectedItem = states[i]; }
             frameList.SelectedIndex = 2; ((Button)FindControl(this, "위로")).PerformClick();
@@ -353,7 +398,14 @@ public sealed class AnimationWorkspaceForm : Form
             clipSelect.SelectedIndex = document.Clips.FindIndex(c => c.Id == "idle"); AddPngFiles([fixture]);
             if (Clip.Frames.Single().Phase != "idle" || Clip.Frames.Single().ApprovalState != "review") throw new Exception("Idle clip frame contract/default review state failed.");
             clipSelect.SelectedIndex = document.Clips.FindIndex(c => c.Id == "attack1");
-            ((Button)FindControl(this, "재생")).PerformClick(); if (!playback.Enabled) throw new Exception("Playback did not start.");
+            intermediatePlayback.Checked = true;
+            string comparisonFixture = Path.Combine(acceptancePath!, "comparison.png");
+            using (var bitmap = new Bitmap(24, 32)) using (var graphics = Graphics.FromImage(bitmap)) { graphics.Clear(Color.Transparent); using var brush = new SolidBrush(Color.OrangeRed); graphics.FillRectangle(brush, 2, 8, 20, 18); bitmap.Save(comparisonFixture, System.Drawing.Imaging.ImageFormat.Png); }
+            comparisonPanel.ConfigureForAcceptance(comparisonFixture);
+            frameList.SelectedIndex = 0;
+            ((Button)FindControl(this, "재생")).PerformClick(); if (!playback.Enabled || playback.Interval != 50) throw new Exception("50ms intermediate playback did not start.");
+            playbackElapsed = 0; AdvanceIntermediatePlayback(); if (preview.BlendVisible != true) throw new Exception("50ms intermediate frame blend was not rendered.");
+            previewTabs.SelectedIndex = 0;
             ((Button)FindControl(this, "정지")).PerformClick(); if (playback.Enabled) throw new Exception("Playback did not stop.");
             string exported = Path.Combine(acceptancePath!, "workspace"); ExportTo(exported);
             var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(exported, "animation.json"), Encoding.UTF8)).RootElement;
@@ -361,11 +413,12 @@ public sealed class AnimationWorkspaceForm : Form
             var savedPhases = json.GetProperty("clips").EnumerateArray().Single(c => c.GetProperty("id").GetString() == "attack1").GetProperty("frames").EnumerateArray().Select(f => f.GetProperty("phase").GetString()).ToArray();
             LoadJson(Path.Combine(exported, "animation.json"));
             var loadedAttack = document.Clips.Single(c => c.Id == "attack1");
-            if (!loadedAttack.Frames.Select(f => f.Phase).SequenceEqual(savedPhases) || loadedAttack.Frames.Count != 4 || loadedAttack.Frames[1].ApprovalState != "approved" || loadedAttack.Frames[0].ApprovalState != "review" || Math.Abs(loadedAttack.Frames[3].Duration - .2) > .001 || Math.Abs(loadedAttack.Frames[0].FootAnchor.Y - .5) > .02) throw new Exception("JSON reload did not preserve frame order, duration, anchor or approval state.");
+            if (!loadedAttack.Frames.Select(f => f.Phase).SequenceEqual(savedPhases) || loadedAttack.Frames.Count != 4 || loadedAttack.Frames.Any(f => f.ApprovalState != "review") || Math.Abs(loadedAttack.Frames[3].Duration - .2) > .001 || Math.Abs(loadedAttack.Frames[0].FootAnchor.Y - .5) > .02) throw new Exception("JSON reload did not preserve frame order, duration, anchor or review-only state.");
             if (!document.Clips.Select(c => c.Id).OrderBy(x => x).SequenceEqual(new[] { "idle", "attack1", "attack2", "attack3" }.OrderBy(x => x))) throw new Exception("JSON reload lost clip IDs.");
             if (document.Clips.Single(c => c.Id == "idle").Frames.Single().Phase != "idle") throw new Exception("JSON reload lost idle phase.");
+            previewTabs.SelectedIndex = 1;
             using var capture = new Bitmap(Math.Max(1, Width), Math.Max(1, Height)); DrawToBitmap(capture, new Rectangle(Point.Empty, capture.Size)); capture.Save(Path.Combine(acceptancePath!, "animation-gui.png"), System.Drawing.Imaging.ImageFormat.Png);
-            var report = new { passed = true, guiMessageLoop = true, guiControlEvents = new[] { "PNG import", "clip creation and selection", "four phase selection", "duration edit", "approval state selection", "anchor pointer event", "frame reorder", "play", "stop", "multi-clip JSON export", "JSON reload" }, schemaVersion = 1, exportedPath = Path.Combine(exported, "animation.json"), clipCount = document.Clips.Count, frameCount = loadedAttack.Frames.Count, workspacePath = exported };
+            var report = new { passed = true, guiMessageLoop = true, guiControlEvents = new[] { "PNG import", "clip creation and selection", "four phase selection", "duration edit", "anchor pointer event", "frame reorder", "50ms inbetween playback", "3x artwork side-by-side and overlay", "play", "stop", "multi-clip JSON export", "JSON reload" }, schemaVersion = 1, exportedPath = Path.Combine(exported, "animation.json"), clipCount = document.Clips.Count, frameCount = loadedAttack.Frames.Count, approvalState = "review", approvalDecisionCreated = false, gameAllowlistChanged = false, workspacePath = exported };
             File.WriteAllText(Path.Combine(acceptancePath!, "animation-gui-acceptance.json"), JsonSerializer.Serialize(report, JsonOptions), new UTF8Encoding(false));
             ExitCode = 0; Close();
         }
@@ -382,16 +435,36 @@ public sealed class AnimationWorkspaceForm : Form
 internal sealed class PicturePreview : Control
 {
     private Image? image;
+    private Image? blendImage;
+    private string? imagePath;
+    private string? blendImagePath;
+    private float blendOpacity;
+    internal bool BlendVisible => blendImage is not null && blendOpacity > 0;
     private FootAnchor? anchor;
     public bool Mirror { get; set; }
     public event EventHandler<PointF>? AnchorChanged;
     public PicturePreview() { DoubleBuffered = true; ResizeRedraw = true; SetStyle(ControlStyles.Selectable, true); }
-    public void DisposeImage() { image?.Dispose(); image = null; }
+    public void DisposeImage() { image?.Dispose(); blendImage?.Dispose(); image = null; blendImage = null; imagePath = null; blendImagePath = null; }
     public void SetImage(string? path, FootAnchor? value)
     {
-        image?.Dispose(); image = null; anchor = value is null ? null : new FootAnchor { X = value.X, Y = value.Y };
-        if (!string.IsNullOrWhiteSpace(path) && File.Exists(path)) { using var stream = File.OpenRead(path); image = Image.FromStream(stream).Clone() as Image; }
+        LoadPrimary(path); blendImage?.Dispose(); blendImage = null; blendImagePath = null; blendOpacity = 0; anchor = value is null ? null : new FootAnchor { X = value.X, Y = value.Y };
         Invalidate();
+    }
+    public void SetBlendImages(string? firstPath, string? nextPath, FootAnchor? value, double amount)
+    {
+        LoadPrimary(firstPath);
+        if (!string.Equals(blendImagePath, nextPath, StringComparison.OrdinalIgnoreCase))
+        {
+            blendImage?.Dispose(); blendImage = null; blendImagePath = nextPath;
+            if (!string.IsNullOrWhiteSpace(nextPath) && File.Exists(nextPath)) { using var stream = File.OpenRead(nextPath); using var decoded = Image.FromStream(stream); blendImage = new Bitmap(decoded); }
+        }
+        blendOpacity = (float)Math.Clamp(amount, 0, 1); anchor = value is null ? null : new FootAnchor { X = value.X, Y = value.Y }; Invalidate();
+    }
+    private void LoadPrimary(string? path)
+    {
+        if (string.Equals(imagePath, path, StringComparison.OrdinalIgnoreCase)) return;
+        image?.Dispose(); image = null; imagePath = path;
+        if (!string.IsNullOrWhiteSpace(path) && File.Exists(path)) { using var stream = File.OpenRead(path); using var decoded = Image.FromStream(stream); image = new Bitmap(decoded); }
     }
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -404,6 +477,13 @@ internal sealed class PicturePreview : Control
         float w = image.Width * scale, h = image.Height * scale, x0 = (Width - w) / 2, y0 = (Height - h) / 2;
         var state = g.Save(); if (Mirror) { g.TranslateTransform(Width, 0); g.ScaleTransform(-1, 1); x0 = Width - (x0 + w); }
         g.InterpolationMode = InterpolationMode.NearestNeighbor; g.PixelOffsetMode = PixelOffsetMode.Half; g.DrawImage(image, x0, y0, w, h);
+        if (blendImage is not null && blendOpacity > 0)
+        {
+            var blendState = g.Save(); if (Mirror) { g.TranslateTransform(Width, 0); g.ScaleTransform(-1, 1); }
+            using var matrix = new System.Drawing.Imaging.ImageAttributes();
+            var color = new System.Drawing.Imaging.ColorMatrix { Matrix33 = blendOpacity }; matrix.SetColorMatrix(color);
+            g.DrawImage(blendImage, new Rectangle((int)x0, (int)y0, (int)w, (int)h), 0, 0, blendImage.Width, blendImage.Height, GraphicsUnit.Pixel, matrix); g.Restore(blendState);
+        }
         DrawSilhouette(g, image, x0, y0, scale);
         if (anchor is not null) { float ax = x0 + (float)anchor.X * w, ay = y0 + (float)anchor.Y * h; using var pen = new Pen(Color.Gold, 2); g.DrawLine(pen, ax - 9, ay, ax + 9, ay); g.DrawLine(pen, ax, ay - 9, ax, ay + 9); g.DrawEllipse(pen, ax - 5, ay - 5, 10, 10); }
         g.Restore(state);

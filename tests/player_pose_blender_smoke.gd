@@ -43,6 +43,17 @@ func _run() -> void:
 		_check(_visible_texture(blender) == fixtures[key], key + " ends on its own approved texture")
 		_check(_foot_point(blender).distance_to(blender.common_foot_anchor) <= 0.01, key + " aligns alpha bounds to common foot anchor")
 
+	# A deliberately off-center candidate proves that authored support metadata,
+	# rather than the silhouette's lowest alpha pixel, owns this pose's alignment.
+	var explicit_candidate := Vector2(0.35, 0.65)
+	_check(blender.set_ground_candidate("attack3", "contact", explicit_candidate), "approved pose accepts an explicit support candidate")
+	_check(blender.get_ground_candidate("attack3", "contact").is_equal_approx(explicit_candidate), "support candidate is stored independently from the shared combat anchor")
+	blender.set_pose("attack3", "contact", 0.0)
+	_check(_candidate_point(blender, explicit_candidate).distance_to(blender.common_combat_anchor) <= 0.01, "right-facing explicit support candidate aligns to the common combat anchor")
+	blender.set_facing_left(true)
+	_check(_candidate_point(blender, explicit_candidate).distance_to(blender.common_combat_anchor) <= 0.01, "left-facing explicit support candidate mirrors without sliding")
+	blender.set_facing_left(false)
+
 	var attack_one_sequence: Array[String] = ["startup", "contact", "recovery"]
 	_check(blender.play_pose_sequence("attack1", attack_one_sequence, 0.05), "plays a timed sequence made only from explicitly approved keyposes")
 	_check(blender.get_sequence_frame_count() == 3 and blender.get_sequence_frame() == 0, "sequence exposes its first frame and frame count")
@@ -150,6 +161,16 @@ func _foot_point(node: Node) -> Vector2:
 		foot_x = float(sprite.texture.get_width()) - foot_x
 	var foot_from_center := (Vector2(foot_x, float(bounds.end.y)) - Vector2(sprite.texture.get_size()) * 0.5) * sprite.scale
 	return sprite.position + foot_from_center
+
+func _candidate_point(node: Node, candidate: Vector2) -> Vector2:
+	var sprite := _active_sprite(node)
+	if sprite == null:
+		return Vector2(INF, INF)
+	var point_x := candidate.x * float(sprite.texture.get_width())
+	if sprite.flip_h:
+		point_x = float(sprite.texture.get_width()) - point_x
+	var point_from_center := (Vector2(point_x, candidate.y * float(sprite.texture.get_height())) - Vector2(sprite.texture.get_size()) * 0.5) * sprite.scale
+	return sprite.position + point_from_center
 
 func _alphas(node: Node) -> Array[float]:
 	var result: Array[float] = []

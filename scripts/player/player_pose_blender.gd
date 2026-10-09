@@ -11,7 +11,12 @@ const APPROVED_ATTACK_POSES := {
 const PHASES := ["startup", "inbetween", "contact", "recovery"]
 
 @export var sprite_scale := Vector2(0.1489758, 0.1489758)
-@export var common_foot_anchor := Vector2.ZERO
+## Shared combat-space reference; support candidates are per registered drawing.
+@export var common_combat_anchor := Vector2.ZERO
+## Compatibility property for existing independent blender callers.
+var common_foot_anchor: Vector2:
+	get: return common_combat_anchor
+	set(value): common_combat_anchor = value
 @export_range(0.01, 0.25, 0.005) var crossfade_duration := 0.075
 
 var _sprites: Array[Sprite2D] = []
@@ -113,6 +118,29 @@ func register_pose_frame(action: String, phase: String, texture_source: Variant,
 	else:
 		_anchor_overrides.erase(texture.get_instance_id())
 	return true
+
+## Assigns an explicit normalized support-foot candidate to one approved frame.
+## It is distinct from the common combat anchor and never inferred from the full
+## silhouette's lowest alpha pixel when a candidate is available.
+func set_ground_candidate(action: String, phase: String, candidate: Vector2, frame_index := 0) -> bool:
+	var key := _pose_key(action, phase)
+	if key.is_empty() or not _registered_frames.has(key) or candidate.x < 0.0 or candidate.x > 1.0 or candidate.y < 0.0 or candidate.y > 1.0:
+		return false
+	var frames: Array = _registered_frames[key]
+	if frame_index < 0 or frame_index >= frames.size():
+		return false
+	var texture := frames[frame_index].get("texture") as Texture2D
+	if not _texture_is_usable(texture):
+		return false
+	_anchor_overrides[texture.get_instance_id()] = candidate
+	return true
+
+func get_ground_candidate(action: String, phase: String, frame_index := 0) -> Vector2:
+	var frames: Array = _registered_frames.get(_pose_key(action, phase), [])
+	if frame_index < 0 or frame_index >= frames.size():
+		return Vector2(-1.0, -1.0)
+	var texture := frames[frame_index].get("texture") as Texture2D
+	return _anchor_overrides.get(texture.get_instance_id(), Vector2(-1.0, -1.0)) if texture != null else Vector2(-1.0, -1.0)
 
 ## action is idle, attack1, attack2, or attack3. Attack phases are startup,
 ## inbetween, contact, and recovery. Missing art safely resolves to the approved v8 still.
@@ -314,8 +342,9 @@ func _process(delta: float) -> void:
 		return
 	_transition_elapsed = minf(_transition_elapsed + maxf(delta, 0.0), _active_transition_duration)
 	var blend := 1.0 if _active_transition_duration <= 0.0 else clampf(_transition_elapsed / _active_transition_duration, 0.0, 1.0)
-	_sprites[_transition_from].modulate.a = 1.0 - blend
-	_sprites[_transition_to].modulate.a = blend
+	var eased_blend := blend * blend * (3.0 - 2.0 * blend)
+	_sprites[_transition_from].modulate.a = 1.0 - eased_blend
+	_sprites[_transition_to].modulate.a = eased_blend
 	if blend >= 1.0:
 		_sprites[_transition_from].visible = false
 		_sprites[_transition_from].modulate.a = 0.0
@@ -454,7 +483,7 @@ func _place_sprite(sprite: Sprite2D) -> void:
 	if _facing_left:
 		foot_x = float(sprite.texture.get_width()) - foot_x
 	var foot_from_center := (Vector2(foot_x, foot.y) - Vector2(sprite.texture.get_size()) * 0.5) * sprite.scale
-	sprite.position = common_foot_anchor - foot_from_center
+	sprite.position = common_combat_anchor - foot_from_center
 
 func _transitioning_index() -> int:
 	return _transition_to if _transitioning else (0 if _sprites[0].visible else 1)
