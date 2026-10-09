@@ -21,7 +21,9 @@
 
 ## 누락·중복·비정상 종료 판정
 
-`tests/smoke_suite_coverage_smoke.ps1`는 기존 호출 순서와 네 신규 호출의 마지막 위치, 전체 개수, 중복, 필요한 `.gd` 파일, 실행 route, 시간제한, 성공 표식 및 실패 로그 보존을 확인한다. 추가 검사 14개의 recorder 호출 이름을 예상 목록과 대조해 빠진 호출, 중복 호출, 불일치를 거부한다. 각 recorder는 해당 프로세스의 실제 종료 코드를 출력하고 0이 아니면 suite 실패 상태를 설정한다. 개별 smoke는 성공 표식과 종료 코드를 함께 검사한다.
+`tests/smoke_suite_coverage_smoke.ps1`는 기존 호출 순서와 네 신규 호출의 마지막 위치, 전체 개수, 중복, 필요한 `.gd` 파일, 실행 route, 시간제한, 성공 표식 및 실패 로그 보존을 확인한다. 추가 검사 14개의 recorder 호출 이름을 예상 목록과 대조해 빠진 호출, 중복 호출, 불일치를 거부한다. 각 recorder는 이름, 실행 유형, 새로 실행한 프로세스의 종료 코드와 누적 번호를 콘솔과 UTF-8 임시 원장에 기록한다. runner를 부를 때 `RUN_EXIT`를 비운 뒤 결과를 다시 채워 이전 검사 종료 코드가 남지 않게 한다. 성공 표시 직전 원장의 행 수, 순서, 고유 이름, 실행 유형, 종료 코드와 기대 개수 14를 검증한다. 최종 요약은 한 번만 출력하며, 요약의 `additional_checks`는 검증된 recorder 행 수와 같다. 검증이 실패하면 성공 표시 없이 실패 경로로 간다.
+
+`tests/smoke_additional_accounting_smoke.ps1`는 Windows `cmd.exe`에서 실제 batch subroutine과 bounded runner를 호출해 정상 종료, 일반 실패, timeout, PowerShell 실패를 재현한다. 각 결과의 종료 코드와 누적 번호, 유일 이름, 실행 유형을 확인하고 요약이 한 번만 출력되며 총계가 4인지 검사한다. 전체 suite에서도 이 fixture를 45초 제한으로 실행한다. fixture 기록은 suite의 14개 실제 추가 검사 원장에 포함되지 않는다.
 
 `tests/animation_candidate_coverage_smoke.ps1`는 신규 후보 호출 네 개의 유일성, 선택적 v4 미확보 상태, 그리고 기존 승인 프레임 격리 검사를 검사한다. 이 검사는 45초 제한이며 전체 추가 검사 집계에 PowerShell 검사로 포함된다. `tests/editor_executable_parse_smoke.ps1`도 45초 제한 PowerShell 검사로 집계한다.
 

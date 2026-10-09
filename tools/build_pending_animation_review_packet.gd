@@ -3,9 +3,12 @@ extends SceneTree
 
 const OUTPUT := "res://assets/art/review/pending_animation_review_packet.png"
 const PLAYER_DIR := "res://assets/art/player/"
-const PAGE_SIZE := Vector2i(3160, 5000)
+const PAGE_WIDTH := 3160
 const CARD_SIZE := Vector2i(1500, 780)
 const COLS := 2
+const ROW_STEP := 796
+const TOP := 185
+const BOTTOM := 32
 
 const ITEMS := [
 	{"id":"idle_v8", "title":"기준 · 승인 idle v8", "source":"elven_fighter_reference_v8_clean_candidate_1254x1254.png", "safe":"elven_fighter_reference_v8_safe_1254x1254.png", "status":"기존 승인 정지 원화 · 애니메이션 시퀀스 아님", "kind":"reference"},
@@ -14,15 +17,17 @@ const ITEMS := [
 	{"id":"attack3_contact", "title":"기준 · 승인 attack3 contact", "source":"elven_fighter_attack3_reference_v2_contour_candidate_1254x1254.png", "status":"기존 승인 접촉 3/3 · 0.140 s", "kind":"approved"},
 	{"id":"attack1_startup", "title":"미승인 후보 · attack1 startup", "source":"elven_fighter_attack1_startup_v1_candidate_1254x1254.png", "safe":"elven_fighter_attack1_startup_v1_safe_candidate_1254x1254.png", "status":"전환·실루엣·잘림·identity 검토", "kind":"candidate"},
 	{"id":"attack3_startup", "title":"미승인 후보 · attack3 startup", "source":"elven_fighter_attack3_startup_v1_candidate_1254x1254.png", "safe":"elven_fighter_attack3_startup_v1_safe_candidate_1254x1254.png", "status":"전환·실루엣·잘림·identity 검토", "kind":"candidate"},
-	{"id":"run_v1", "title":"미승인 후보 · run stride v1", "source":"elven_fighter_run_stride_v1_candidate_1254x1254.png", "safe":"elven_fighter_run_stride_v1_safe_candidate_1254x1254.png", "status":"지지발 후보·좌우 주기·identity 검토", "kind":"candidate"},
-	{"id":"run_v2", "title":"미승인 후보 · run stride v2 opposite", "source":"elven_fighter_run_stride_v2_opposite_candidate_1254x1254.png", "safe":"elven_fighter_run_stride_v2_safe_candidate_1254x1254.png", "status":"v1 반대 위상 후보 · 지지발·전환 검토", "kind":"candidate"},
-	{"id":"run_v3", "title":"미승인 후보 · run stride v3 left lead", "source":"elven_fighter_run_stride_v3_left_lead_candidate_1254x1254.png", "status":"v1/v2와 위상·좌우 미러 검토", "kind":"candidate"},
+	{"id":"run_v1", "title":"미승인 후보 · run stride v1", "source":"elven_fighter_run_stride_v1_candidate_1254x1254.png", "safe":"elven_fighter_run_stride_v1_safe_candidate_1254x1254.png", "status":"기존 판정: v2·v3·v4와 동일 보폭 · 지지발 미판정", "kind":"candidate"},
+	{"id":"run_v2", "title":"미승인 후보 · run stride v2 opposite", "source":"elven_fighter_run_stride_v2_opposite_candidate_1254x1254.png", "safe":"elven_fighter_run_stride_v2_safe_candidate_1254x1254.png", "status":"기존 판정: v1·v3·v4와 동일 보폭 · 지지발 미판정", "kind":"candidate"},
+	{"id":"run_v3", "title":"미승인 후보 · run stride v3 left lead", "source":"elven_fighter_run_stride_v3_left_lead_candidate_1254x1254.png", "status":"기존 판정: v1·v2·v4와 동일 보폭 · 지지발 미판정", "kind":"candidate"},
+	{"id":"run_v4", "title":"미승인 후보 · run stride v4 opposite contact", "source":"elven_fighter_run_stride_v4_opposite_contact_candidate_1254x1254.png", "safe":"elven_fighter_run_stride_v4_safe_candidate_1254x1254.png", "status":"기존 판정: v1·v2·v3와 동일 보폭, 반대 보폭 아님 · 미수용", "kind":"candidate"},
 	{"id":"jump_rise", "title":"미승인 후보 · jump rise", "source":"elven_fighter_jump_rise_v1_candidate_1254x1254.png", "safe":"elven_fighter_jump_rise_v1_safe_candidate_1254x1254.png", "status":"도약/상승 전환·발 이탈·잘림 검토", "kind":"candidate"},
 	{"id":"num4_skill1", "title":"미승인 후보 · Num4 전방 돌진 접촉", "source":"elven_fighter_skill1_rush_contact_v1_candidate_1254x1254.png", "safe":"elven_fighter_skill1_rush_contact_v1_safe_candidate_1254x1254.png", "status":"skill1 접촉·방향·잘림·identity 검토", "kind":"candidate"}
 ]
 
 var _errors: Array[String] = []
 var _baseline_anchor := Vector2.ZERO
+var _page_size := Vector2i(PAGE_WIDTH, 5000)
 
 func _initialize() -> void:
 	call_deferred("_build")
@@ -39,17 +44,17 @@ func _build() -> void:
 			visible_items.append(item)
 		else:
 			_errors.append("필수 이미지 누락: " + str(item.source))
-	var optional_v4 := PLAYER_DIR + "elven_fighter_reference_v4_1254x1254.png"
-	if FileAccess.file_exists(optional_v4):
-		visible_items.append({"id":"optional_v4", "title":"선택 비교 · v4 (파일 존재로만 포함)", "source":"elven_fighter_reference_v4_1254x1254.png", "safe":"elven_fighter_reference_v4_safe_1254x1254.png", "status":"비교용 원화 · 승인 또는 후보 판정 아님", "kind":"reference"})
+	for filename in _find_optional_num5_candidates():
+		visible_items.append({"id":"optional_num5", "title":"미승인 후보 · Num5", "source":filename, "status":"파일 존재로 포함 · 미승인 · 동작/전환/identity 검토", "kind":"candidate"})
 	if not _errors.is_empty():
 		_fail("; ".join(_errors))
 		return
+	_page_size = Vector2i(PAGE_WIDTH, TOP + ceili(float(visible_items.size()) / COLS) * ROW_STEP + BOTTOM)
 	var baseline_image := _load_image("elven_fighter_reference_v8_clean_candidate_1254x1254.png")
 	_baseline_anchor = _alpha_anchor(baseline_image, _alpha_bounds(baseline_image))
 	var svg := _build_svg(visible_items)
 	var image := Image.new()
-	if image.load_svg_from_string(svg) != OK or image.get_size() != PAGE_SIZE:
+	if image.load_svg_from_string(svg) != OK or image.get_size() != _page_size:
 		_fail("SVG에서 검수 패킷 이미지 생성 실패: " + str(image.get_size()))
 		return
 	var absolute := ProjectSettings.globalize_path(output)
@@ -62,27 +67,30 @@ func _build() -> void:
 	if annotation_status != 0:
 		_fail("PowerShell 한글 라벨 합성 실패 (exit %d)" % annotation_status)
 		return
-	print("pending_animation_review_packet: saved %dx%d; human review required; registry unchanged" % [PAGE_SIZE.x, PAGE_SIZE.y])
+	print("pending_animation_review_packet: saved %dx%d; human review required; registry unchanged" % [_page_size.x, _page_size.y])
 	quit(0)
 
 func _build_svg(items: Array[Dictionary]) -> String:
-	var result := '<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d"><rect width="100%%" height="100%%" fill="#101820"/>' % [PAGE_SIZE.x, PAGE_SIZE.y, PAGE_SIZE.x, PAGE_SIZE.y]
+	var result := '<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d"><rect width="100%%" height="100%%" fill="#101820"/>' % [_page_size.x, _page_size.y, _page_size.x, _page_size.y]
 	result += _svg_text("플레이어 애니메이션 원화 검수 패킷", 32, 54, 38, "#f3e3b2")
 	result += _svg_text("사람 검수 전용 · 자동 생성물은 승인 기록이 아님 · 신규 승인 0건", 36, 96, 21, "#ffca78")
-	result += _svg_text("기준 4장(v8 + 승인 접촉 3장) / 미승인 후보 7장 · 원본 / safe / 192px 표시 / 3배 확대 / 좌우 미러", 36, 130, 18, "#d1dfdf")
-	result += _svg_text("표식: alpha 하단 중앙 추정점(+) · 기준 대비 anchor 차이는 수치로만 표시 · 실제 지지발 판정은 검수자가 기입", 36, 160, 18, "#b7c8c8")
+	result += _svg_text("기존 승인 4장(v8 + 접촉 3장) · 신규 항목은 모두 미승인 · 공통 1254→192 캔버스 축소 · 좌우 미러", 36, 130, 18, "#d1dfdf")
+	result += _svg_text("alpha 하단 중앙은 기하 추정점(+)일 뿐 실제 지지발은 미판정 · run v1~v4 기존 판정: 동일 보폭", 36, 160, 18, "#b7c8c8")
 	for index in range(items.size()):
 		result += _svg_card(items[index], index)
 	return result + "</svg>"
 
 func _svg_card(spec: Dictionary, index: int) -> String:
 	var x := 24 + (index % COLS) * 1520
-	var y := 185 + (index / COLS) * 796
+	var y := TOP + (index / COLS) * ROW_STEP
 	var out := '<rect x="%d" y="%d" width="%d" height="%d" rx="8" fill="%s"/>' % [x, y, CARD_SIZE.x, CARD_SIZE.y, "#203039" if index % 2 == 0 else "#26383e"]
 	var head := "#9be1bd" if spec.kind == "approved" or spec.kind == "reference" else "#ffbd79"
 	out += _svg_text(str(spec.title), x + 18, y + 34, 23, head)
 	out += _svg_text(str(spec.status), x + 20, y + 59, 16, "#d1dcda")
 	var original := _load_image(str(spec.source))
+	if original == null or original.get_size() != Vector2i(1254, 1254):
+		_fail("원화는 1254x1254 PNG여야 합니다: " + str(spec.source))
+		return out
 	var safe := original
 	var safe_name := "safe 없음 · 원본 재표시"
 	if spec.has("safe") and _exists(str(spec.safe)):
@@ -102,22 +110,26 @@ func _svg_card(spec: Dictionary, index: int) -> String:
 	var iy := y + 166
 	out += _svg_image(original, x + 18, iy, 180, 180, 0, 0, false)
 	out += _svg_image(safe, x + 210, iy, 180, 180, 0, 0, false)
-	var game := _game_image(original, bounds, 192)
+	var game := _game_image(original, 192)
+	var safe_game := _game_image(safe, 192)
 	var flip := game.duplicate(); flip.flip_x()
-	out += _svg_image(game, x + 410, iy, 192, 192, 0.5, 0.94, true)
-	out += _svg_image(flip, x + 618, iy, 192, 192, 0.5, 0.94, true)
-	# Replace the nearest-neighbor game views with exact 3x presentation pixels.
+	out += _svg_image(game, x + 410, iy, 192, 192, anchor.x, anchor.y, true)
+	out += _svg_image(flip, x + 618, iy, 192, 192, 1.0 - anchor.x, anchor.y, true)
+	out += _svg_image(safe_game, x + 826, iy, 192, 192, safe_anchor.x, safe_anchor.y, true)
+	# Enlarge the same full-canvas 192px view for close inspection.
 	var game_data := _png_data_url(game)
-	out += '<image href="%s" x="%d" y="%d" width="576" height="576" image-rendering="pixelated"/>' % [game_data, x + 826, iy]
+	out += '<image href="%s" x="%d" y="%d" width="384" height="384" image-rendering="pixelated"/>' % [game_data, x + 1034, iy]
 	out += _svg_text("원본 전체 1254²", x + 18, iy - 5, 13, "#d9e5df")
 	out += _svg_text("safe 전체", x + 210, iy - 5, 13, "#d9e5df")
 	out += _svg_text("게임 표시 192px", x + 410, iy - 5, 13, "#d9e5df")
 	out += _svg_text("좌우 미러 192px", x + 618, iy - 5, 13, "#d9e5df")
-	out += _svg_text("192px × 3 (최근접 확대)", x + 826, iy - 5, 13, "#d9e5df")
-	var marker_y := iy + 576 * 0.94
-	out += '<path d="M%d %.1f h18 M%d %.1f v18" stroke="#e53935" stroke-width="3"/>' % [x + 826 + 288 - 9, marker_y, x + 826 + 288, marker_y - 9]
-	out += _svg_text("실제 프레임 전환·identity·지지발·잘림은 사람이 시퀀스/게임 맥락에서 판정", x + 18, iy + 610, 14, "#d1dcda")
-	out += _svg_text("판정: □ 수용  □ 수정  □ 반려     검수자: __________  일시: __________  근거: __________________________", x + 18, iy + 635, 14, "#ffffff")
+	out += _svg_text("safe 표시 192px", x + 826, iy - 5, 13, "#d9e5df")
+	out += _svg_text("원본 192px × 2 최근접 확대", x + 1034, iy - 5, 13, "#d9e5df")
+	var marker_x := x + 1034 + 384.0 * anchor.x
+	var marker_y := iy + 384.0 * anchor.y
+	out += '<path d="M%.1f %.1f h18 M%.1f %.1f v18" stroke="#e53935" stroke-width="3"/>' % [marker_x - 9.0, marker_y, marker_x, marker_y - 9.0]
+	out += _svg_text("192px 표시는 전체 캔버스 1254→192 공통 축척이며 alpha 정규화 아님 · 게임 실측 비교가 아님", x + 18, iy + 418, 14, "#d1dcda")
+	out += _svg_text("판정: □ 수용  □ 수정  □ 반려     검수자: __________  일시: __________  근거: __________________________", x + 18, iy + 443, 14, "#ffffff")
 	return out
 
 func _svg_image(image: Image, x: int, y: int, w: int, h: int, mark_x: float, mark_y: float, show_mark: bool) -> String:
@@ -152,12 +164,12 @@ func _annotate_png(path: String, items: Array[Dictionary]) -> int:
 	commands.append("$orange = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb(255, 255, 189, 121))")
 	commands.append("$g.DrawString('플레이어 애니메이션 원화 검수 패킷', $fb, $gold, [single]32, [single]18)")
 	commands.append("$g.DrawString('사람 검수 전용 · 자동 생성물은 승인 기록이 아님 · 신규 승인 0건', $f, $orange, [single]36, [single]64)")
-	commands.append("$g.DrawString('기준 4장(v8 + 승인 접촉 3장) / 미승인 후보 7장 · 원본 / safe / 192px 표시 / 3배 확대 / 좌우 미러', $f, $white, [single]36, [single]100)")
-	commands.append("$g.DrawString('alpha 하단 중앙(+)은 바운드 추정치 · 지지발 및 동작 연속성은 검수자가 판정', $f, $white, [single]36, [single]130)")
+	commands.append("$g.DrawString('기존 승인 4장(v8 + 접촉 3장) · 신규 항목 미승인 · 공통 1254→192 캔버스 축소', $f, $white, [single]36, [single]100)")
+	commands.append("$g.DrawString('alpha 하단 중앙(+)은 기하 추정치 · 실제 지지발 미판정 · run v1~v4 기존 판정: 동일 보폭', $f, $white, [single]36, [single]130)")
 	for i in range(items.size()):
 		var item: Dictionary = items[i]
 		var x := 24 + (i % COLS) * 1520
-		var y := 185 + (i / COLS) * 796
+		var y := TOP + (i / COLS) * ROW_STEP
 		var original_image := _load_image(str(item.source))
 		var safe_image := _load_image(str(item.safe)) if item.has("safe") and _exists(str(item.safe)) else original_image
 		var anchor := _alpha_anchor(original_image, _alpha_bounds(original_image))
@@ -174,12 +186,12 @@ func _annotate_png(path: String, items: Array[Dictionary]) -> int:
 		commands.append("$g.DrawString('%s', $f, $gold, [single]%d, [single]%d)" % [_ps_quote(anchor_line), x + 18, y + 102])
 		commands.append("$g.DrawString('지지발(좌/우/양발/공중): ______  전환: ______  identity: ______  잘림: ______', $f, $white, [single]%d, [single]%d)" % [x + 18, y + 122])
 		var iy := y + 166
-		var captions := ["원본 전체 1254²", "safe 전체", "게임 표시 192px", "좌우 미러 192px", "192px × 3 최근접 확대"]
-		var caption_x := [x + 18, x + 210, x + 410, x + 618, x + 826]
+		var captions := ["원본 전체 1254²", "safe 전체", "원본 전체 캔버스 1254→192", "좌우 미러 192px", "safe 전체 캔버스 1254→192", "원본 192px × 2 최근접 확대"]
+		var caption_x := [x + 18, x + 210, x + 410, x + 618, x + 826, x + 1034]
 		for c in range(captions.size()):
 			commands.append("$g.DrawString('%s', $f, $white, [single]%d, [single]%d)" % [captions[c], caption_x[c], iy - 20])
-		commands.append("$g.DrawString('실제 전환·identity·지지발·잘림은 사람이 시퀀스/게임 맥락에서 판정', $f, $white, [single]%d, [single]%d)" % [x + 18, iy + 582])
-		commands.append("$g.DrawString('판정: □ 수용  □ 수정  □ 반려   검수자: ________  일시: ________  근거: __________________', $f, $white, [single]%d, [single]%d)" % [x + 18, iy + 606])
+		commands.append("$g.DrawString('공통 1254→192 전체 캔버스 축척 · alpha 재정규화가 아니며 게임 실측 비교가 아님', $f, $white, [single]%d, [single]%d)" % [x + 18, iy + 418])
+		commands.append("$g.DrawString('판정: □ 수용  □ 수정  □ 반려   검수자: ________  일시: ________  근거: __________________', $f, $white, [single]%d, [single]%d)" % [x + 18, iy + 443])
 	commands.append("$src.Dispose(); $g.Dispose(); $bmp.Save('%s', [System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()" % quoted_path)
 	var output: Array = []
 	return OS.execute("powershell.exe", ["-NoProfile", "-Command", "\n".join(commands)], output, true)
@@ -187,14 +199,11 @@ func _annotate_png(path: String, items: Array[Dictionary]) -> int:
 func _ps_quote(value: String) -> String:
 	return value.replace("'", "''")
 
-func _game_image(source: Image, bounds: Rect2i, target: int) -> Image:
-	var cropped := source.get_region(bounds)
-	var scale := minf(float(target) / bounds.size.x, float(target) / bounds.size.y)
-	var fitted := Vector2i(maxi(1, roundi(bounds.size.x * scale)), maxi(1, roundi(bounds.size.y * scale)))
-	cropped.resize(fitted.x, fitted.y, Image.INTERPOLATE_LANCZOS)
-	var out := Image.create(target, target, false, Image.FORMAT_RGBA8)
-	out.fill(Color.TRANSPARENT)
-	out.blit_rect(cropped, Rect2i(Vector2i.ZERO, fitted), (Vector2i(target, target) - fitted) / 2)
+func _game_image(source: Image, target: int) -> Image:
+	# Every 1254x1254 source canvas receives the same 1254->192 scale.
+	# Alpha bounds are never cropped or independently normalized to 192px.
+	var out := source.duplicate()
+	out.resize(target, target, Image.INTERPOLATE_LANCZOS)
 	return out
 
 func _alpha_bounds(image: Image) -> Rect2i:
@@ -220,14 +229,32 @@ func _alpha_anchor(image: Image, bounds: Rect2i) -> Vector2:
 
 func _load_image(path: String) -> Image:
 	var image := Image.new()
-	if image.load_png_from_buffer(FileAccess.get_file_as_bytes(PLAYER_DIR + path)) != OK:
+	var full_path := path if path.begins_with("res://") else PLAYER_DIR + path
+	if image.load_png_from_buffer(FileAccess.get_file_as_bytes(full_path)) != OK:
 		return null
 	if image.get_format() != Image.FORMAT_RGBA8:
 		image.convert(Image.FORMAT_RGBA8)
 	return image
 
 func _exists(path: String) -> bool:
-	return FileAccess.file_exists(PLAYER_DIR + path)
+	var full_path := path if path.begins_with("res://") else PLAYER_DIR + path
+	return FileAccess.file_exists(full_path)
+
+func _find_optional_num5_candidates() -> Array[String]:
+	var found: Array[String] = []
+	var directory := DirAccess.open(PLAYER_DIR)
+	if directory == null:
+		return found
+	directory.list_dir_begin()
+	var filename := directory.get_next()
+	while not filename.is_empty():
+		var lower := filename.to_lower()
+		if not directory.current_is_dir() and lower.ends_with(".png") and lower.contains("candidate") and (lower.contains("num5") or lower.contains("skill2")):
+			found.append(filename)
+		filename = directory.get_next()
+	directory.list_dir_end()
+	found.sort()
+	return found
 
 func _fail(message: String) -> void:
 	push_error("pending_animation_review_packet: " + message)

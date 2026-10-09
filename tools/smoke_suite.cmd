@@ -2,6 +2,7 @@
 setlocal EnableExtensions
 for %%I in ("%~dp0..") do set "PROJECT_DIR=%%~fI"
 
+if /I "%~1"=="--accounting-fixture" goto accounting_fixture
 if /I "%~1"=="--rebuild-live-review-captures" goto live_review_captures
 if not "%~1"=="" (
     echo Usage: tools\smoke_suite.cmd [--rebuild-live-review-captures]
@@ -24,10 +25,14 @@ if not defined GODOT_EXE (
 set "BOUNDED_RUNNER=%PROJECT_DIR%\tools\run_smoke_bounded.ps1"
 set "PROBE=%PROJECT_DIR%\tests\smoke_runner_probe.cmd"
 set "RUN_LOG=%TEMP%\beltscroll_smoke_%RANDOM%_%RANDOM%.log"
+set "ADDITIONAL_LOG=%TEMP%\beltscroll_smoke_additional_%RANDOM%_%RANDOM%.log"
 set "SUITE_FAILED=0"
 set "FAILED_LOG="
 set "ADDITIONAL_CHECKS=0"
 set "ADDITIONAL_TYPES=headless,powershell"
+set "ADDITIONAL_EXPECTED=14"
+set "SUITE_REPORTED=0"
+type nul > "%ADDITIONAL_LOG%"
 for /f %%T in ('powershell.exe -NoLogo -NoProfile -NonInteractive -Command "[Diagnostics.Stopwatch]::GetTimestamp()"') do set "SUITE_START_TICKS=%%T"
 
 echo [smoke] Importing project resources
@@ -152,6 +157,11 @@ if errorlevel 1 (
     set "SUITE_FAILED=1"
     call :save_failure fixtures
 )
+call :run_additional_accounting_fixture
+if errorlevel 1 (
+    set "SUITE_FAILED=1"
+    call :save_failure additional_accounting_fixture
+)
 echo [smoke] Verifying bounded process runner fixtures
 set "SMOKE_ARGS=-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""%PROJECT_DIR%\tests\smoke_bounded_runner_smoke.ps1"""
 set "BOUNDED_EXECUTABLE=powershell.exe"
@@ -165,8 +175,16 @@ if errorlevel 1 (
     call :save_failure bounded_runner
 )
 if "%SUITE_FAILED%"=="1" goto failed
+call :verify_additional_checks 0
+if errorlevel 1 (
+    set "SUITE_FAILED=1"
+    call :save_failure additional_accounting
+    goto failed
+)
 del "%RUN_LOG%" >nul 2>nul
 call :report_suite 0
+if errorlevel 1 exit /b 1
+del "%ADDITIONAL_LOG%" >nul 2>nul
 echo [smoke] All independent smoke checks passed.
 exit /b 0
 
@@ -263,6 +281,7 @@ set "SMOKE_OLD_APPDATA="
 exit /b 0
 
 :run_bounded
+set "RUN_EXIT="
 set "RUN_EXECUTABLE=%GODOT_EXE%"
 if defined BOUNDED_EXECUTABLE set "RUN_EXECUTABLE=%BOUNDED_EXECUTABLE%"
 powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%BOUNDED_RUNNER%" -Executable "%RUN_EXECUTABLE%" -TimeoutSeconds %~1 -LogPath "%RUN_LOG%"
@@ -332,12 +351,74 @@ if errorlevel 1 (
 )
 exit /b 0
 
+:run_additional_accounting_fixture
+echo [smoke] Verifying additional-check accounting in Windows cmd.exe
+set "SMOKE_ARGS=-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""%PROJECT_DIR%\tests\smoke_additional_accounting_smoke.ps1"""
+set "BOUNDED_EXECUTABLE=powershell.exe"
+call :run_bounded 45
+set "BOUNDED_EXECUTABLE="
+call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "smoke_additional_accounting_smoke: all checks passed"
+if errorlevel 1 (
+    echo [smoke] FAILED: additional-check accounting fixtures
+    type "%RUN_LOG%"
+    exit /b 1
+)
+exit /b 0
+
 :record_additional_check
 set /a ADDITIONAL_CHECKS+=1
 if not "%RUN_EXIT%"=="0" set "SUITE_FAILED=1"
 if "%~2"=="" (set "CHECK_EXECUTION_TYPE=headless") else set "CHECK_EXECUTION_TYPE=%~2"
-echo [smoke] additional_check=%~1 execution_type=%CHECK_EXECUTION_TYPE% process_exit=%RUN_EXIT%
+if not defined RUN_EXIT set "RUN_EXIT=125"
+echo [smoke] additional_check=%ADDITIONAL_CHECKS% name=%~1 execution_type=%CHECK_EXECUTION_TYPE% process_exit=%RUN_EXIT% cumulative=%ADDITIONAL_CHECKS%
+>>"%ADDITIONAL_LOG%" echo %ADDITIONAL_CHECKS%^|%~1^|%CHECK_EXECUTION_TYPE%^|%RUN_EXIT%
 set "CHECK_EXECUTION_TYPE="
+exit /b 0
+
+:verify_additional_checks
+set "ACCOUNTING_EXPECTED_EXIT=%~1"
+if not "%ADDITIONAL_EXPECTED%"=="14" (
+    powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%PROJECT_DIR%\tests\smoke_additional_accounting_smoke.ps1" -ValidateLogPath "%ADDITIONAL_LOG%" -ExpectedCount %ADDITIONAL_EXPECTED% -ReportedCount %ADDITIONAL_CHECKS% -ExpectedSuiteExit %ACCOUNTING_EXPECTED_EXIT% -FixtureMode
+    if errorlevel 1 exit /b 1
+    exit /b 0
+)
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%PROJECT_DIR%\tests\smoke_additional_accounting_smoke.ps1" -ValidateLogPath "%ADDITIONAL_LOG%" -ExpectedCount %ADDITIONAL_EXPECTED% -ReportedCount %ADDITIONAL_CHECKS% -ExpectedSuiteExit %ACCOUNTING_EXPECTED_EXIT%
+if errorlevel 1 exit /b 1
+exit /b %ERRORLEVEL%
+
+:accounting_fixture
+set "ADDITIONAL_LOG=%TEMP%\beltscroll_accounting_fixture_%RANDOM%_%RANDOM%.log"
+set "ADDITIONAL_CHECKS=0"
+set "ADDITIONAL_EXPECTED=4"
+set "ADDITIONAL_TYPES=headless,powershell"
+for /f %%T in ('powershell.exe -NoLogo -NoProfile -NonInteractive -Command "[Diagnostics.Stopwatch]::GetTimestamp()"') do set "SUITE_START_TICKS=%%T"
+set "SUITE_FAILED=0"
+set "SUITE_REPORTED=0"
+type nul > "%ADDITIONAL_LOG%"
+set "BOUNDED_RUNNER=%PROJECT_DIR%\tools\run_smoke_bounded.ps1"
+set "RUN_LOG=%TEMP%\beltscroll_accounting_run_%RANDOM%_%RANDOM%.log"
+set "BOUNDED_EXECUTABLE=cmd.exe"
+set "SMOKE_ARGS=/d /c exit 0"
+call :run_bounded 5
+call :record_additional_check fixture_pass headless
+set "SMOKE_ARGS=/d /c exit 7"
+call :run_bounded 5
+call :record_additional_check fixture_failure headless
+set "BOUNDED_EXECUTABLE=powershell.exe"
+set "SMOKE_ARGS=-NoLogo -NoProfile -NonInteractive -Command Start-Sleep -Seconds 10"
+call :run_bounded 1
+call :record_additional_check fixture_timeout headless
+set "BOUNDED_EXECUTABLE=powershell.exe"
+set "SMOKE_ARGS=-NoLogo -NoProfile -NonInteractive -Command exit 9"
+call :run_bounded 5
+call :record_additional_check fixture_powershell_failure powershell
+call :verify_additional_checks 1
+if errorlevel 1 exit /b 1
+call :report_suite 1
+if errorlevel 1 exit /b 1
+echo [smoke] accounting_fixture: all checks passed
+del "%ADDITIONAL_LOG%" >nul 2>nul
+del "%RUN_LOG%" >nul 2>nul
 exit /b 0
 
 :live_review_captures
@@ -437,7 +518,10 @@ if not errorlevel 1 (
 exit /b 0
 
 :failed
+call :verify_additional_checks 1
+if errorlevel 1 echo [smoke] ERROR: additional-check accounting validation failed
 call :report_suite 1
+if errorlevel 1 exit /b 1
 echo [smoke] FAILED. Diagnostic log: %FAILED_LOG%
 if defined FAILED_LOG type "%FAILED_LOG%"
 exit /b 1
@@ -449,6 +533,11 @@ for /f "tokens=2 delims=:" %%E in ('findstr /C:"Reported check count:" "%RUN_LOG
 exit /b 0
 
 :report_suite
+if "%SUITE_REPORTED%"=="1" (
+    echo [smoke] ERROR: duplicate suite summary requested
+    exit /b 1
+)
+set "SUITE_REPORTED=1"
 for /f %%T in ('powershell.exe -NoLogo -NoProfile -NonInteractive -Command "$elapsed=([Diagnostics.Stopwatch]::GetTimestamp() - [long]$env:SUITE_START_TICKS) / [Diagnostics.Stopwatch]::Frequency; [Math]::Round($elapsed,3)"') do set "SUITE_ELAPSED=%%T"
 echo [smoke] suite process_exit=%~1 elapsed_seconds=%SUITE_ELAPSED%
 echo [smoke] additional_checks=%ADDITIONAL_CHECKS% execution_types=%ADDITIONAL_TYPES% additional_checks_process_exit=%~1

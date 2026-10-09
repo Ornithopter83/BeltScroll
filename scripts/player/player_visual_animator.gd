@@ -2,6 +2,7 @@ extends Node
 """Sprite-only pose layer driven by the owning Player's existing state."""
 
 const ANIMATION_BANK_SCRIPT := preload("res://scripts/player/player_animation_bank.gd")
+const SKILL1_DASH_VISUAL_SCRIPT := preload("res://scripts/effects/player_skill1_dash_visual.gd")
 
 const FOLLOW_SPEED := 16.0
 const WALK_SPEED_REFERENCE := 280.0
@@ -42,6 +43,7 @@ var _applied_facing_sign := 1.0
 var _turn_target_sign := 1.0
 var _turn_elapsed := TURN_DURATION
 var _turn_flip_applied := false
+var _skill1_dash_visual: Node2D
 
 ## These timing tables drive temporary transform poses only. They do not claim
 ## that missing walk/jump/hit/landing art has been approved as sprite frames.
@@ -74,6 +76,11 @@ const TEMPORARY_STATE_DURATIONS := {
 }
 
 func _ready() -> void:
+	_skill1_dash_visual = SKILL1_DASH_VISUAL_SCRIPT.new()
+	_skill1_dash_visual.name = "Skill1DashVisual"
+	player.add_child.call_deferred(_skill1_dash_visual)
+	if player.has_signal("skill_hit"):
+		player.skill_hit.connect(_skill1_dash_visual.on_skill_hit)
 	_animation_bank = ANIMATION_BANK_SCRIPT.new()
 	_animation_bank.load_and_register(pose_blender)
 	# Approved contact drawings use pose-specific support candidates. These
