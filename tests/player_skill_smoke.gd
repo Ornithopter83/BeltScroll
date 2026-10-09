@@ -62,6 +62,7 @@ func _run() -> void:
 	Input.action_release("skill_1")
 	_check(player.get("skill_id") == 1 and ["startup", "active"].has(player.get("skill_phase")), "Num4 action starts skill 1")
 	await _wait_for_skill_phase("active", 1)
+	await _check_skill_visual_phase("contact", 1)
 	await _wait_for_skill_phase("recovery", 1)
 	_check(dash_target.received_hits.size() == 1, "forward dash area hits its target exactly once")
 	_check(dash_target.impact_observations.has(1), "Num4 hit spawns its dedicated impact profile")
@@ -89,6 +90,7 @@ func _run() -> void:
 	Input.action_release("skill_2")
 	_check(player.get("skill_id") == 2 and ["startup", "active"].has(player.get("skill_phase")), "Num5 action starts skill 2 independently of skill 1 cooldown")
 	await _wait_for_skill_phase("active", 2)
+	await _check_skill_visual_phase("contact", 2)
 	await _wait_for_skill_phase("recovery", 2)
 	_check(spin_target.received_hits.size() == 1 and spin_edge.received_hits.size() == 1, "spin area reaches targets inside its radius")
 	_check(spin_target.impact_observations.has(2) and spin_edge.impact_observations.has(2), "Num5 hits spawn their dedicated impact profile once per target")
@@ -119,7 +121,10 @@ func _run() -> void:
 	player.set("attack_recoil_remaining", 0.06)
 	player.set("attack_recoil_velocity", Vector2.LEFT * 100.0)
 	player.receive_hit({"damage": 1, "direction": Vector2.LEFT, "knockback": 180.0, "hit_stun": 0.08, "attack_stage": 1})
+	await process_frame
+	await process_frame
 	_check(player.get("skill_phase") == "idle" and not player.get_node("Hitboxes/Skill1Hitbox").monitoring, "incoming hit interrupts skill and disables its area")
+	_check(player.get_node("VisualAnimator").get_animation_state() == "hit", "incoming hit preempts the skill visual immediately")
 	_check(is_zero_approx(float(player.get("attack_recoil_remaining"))) and player.get("attack_recoil_velocity") == Vector2.ZERO, "incoming hit stun cancels any pending attack recoil")
 	_check(player.get("hitstun_remaining") > 0.0, "interruption follows the existing receive_hit hit stun contract")
 	await _frames(12)
@@ -150,7 +155,9 @@ func _run() -> void:
 	player.call("_set_skill_hitboxes", true)
 	Input.action_press("block")
 	await physics_frame
+	await process_frame
 	_check(player.get("skill_phase") == "idle" and not player.get_node("Hitboxes/Skill2Hitbox").monitoring, "block input interrupts an active skill")
+	_check(not str(player.get_node("VisualAnimator").get_animation_state()).begins_with("skill"), "block interruption exits the skill visual state")
 	Input.action_release("block")
 
 	if failures.is_empty():
@@ -186,6 +193,16 @@ func _wait_for_idle() -> void:
 			return
 		await physics_frame
 	_check(false, "skill recovery returns control")
+
+func _check_skill_visual_phase(visual_phase: String, skill: int) -> void:
+	await process_frame
+	var animator := player.get_node("VisualAnimator")
+	var expected_state := "skill%d_%s" % [skill, visual_phase]
+	var duration: float = [0.16, 0.22][skill - 1] if visual_phase == "startup" else ([0.12, 0.18][skill - 1] if visual_phase == "contact" else [0.42, 0.55][skill - 1])
+	var expected_elapsed: float = duration - float(player.get("skill_phase_remaining"))
+	_check(animator.get_animation_state() == expected_state, "skill %d %s selects its dedicated visual state" % [skill, visual_phase])
+	_check(absf(animator.get_state_elapsed() - expected_elapsed) < 0.035, "skill %d %s visual clock follows its live remaining timer" % [skill, visual_phase])
+	_check(animator.get_state_frame_count() == 6 and animator.get_pose_art_status().contains("temporary procedural"), "skill %d %s is marked as temporary procedural motion" % [skill, visual_phase])
 
 func _check(condition: bool, description: String) -> void:
 	if condition:

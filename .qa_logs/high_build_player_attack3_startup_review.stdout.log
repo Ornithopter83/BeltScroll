@@ -1,0 +1,9 @@
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 Core Profile Context 26.8.1.260806 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6900 XT
+
+STARTUP QUALITY: res://assets/art/player/elven_fighter_attack3_startup_v1_candidate_1254x1254.png | format=RGBA8 | canvas=(1254, 1254) | nonzero-alpha margins L/T/R/B=0/19/10/17 | transparent_border=false | strict_gate=false
+SOURCE res://assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png | size=(1254, 1254) | format=RGBA8 | nonzero-alpha margins L/T/R/B=110/90/110/90 | display_height=576
+SOURCE res://assets/art/player/elven_fighter_attack2_contact_v6_safe_candidate_1254x1254.png | size=(1254, 1254) | format=RGBA8 | nonzero-alpha margins L/T/R/B=119/102/119/102 | display_height=576
+SOURCE res://assets/art/player/elven_fighter_attack3_startup_v1_candidate_1254x1254.png | size=(1254, 1254) | format=RGBA8 | nonzero-alpha margins L/T/R/B=0/19/10/17 | display_height=576
+SOURCE res://assets/art/player/elven_fighter_attack3_reference_v2_clean_candidate_1254x1254.png | size=(1254, 1254) | format=RGBA8 | nonzero-alpha margins L/T/R/B=97/90/97/90 | display_height=576
+comparison generated: res://assets/art/review/player_attack3_startup_comparison.png (3000x1000; 3x display; startup_found=true; startup_mechanical_gate=false)

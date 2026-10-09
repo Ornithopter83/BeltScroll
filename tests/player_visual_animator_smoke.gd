@@ -133,6 +133,82 @@ func _run() -> void:
 	_check(absf(early_turn - late_turn) > 0.025, "stage two turns progressively from the v8-ready alignment toward the approved contact")
 	_check(_foot_point(stage_two).distance_to(_baseline_foot(stage_two)) <= FLOOR_TOLERANCE, "stage two turn keeps its alpha-foot anchor fixed")
 	_check(stage_two_animator.get_state_elapsed() > 0.05 and stage_two_animator.get_state_elapsed() < 0.07, "stage two phase clock follows real attack_phase_remaining")
+	var skill_dash := packed.instantiate() as CharacterBody2D
+	canvas.add_child(skill_dash)
+	skill_dash.set_physics_process(false)
+	(skill_dash.get_node("Camera2D") as Camera2D).queue_free()
+	var dash_animator := skill_dash.get_node("VisualAnimator")
+	await process_frame
+	skill_dash.set("skill_id", 1)
+	skill_dash.set("skill_phase", "startup")
+	skill_dash.set("skill_phase_remaining", 0.08)
+	dash_animator.call("_process", 1.0 / 60.0)
+	var dash_art := skill_dash.get_node("VisualRoot/PlayerArt") as Sprite2D
+	_check(dash_art.rotation > 0.0, "Num4 preparation leans toward the right-facing dash direction")
+	skill_dash.set("skill_phase", "active")
+	skill_dash.set("skill_phase_remaining", 0.06)
+	for _frame in range(8):
+		dash_animator.call("_process", 1.0 / 60.0)
+	_check(dash_animator.get_animation_state() == "skill1_contact" and is_equal_approx(dash_animator.get_state_elapsed(), 0.06), "Num4 contact clock follows the actual skill_phase_remaining")
+	_check(dash_animator.get_state_frame_count() == 6 and dash_animator.get_pose_art_status().contains("temporary procedural"), "Num4 exposes six explicitly temporary procedural motion frames")
+	_check(dash_art.rotation > 0.0, "Num4 acceleration continues to lean toward its facing direction")
+	var dash_contact_rotation := dash_art.rotation
+	(skill_dash.get_node("VisualRoot") as Node2D).scale.x = -1.0
+	for _frame in range(8):
+		dash_animator.call("_process", 1.0 / 60.0)
+	_check(dash_art.rotation < 0.0, "Num4 forward lean mirrors when facing left")
+	(skill_dash.get_node("VisualRoot") as Node2D).scale.x = 1.0
+	skill_dash.set("skill_phase", "recovery")
+	skill_dash.set("skill_phase_remaining", 0.21)
+	for _frame in range(10):
+		dash_animator.call("_process", 1.0 / 60.0)
+	_check(dash_animator.get_animation_state() == "skill1_recovery" and dash_animator.get_state_elapsed() > 0.20 and absf(dash_art.rotation - dash_contact_rotation) > 0.04, "Num4 recoil and return pose follow its recovery clock")
+	_check(_foot_point(skill_dash).distance_to(_baseline_foot(skill_dash)) <= FLOOR_TOLERANCE, "Num4 procedural lean keeps the alpha foot anchor fixed")
+	skill_dash.set("skill_phase", "active")
+	skill_dash.set("skill_phase_remaining", 0.06)
+	skill_dash.set("attack_recoil_remaining", 0.08)
+	for _frame in range(8):
+		dash_animator.call("_process", 1.0 / 60.0)
+	_check(dash_art.rotation < dash_contact_rotation - 0.10, "Num4 impact recoil counters its forward acceleration pose")
+	_check(_foot_point(skill_dash).distance_to(_baseline_foot(skill_dash)) <= FLOOR_TOLERANCE, "Num4 impact recoil preserves the alpha foot anchor")
+	skill_dash.set("skill_phase", "idle")
+	skill_dash.set("skill_id", 0)
+	skill_dash.set("attack_recoil_remaining", 0.0)
+	dash_animator.call("_process", 1.0 / 60.0)
+	_check(not (skill_dash.get_node("VisualRoot/PoseBlender") as PlayerPoseBlender).visible, "skill exit hides attack keypose art and returns to procedural base art")
+	var skill_spin := packed.instantiate() as CharacterBody2D
+	canvas.add_child(skill_spin)
+	skill_spin.set_physics_process(false)
+	(skill_spin.get_node("Camera2D") as Camera2D).queue_free()
+	var spin_animator := skill_spin.get_node("VisualAnimator")
+	await process_frame
+	skill_spin.set("skill_id", 2)
+	skill_spin.set("skill_phase", "active")
+	skill_spin.set("skill_phase_remaining", 0.09)
+	spin_animator.call("_process", 1.0 / 60.0)
+	var spin_art := skill_spin.get_node("VisualRoot/PlayerArt") as Sprite2D
+	var spin_start_rotation := spin_art.rotation
+	skill_spin.set("skill_phase_remaining", 0.03)
+	for _frame in range(8):
+		spin_animator.call("_process", 1.0 / 60.0)
+	_check(spin_animator.get_animation_state() == "skill2_contact" and absf(spin_art.rotation - spin_start_rotation) > 0.20, "Num5 circular contact visibly rotates through a distinct pose")
+	_check(spin_animator.get_state_elapsed() > 0.14 and spin_animator.get_state_elapsed() < 0.16, "Num5 contact frame time follows the real active timer")
+	_check(_foot_point(skill_spin).distance_to(_baseline_foot(skill_spin)) <= FLOOR_TOLERANCE, "Num5 procedural rotation keeps the alpha foot anchor fixed")
+	skill_spin.set("skill_phase", "recovery")
+	skill_spin.set("skill_phase_remaining", 0.275)
+	spin_animator.call("_process", 1.0 / 60.0)
+	_check(spin_animator.get_animation_state() == "skill2_recovery" and is_equal_approx(spin_animator.get_state_elapsed(), 0.275), "Num5 unwind clock follows its actual recovery timer")
+	_check(spin_animator.get_pose_art_status().contains("temporary procedural"), "Num5 recovery is explicitly marked as temporary animation")
+	skill_spin.set("is_ko", true)
+	spin_animator.call("_process", 1.0 / 60.0)
+	_check(spin_animator.get_animation_state() == "ko", "KO interrupts the Num5 spin pose")
+	skill_spin.set("is_ko", false)
+	skill_spin.set("skill_phase", "idle")
+	skill_spin.set("skill_id", 0)
+	for _frame in range(90):
+		spin_animator.call("_process", 1.0 / 60.0)
+	_check(absf(spin_art.rotation) < 0.01 and spin_art.scale.distance_to(authored_scale) < 0.002, "Num5 KO exit returns to the neutral sprite transform")
+	_check(_foot_point(skill_spin).distance_to(_baseline_foot(skill_spin)) <= FLOOR_TOLERANCE, "Num5 KO return retains its alpha foot anchor")
 	var left_player := poses[10]
 	var left_animator := animator_nodes[10]
 	var right_player := packed.instantiate() as CharacterBody2D

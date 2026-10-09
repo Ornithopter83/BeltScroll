@@ -10,6 +10,10 @@ const ATTACK_STARTUP := [0.075, 0.085, 0.10]
 const ATTACK_ACTIVE := [0.105, 0.12, 0.14]
 const ATTACK_RECOVERY := [0.20, 0.22, 0.28]
 const ATTACK_TEMPORARY_MOTION_FRAMES := 5
+const SKILL_STARTUP := [0.16, 0.22]
+const SKILL_ACTIVE := [0.12, 0.18]
+const SKILL_RECOVERY := [0.42, 0.55]
+const SKILL_TEMPORARY_MOTION_FRAMES := 6
 
 @onready var player: CharacterBody2D = get_parent() as CharacterBody2D
 @onready var art: Sprite2D = player.get_node("VisualRoot/PlayerArt") as Sprite2D
@@ -54,6 +58,12 @@ const TEMPORARY_STATE_DURATIONS := {
 	"attack3_inbetween": 0.060,
 	"attack3_contact": 0.14,
 	"attack3_recovery": 0.28,
+	"skill1_startup": 0.16,
+	"skill1_contact": 0.12,
+	"skill1_recovery": 0.42,
+	"skill2_startup": 0.22,
+	"skill2_contact": 0.18,
+	"skill2_recovery": 0.55,
 }
 
 func _ready() -> void:
@@ -99,6 +109,10 @@ func _process(delta: float) -> void:
 			impulse = -facing_sign
 		target_rotation -= impulse * (0.10 + flash * 0.08)
 		target_scale *= Vector2(1.035 + flash * 0.015, 0.91 + (1.0 - flash) * 0.05)
+	elif str(player.get("skill_phase")) != "idle":
+		_apply_skill_pose(facing_sign)
+		target_rotation = _skill_rotation
+		target_scale = _skill_scale
 	elif str(player.get("attack_phase")) != "idle":
 		_apply_attack_pose(facing_sign)
 		target_rotation = _attack_rotation
@@ -160,6 +174,8 @@ func get_state_frame_count() -> int:
 	return _state_frame_count
 
 func get_state_frame_label() -> String:
+	if _animation_state.begins_with("skill"):
+		return _animation_state.trim_prefix("skill%d_" % int(player.get("skill_id")))
 	if not _animation_state.begins_with("attack"):
 		return _animation_state
 	var phase := _animation_state.trim_prefix("attack%d_" % int(player.get("attack_stage")))
@@ -168,6 +184,10 @@ func get_state_frame_label() -> String:
 	return phase
 
 func get_state_phase_progress() -> float:
+	if _animation_state.begins_with("skill") and player != null:
+		var skill_index := clampi(int(player.get("skill_id")) - 1, 0, 1)
+		var phase := str(player.get("skill_phase"))
+		return _skill_phase_progress(skill_index, phase, maxf(0.0, float(player.get("skill_phase_remaining"))))
 	if not _animation_state.begins_with("attack") or player == null:
 		return 0.0
 	var phase := str(player.get("attack_phase"))
@@ -183,6 +203,8 @@ func get_state_frame_elapsed() -> float:
 	return clampf(_state_elapsed - float(_state_frame) * frame_duration, 0.0, frame_duration)
 
 func get_state_frame_status() -> String:
+	if _animation_state.begins_with("skill"):
+		return "temporary procedural skill motion; approved skill animation art unavailable"
 	if is_current_pose_temporary():
 		return "temporary transform frame; approved animation frame unavailable"
 	if get_state_frame_label() == "inbetween":
@@ -212,6 +234,8 @@ func get_art_frame_label() -> String:
 	return pose_blender.get_current_registered_frame_label() if pose_blender != null and pose_blender.visible else "temporary transform"
 
 func is_current_pose_temporary() -> bool:
+	if _animation_state.begins_with("skill"):
+		return true
 	if _animation_state.begins_with("attack") and pose_blender != null and pose_blender.visible:
 		var stage := int(player.get("attack_stage"))
 		var phase := "contact" if str(player.get("attack_phase")) == "active" else str(player.get("attack_phase"))
@@ -222,6 +246,8 @@ func is_current_pose_temporary() -> bool:
 	return true
 
 func get_pose_art_status() -> String:
+	if _animation_state.begins_with("skill"):
+		return "temporary procedural skill motion; approved skill animation art unavailable"
 	if _animation_state.begins_with("attack") and _animation_state.ends_with("_contact"):
 		return "approved contact keypose; temporary transform motion"
 	if _animation_state.begins_with("attack"):
@@ -233,6 +259,10 @@ func _resolve_animation_state(jumping: bool) -> String:
 		return "ko"
 	if float(player.get("hit_flash_remaining")) > 0.0 or float(player.get("hitstun_remaining")) > 0.0:
 		return "hit"
+	var skill_phase := str(player.get("skill_phase"))
+	if skill_phase in ["startup", "active", "recovery"]:
+		var skill_id := clampi(int(player.get("skill_id")), 1, 2)
+		return "skill%d_%s" % [skill_id, "contact" if skill_phase == "active" else skill_phase]
 	var phase := str(player.get("attack_phase"))
 	var stage := clampi(int(player.get("attack_stage")), 1, 3)
 	if phase in ["startup", "active", "recovery"]:
@@ -248,7 +278,7 @@ func _update_animation_clock(next_state: String, delta: float) -> void:
 		_animation_state = next_state
 		_state_elapsed = 0.0
 		_state_frame = 0
-		_state_frame_count = 1 if next_state == "ko" else (4 if next_state == "walk" else (ATTACK_TEMPORARY_MOTION_FRAMES if next_state.begins_with("attack") else 2))
+		_state_frame_count = 1 if next_state == "ko" else (SKILL_TEMPORARY_MOTION_FRAMES if next_state.begins_with("skill") else (4 if next_state == "walk" else (ATTACK_TEMPORARY_MOTION_FRAMES if next_state.begins_with("attack") else 2)))
 	else:
 		_state_elapsed += maxf(delta, 0.0)
 	var duration: float = TEMPORARY_STATE_DURATIONS.get(_animation_state, 0.16)
@@ -258,6 +288,13 @@ func _update_animation_clock(next_state: String, delta: float) -> void:
 		# including hit-stop and variable render frame rates.
 		var phase_remaining := maxf(0.0, float(player.get("attack_phase_remaining")))
 		_state_elapsed = clampf(duration - phase_remaining, 0.0, duration)
+	elif _animation_state.begins_with("skill"):
+		# The skill controller owns this timer; use it directly so visual frames
+		# stay aligned with startup, active hitbox, and recovery transitions.
+		var skill_index := clampi(int(player.get("skill_id")) - 1, 0, 1)
+		var skill_phase := str(player.get("skill_phase"))
+		var skill_duration := _skill_phase_duration(skill_index, skill_phase)
+		_state_elapsed = clampf(skill_duration - maxf(0.0, float(player.get("skill_phase_remaining"))), 0.0, skill_duration)
 	_state_frame = posmod(int(floor(_state_elapsed / maxf(duration / float(_state_frame_count), 0.001))), _state_frame_count)
 
 func _update_approved_attack_pose() -> void:
@@ -270,6 +307,7 @@ func _update_approved_attack_pose() -> void:
 	var phase := str(player.get("attack_phase"))
 	var special_attack: bool = player.get("is_ko") != true \
 		and float(player.get("hitstun_remaining")) <= 0.0 \
+		and str(player.get("skill_phase")) == "idle" \
 		and (stage >= 1 and stage <= 3) \
 		and ["startup", "active", "recovery"].has(phase)
 	if not special_attack:
@@ -299,6 +337,67 @@ func _update_approved_attack_pose() -> void:
 
 var _attack_rotation := 0.0
 var _attack_scale := Vector2.ONE
+var _skill_rotation := 0.0
+var _skill_scale := Vector2.ONE
+
+func _apply_skill_pose(facing_sign: float) -> void:
+	var skill_index := clampi(int(player.get("skill_id")) - 1, 0, 1)
+	var phase := str(player.get("skill_phase"))
+	var remaining := maxf(0.0, float(player.get("skill_phase_remaining")))
+	var progress := _skill_phase_progress(skill_index, phase, remaining)
+	var rotation_offset := 0.0
+	var scale_factor := Vector2.ONE
+	if skill_index == 0:
+		# Num4 dash: brace and shift weight forward, accelerate into contact,
+		# recoil from impact when hit-stop/knockback is active, then recover.
+		match phase:
+			"startup":
+				var brace := _ease_in_out(progress)
+				rotation_offset = facing_sign * 0.15 * brace
+				scale_factor = Vector2(1.0 - 0.065 * brace, 1.0 + 0.075 * brace)
+			"active":
+				var acceleration := _ease_in_out(progress)
+				rotation_offset = facing_sign * lerpf(0.19, 0.34, acceleration)
+				scale_factor = Vector2(1.02 + 0.12 * acceleration, 0.99 - 0.105 * acceleration)
+				if float(player.get("attack_recoil_remaining")) > 0.0:
+					var recoil := clampf(float(player.get("attack_recoil_remaining")) / 0.08, 0.0, 1.0)
+					rotation_offset -= facing_sign * 0.30 * recoil
+					scale_factor *= Vector2(0.94, 1.06)
+			"recovery":
+				var return_blend := _ease_in_out(progress)
+				rotation_offset = facing_sign * 0.16 * (1.0 - return_blend)
+				scale_factor = Vector2(0.96, 1.04).lerp(Vector2.ONE, return_blend)
+	else:
+		# Num5 spin: wind up in the opposite direction, rotate the torso through
+		# a circular strike, then counter-rotate into a balanced recovery.
+		match phase:
+			"startup":
+				var windup := _ease_in_out(progress)
+				rotation_offset = facing_sign * 0.14 * windup
+				scale_factor = Vector2(1.0 - 0.04 * windup, 1.0 + 0.05 * windup)
+			"active":
+				# A full-body turn gives the radial strike a readable silhouette
+				# even though the current art bank has no spin-specific drawings.
+				rotation_offset = facing_sign * (0.72 - progress * TAU * 1.05)
+				var pulse := sin(progress * PI)
+				scale_factor = Vector2(1.0 + 0.16 * pulse, 1.0 - 0.12 * pulse)
+			"recovery":
+				var unwind := 1.0 - _ease_in_out(progress)
+				rotation_offset = -facing_sign * 0.17 * unwind
+				scale_factor = Vector2(1.035, 0.965).lerp(Vector2.ONE, _ease_in_out(progress))
+	_skill_rotation = _base_rotation + rotation_offset
+	_skill_scale = _base_scale * scale_factor
+
+func _skill_phase_progress(index: int, phase: String, remaining: float) -> float:
+	var duration := _skill_phase_duration(index, phase)
+	return clampf((duration - remaining) / duration, 0.0, 1.0)
+
+func _skill_phase_duration(index: int, phase: String) -> float:
+	if phase == "startup":
+		return SKILL_STARTUP[index]
+	if phase == "active":
+		return SKILL_ACTIVE[index]
+	return SKILL_RECOVERY[index]
 
 func _apply_attack_pose(facing_sign: float) -> void:
 	var stage := clampi(int(player.get("attack_stage")), 1, 3)

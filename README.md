@@ -6,7 +6,7 @@ BeltScroll은 Godot 4.7.2 기반의 1920×1080 2D 벨트스크롤 액션 게임�
 
 - **타이틀 메뉴:** 어두운 반투명 그라데이션 위에 BELT SCROLL 제목과 금색·녹청색 버튼을 표시합니다. 마우스 클릭, 키보드·게임패드 포커스 이동, 확인·취소를 지원하며 안내 패널을 닫으면 이전 버튼으로 포커스가 돌아옵니다.
 - **전투:** 플레이어와 Forest Raider 3명, Training Dummy, 전투 HUD, 공격·피격 연출과 오디오, 계속하기·재시작·타이틀 이동 버튼이 있는 일시정지 메뉴, 재도전·타이틀 이동 버튼이 있는 승리·패배 화면이 구현되어 있습니다. 결과·일시정지 패널은 현재 배우와 HUD 위치를 바탕으로 가림이 적은 곳에 배치됩니다. 버튼은 마우스와 키보드·게임패드 포커스를 지원하며 ESC·R 조작도 유지합니다. 전투 장면은 `scenes/game/main.tscn`이며 smoke 테스트는 이 장면을 직접 불러옵니다.
-- **아트:** Forest Ruins 배경과 적 스프라이트가 `assets/art`에 있습니다. 플레이어 v8 clean 원화는 `PlayerArt` 정지 이미지로 게임에 연결되어 있습니다. 대기·이동·점프·공격·피격·KO는 별도 VisualAnimator가 Sprite 변환으로 표현하며, 프레임 애니메이션이 아닙니다. 정규화 safe 후보와 승인된 clean 후보 및 흰색·검정·체커보드·숲 배경/192px 비교를 함께 보존합니다.
+- **아트:** Forest Ruins 배경과 적 스프라이트가 `assets/art`에 있습니다. 플레이어 v8 clean 원화는 `PlayerArt` 정지 이미지이며, idle은 승인된 정지 원화, attack1~3은 각 승인 접촉 키포즈 원화를 실제 hitbox 구간에만 표시합니다. run·turn·jump·hit·KO 및 공격 준비·회수는 공통 발 anchor를 지키는 절차적 Sprite 변형입니다. Num4~5 스킬도 전방 돌진/주변 타격, hitbox, 피해, 쿨다운과 phase 동기 절차 변형이 구현되어 있으며 스킬 전용 승인 원화는 없습니다. 후보 원화는 승인 프레임으로 취급하지 않습니다. [플레이어 상태별 화면 검수표](docs/review/m5_animation_acceptance_matrix.md)와 [Window 비교판](assets/art/review/player_animation_state_matrix.png)을 참고하세요.
 
 ## 주요 경로
 
@@ -24,6 +24,10 @@ tests/title_menu_smoke.gd        메뉴·버튼·전환 독립 smoke
 tests/gamepad_input_smoke.gd     합성 게임패드 입력·deadzone·결과 재시작 smoke
 tests/game_session_navigation_smoke.gd 일시정지·결과 메뉴 경로와 씬 전환 상태 복원 smoke
 tests/                            기능별 독립 smoke 테스트
+tests/player_animation_state_matrix_smoke.gd 상태 구성 및 Window 캡처 증거 확인
+tools/capture_player_animation_state_matrix.gd 플레이어 상태 Window 비교판 생성기
+assets/art/review/player_animation_state_matrix.png 최신 상태 화면 비교판
+docs/review/m5_animation_acceptance_matrix.md 실제 프레임·변형·입력/동기 검수표
 tests/editor_executable_smoke.ps1 독립 편집기 EXE 인수 검증
 docs/projecthub/initial-plan.md  기술 계약 및 프로젝트 계획
 ```
@@ -77,7 +81,7 @@ godot --headless --path . --script res://tests/gamepad_input_smoke.gd
 | 공격 | Num1 |
 | 점프 | Num2 |
 | 막기 | Num3 |
-| 스킬 슬롯 1~2 | Num4~Num5 (현재 스킬 미구현) |
+| 스킬 슬롯 1~2 | Num4~Num5 |
 | 예약 입력 | Num6~Num9 |
 | 일시정지 / 재개 | Esc, Start |
 | 조작 도움말 열기 / 닫기 | H, Select/Back |
@@ -85,7 +89,18 @@ godot --headless --path . --script res://tests/gamepad_input_smoke.gd
 | 승리·패배 화면에서 재시작 | R, 북쪽 버튼(Y/Triangle), 재도전 버튼 |
 | 타이틀로 돌아가기 | 일시정지·결과 메뉴의 타이틀 버튼 |
 
-WASD와 방향키는 상·하·좌·우 이동입니다. 숫자 키는 Num1 공격, Num2 점프, Num3 막기, Num4~Num5 스킬 슬롯, Num6~Num9 예약입니다. 스킬 기능은 아직 구현되지 않았습니다. 스틱 이동 deadzone은 0.2입니다.
+WASD와 방향키는 상·하·좌·우 이동입니다. 숫자 키는 Num1 공격, Num2 점프, Num3 막기, Num4~Num5 스킬 슬롯, Num6~Num9 예약입니다. Num4는 전방 돌진형 스킬, Num5는 주변 범위형 스킬이며 각각 활성 hitbox·피해·경직·쿨다운이 적용됩니다. 스틱 이동 deadzone은 0.2입니다.
+
+## 플레이어 애니메이션 상태 검수
+
+실제 원화 프레임과 절차적 변형, 미승인 후보를 구별한 검수표는 [M5 애니메이션 수용 매트릭스](docs/review/m5_animation_acceptance_matrix.md)입니다. 실제 Window Viewport에서 비교판을 다시 캡처하려면 프로젝트 루트에서 다음 명령을 실행합니다. `--headless` 실행은 캡처 증거로 인정하지 않습니다.
+
+```powershell
+godot --path . --script res://tools/capture_player_animation_state_matrix.gd
+godot --headless --path . --script res://tests/player_animation_state_matrix_smoke.gd
+```
+
+독립 편집기 EXE 인수 검증은 [편집기 EXE 인수 게이트](docs/review/editor_acceptance_gate.md)를, 독립 편집기와 프레임 뱅크 JSON 계약·승인 규칙은 [프레임 레지스트리 승인 게이트](docs/review/animation_frame_registry_gate.md)를 따릅니다. 애니메이션 데이터는 `data/art/animation_manifest.json`에서 편집·검토하며, 외부 export 역시 프레임 뱅크 byte allowlist를 통과해야 게임 원화로 표시됩니다.
 
 ## 독립 편집기 EXE 인수 검증
 

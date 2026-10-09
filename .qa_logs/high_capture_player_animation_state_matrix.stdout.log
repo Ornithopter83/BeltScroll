@@ -1,0 +1,16 @@
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 Core Profile Context 26.8.1.260806 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6900 XT
+
+player-state-matrix: Window 캡처 idle / idle / temporary transform; approved frame art unavailable
+player-state-matrix: Window 캡처 run / walk / temporary transform; approved frame art unavailable
+player-state-matrix: Window 캡처 turn / idle / temporary transform; approved frame art unavailable
+player-state-matrix: Window 캡처 jump_rise / jump_rise / temporary transform; approved frame art unavailable
+player-state-matrix: Window 캡처 jump_fall / jump_fall / temporary transform; approved frame art unavailable
+player-state-matrix: Window 캡처 hit / hit / temporary transform; approved frame art unavailable
+player-state-matrix: Window 캡처 attack1 / attack1_contact / approved contact keypose; temporary transform motion
+player-state-matrix: Window 캡처 attack2 / attack2_contact / approved contact keypose; temporary transform motion
+player-state-matrix: Window 캡처 attack3 / attack3_contact / approved contact keypose; temporary transform motion
+player-state-matrix: Window 캡처 num4 / skill1_contact / temporary procedural skill motion; approved skill animation art unavailable
+player-state-matrix: Window 캡처 num5 / skill2_contact / temporary procedural skill motion; approved skill animation art unavailable
+player-state-matrix: Window 캡처 ko / ko / temporary transform; approved frame art unavailable
+player-state-matrix: saved 1920x1080 real Window Viewport captures to C:/AI-AGENT/Worker/BeltScroll/assets/art/review/player_animation_state_matrix.png
