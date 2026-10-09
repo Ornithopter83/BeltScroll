@@ -3,6 +3,10 @@ class_name PlayerPoseBlender
 """Independent two-Sprite2D pose crossfader. No Player scene wiring is implied."""
 
 const SAFE_IDLE_PATH := "res://assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png"
+const APPROVED_ATTACK_POSES := {
+	"attack1": "res://assets/art/player/elven_fighter_attack1_reference_v1_contour_candidate_1254x1254.png",
+	"attack3": "res://assets/art/player/elven_fighter_attack3_reference_v2_contour_candidate_1254x1254.png",
+}
 const PHASES := ["startup", "contact", "recovery"]
 
 @export var sprite_scale := Vector2(0.1489758, 0.1489758)
@@ -30,6 +34,27 @@ func _ready() -> void:
 		add_child(sprite)
 		_sprites.append(sprite)
 	_request_texture("idle", _load_safe_idle())
+	for action in APPROVED_ATTACK_POSES:
+		approve_pose_texture(action, "contact", APPROVED_ATTACK_POSES[action])
+	visible = false
+
+## Mirrors the existing PlayerArt transform and alpha-foot anchor while the
+## approved contact still is displayed in its place.
+func sync_from_art(art: Sprite2D) -> void:
+	if art == null or art.texture == null:
+		return
+	var bounds := _bounds_for(art.texture)
+	if bounds.size.x <= 0 or bounds.size.y <= 0:
+		return
+	var source_foot := Vector2(
+		float(bounds.position.x) + float(bounds.size.x) * 0.5,
+		float(bounds.end.y)
+	)
+	var centered_foot := (source_foot - Vector2(art.texture.get_size()) * 0.5) * art.scale
+	position = art.position + centered_foot.rotated(art.rotation)
+	rotation = art.rotation
+	scale = art.scale / sprite_scale
+	modulate = art.modulate
 
 ## Explicitly approves one pose image at runtime. Nothing from the art candidate folder
 ## is implicitly exposed; callers must make the visual approval decision themselves.
@@ -171,6 +196,14 @@ func _texture_is_usable(texture: Texture2D) -> bool:
 	var bounds := image.get_used_rect()
 	_bounds_cache[cache_key] = bounds
 	return bounds.size.x > 0 and bounds.size.y > 0
+
+func _bounds_for(texture: Texture2D) -> Rect2i:
+	if texture == null:
+		return Rect2i()
+	var cache_key := texture.get_instance_id()
+	if not _bounds_cache.has(cache_key):
+		_texture_is_usable(texture)
+	return _bounds_cache.get(cache_key, Rect2i())
 
 func _place_sprite(sprite: Sprite2D) -> void:
 	if sprite.texture == null:

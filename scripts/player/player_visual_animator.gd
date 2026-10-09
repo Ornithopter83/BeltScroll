@@ -11,6 +11,7 @@ const ATTACK_RECOVERY := [0.20, 0.22, 0.28]
 @onready var player: CharacterBody2D = get_parent() as CharacterBody2D
 @onready var art: Sprite2D = player.get_node("VisualRoot/PlayerArt") as Sprite2D
 @onready var visual_root: Node2D = player.get_node("VisualRoot") as Node2D
+@onready var pose_blender: PlayerPoseBlender = player.get_node("VisualRoot/PoseBlender") as PlayerPoseBlender
 
 var _base_position := Vector2.ZERO
 var _base_scale := Vector2.ONE
@@ -102,6 +103,29 @@ func _process(delta: float) -> void:
 	art.rotation = _pose_rotation
 	art.scale = _pose_scale
 	_keep_foot_anchor()
+	_update_approved_attack_pose()
+
+func _update_approved_attack_pose() -> void:
+	if pose_blender == null or player == null or art == null:
+		return
+	var stage := int(player.get("attack_stage"))
+	var phase := str(player.get("attack_phase"))
+	var special_attack := not bool(player.get("is_ko")) \
+		and float(player.get("hitstun_remaining")) <= 0.0 \
+		and (stage == 1 or stage == 3) \
+		and ["startup", "active", "recovery"].has(phase)
+	if not special_attack:
+		if pose_blender.visible:
+			pose_blender.interrupt_to_idle()
+		pose_blender.visible = false
+		art.visible = true
+		return
+	var action := "attack%d" % stage
+	var pose_phase := "contact" if phase == "active" else phase
+	pose_blender.sync_from_art(art)
+	pose_blender.set_pose(action, pose_phase)
+	pose_blender.visible = true
+	art.visible = false
 
 var _attack_rotation := 0.0
 var _attack_scale := Vector2.ONE
