@@ -1,1 +1,26 @@
 .godot/
+
+# Generated QA output and local user state. Historical tracked review captures
+# remain in assets/art/review; ignore rules do not remove existing tracked files.
+.qa_logs/
+
+# Build and publish output from Godot, .NET, and local packaging workflows.
+**/bin/
+**/obj/
+**/build/
+**/publish/
+**/artifacts/
+.vs/
+.cache/
+dist/
+temp/
+
+# Disposable binaries, packages, logs, and scratch files. Game resources and
+# intentional review evidence under assets/ are not covered by these rules.
+*.exe
+*.zip
+*.log
+*.stderr
+*.stdout
+*.tmp
+*.cache

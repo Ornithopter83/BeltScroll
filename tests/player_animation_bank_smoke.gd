@@ -27,6 +27,15 @@ func _run() -> void:
 	await process_frame
 	var bank: RefCounted = BANK_SCRIPT.new()
 	_check(bank.call("load_and_register", blender), "schema_version 1 manifest loads without contract errors")
+	var manifest: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/art/animation_manifest.json"))
+	var registry: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/art/reviewed_frame_allowlist.json"))
+	_check(registry.get("schema_version") == 1 and registry.get("entries") is Array and registry["entries"].is_empty(), "reviewed-frame registry starts with zero new approvals")
+	_check(not bank.call("_sha256_matches_file", ProjectSettings.globalize_path(CONTACT_TEXTURES["attack2"]), "0000000000000000000000000000000000000000000000000000000000000000"), "syntactically valid but fake PNG SHA-256 is rejected against file bytes")
+	_check(not bank.call("_review_record_exists", "res://docs/review/records/missing-manual-review.md"), "promotion without an existing manual review record is rejected")
+	_check(bank.call("_is_reviewed_png_path", CONTACT_TEXTURES["attack2"]), "reviewed artwork must use a project PNG path under assets/art/player")
+	_check(not bank.call("_is_reviewed_png_path", "res://assets/art/player/forged.jpg"), "non-PNG registry payloads are rejected")
+	_check(not bank.call("_is_reviewed_png_path", "res://assets/art/player/../../outside.png"), "registry texture path traversal is rejected")
+	_check(not bank.call("_is_review_record_path", "res://docs/review/records/../missing.md"), "manual review record path traversal is rejected")
 	_check(blender.get_current_texture_path() == "res://assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png", "v8 remains the idle fallback texture")
 	var controller_script: Script = load("res://scripts/player/player_controller.gd") as Script
 	var controller_constants: Dictionary = controller_script.get_script_constant_map()
@@ -56,6 +65,19 @@ func _run() -> void:
 	_check(blender.get_registered_frame_count("attack2", "inbetween") == 0, "unapproved inbetween art is not registered")
 	_check(blender.get_current_texture_path() != "res://assets/art/player/elven_fighter_attack2_contact_v5_identity_candidate_1254x1254.png", "existing v5 candidate stays unloaded")
 	_check(bank.call("get_phase_duration", "attack2", "contact", -1.0) == 0.12, "unapproved v5/v6 candidates cannot replace approved contact timing")
+	for clip_value in manifest["clips"]:
+		var clip: Dictionary = clip_value
+		for frame_value in clip["frames"]:
+			var frame: Dictionary = frame_value
+			var action: String = clip["id"]
+			var phase: String = frame["phase"]
+			var legacy_approved: bool = (action == "idle" and phase == "idle") or (phase == "contact" and action in ["attack1", "attack2", "attack3"] and frame["approval_state"] == "approved")
+			if not legacy_approved:
+				_check(frame["approval_state"] != "approved", "%s/%s candidate remains unapproved in the main manifest" % [action, phase])
+				if phase == "contact" and CONTACT_TEXTURES.has(action):
+					_check(blender.get_registered_frame_count(action, phase) == 1 and str(frame["texture"]) != CONTACT_TEXTURES[action], "%s/%s candidate remains unapplied beside its preserved legacy frame" % [action, phase])
+				else:
+					_check(blender.get_registered_frame_count(action, phase) == 0, "%s/%s candidate remains unapplied in the runtime bank" % [action, phase])
 	await _check_editor_export_contract()
 	var player: CharacterBody2D = PLAYER_SCENE.instantiate() as CharacterBody2D
 	root.add_child(player)

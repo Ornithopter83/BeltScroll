@@ -1,0 +1,11 @@
+﻿[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/review/player_candidate_motion.gd" id="1_motion"]
+
+[node name="PlayerCandidateMotionReview" type="Node2D"]
+script = ExtResource("1_motion")
+
+[node name="CandidateSprite" type="Sprite2D" parent="."]
+position = Vector2(1280, 800)
+texture_filter = 1
+centered = true
