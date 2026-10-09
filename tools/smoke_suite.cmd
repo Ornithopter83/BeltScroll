@@ -27,7 +27,7 @@ set "RUN_LOG=%TEMP%\beltscroll_smoke_%RANDOM%_%RANDOM%.log"
 set "SUITE_FAILED=0"
 set "FAILED_LOG="
 set "ADDITIONAL_CHECKS=0"
-set "ADDITIONAL_TYPES=headless"
+set "ADDITIONAL_TYPES=headless,powershell"
 for /f %%T in ('powershell.exe -NoLogo -NoProfile -NonInteractive -Command "[Diagnostics.Stopwatch]::GetTimestamp()"') do set "SUITE_START_TICKS=%%T"
 
 echo [smoke] Importing project resources
@@ -103,6 +103,16 @@ call :run_smoke player_attack3_startup_review_smoke
 call :record_additional_check player_attack3_startup_review_smoke
 call :run_smoke player_animation_state_matrix_smoke
 call :record_additional_check player_animation_state_matrix_smoke
+call :run_smoke player_attack1_startup_safe_smoke
+call :record_additional_check player_attack1_startup_safe_smoke
+call :run_smoke player_attack3_startup_safe_smoke
+call :record_additional_check player_attack3_startup_safe_smoke
+call :run_smoke player_run_stride_safe_smoke
+call :record_additional_check player_run_stride_safe_smoke
+call :run_smoke player_run_cycle_review_smoke
+call :record_additional_check player_run_cycle_review_smoke
+call :run_smoke m5_art_review_board_smoke
+call :record_additional_check m5_art_review_board_smoke
 
 call :run_suite_coverage
 if errorlevel 1 (
@@ -113,6 +123,12 @@ call :run_animation_live_review_coverage
 if errorlevel 1 (
     set "SUITE_FAILED=1"
     call :save_failure animation_live_review_coverage
+)
+
+call :run_editor_executable_parse
+if errorlevel 1 (
+    set "SUITE_FAILED=1"
+    call :save_failure editor_executable_parse
 )
 
 call :probe_fixtures
@@ -154,6 +170,11 @@ if /I "%SMOKE_NAME%"=="player_attack2_contact_v6_safe_smoke" set "SMOKE_TIMEOUT=
 if /I "%SMOKE_NAME%"=="attack2_candidate_motion_review_smoke" set "SMOKE_TIMEOUT=180"
 if /I "%SMOKE_NAME%"=="player_attack3_startup_review_smoke" set "SMOKE_TIMEOUT=120"
 if /I "%SMOKE_NAME%"=="player_animation_state_matrix_smoke" set "SMOKE_TIMEOUT=120"
+if /I "%SMOKE_NAME%"=="player_attack1_startup_safe_smoke" set "SMOKE_TIMEOUT=120"
+if /I "%SMOKE_NAME%"=="player_attack3_startup_safe_smoke" set "SMOKE_TIMEOUT=120"
+if /I "%SMOKE_NAME%"=="player_run_stride_safe_smoke" set "SMOKE_TIMEOUT=120"
+if /I "%SMOKE_NAME%"=="player_run_cycle_review_smoke" set "SMOKE_TIMEOUT=120"
+if /I "%SMOKE_NAME%"=="m5_art_review_board_smoke" set "SMOKE_TIMEOUT=120"
 echo [smoke] Type=headless timeout=%SMOKE_TIMEOUT%s log=%RUN_LOG%
 call :run_bounded %SMOKE_TIMEOUT%
 set "ALLOW_MODE="
@@ -178,6 +199,11 @@ if /I "%SMOKE_NAME%"=="player_attack2_contact_v6_smoke" set "SUCCESS_MARKER=play
 if /I "%SMOKE_NAME%"=="player_attack2_contact_v6_safe_smoke" set "SUCCESS_MARKER=player_attack2_contact_v6_safe_smoke: mechanical checks passed; visual approval remains pending"
 if /I "%SMOKE_NAME%"=="attack2_candidate_motion_review_smoke" set "SUCCESS_MARKER=attack2_candidate_motion_review_smoke: all checks passed; visual motion judgment remains pending"
 if /I "%SMOKE_NAME%"=="player_animation_state_matrix_smoke" set "SUCCESS_MARKER=player_animation_state_matrix_smoke: state coverage and capture evidence present; no art completeness claim"
+if /I "%SMOKE_NAME%"=="player_attack1_startup_safe_smoke" set "SUCCESS_MARKER=player_attack1_startup_safe_smoke: mechanical checks passed; human visual approval is pending"
+if /I "%SMOKE_NAME%"=="player_attack3_startup_safe_smoke" set "SUCCESS_MARKER=player_attack3_startup_safe_smoke: mechanical checks passed; human visual approval remains pending"
+if /I "%SMOKE_NAME%"=="player_run_stride_safe_smoke" set "SUCCESS_MARKER=player_run_stride_safe_smoke: mechanical checks passed; human visual approval remains required"
+if /I "%SMOKE_NAME%"=="player_run_cycle_review_smoke" set "SUCCESS_MARKER=player_run_cycle_review_smoke: isolated v1/v2 gate and Window evidence are present"
+if /I "%SMOKE_NAME%"=="m5_art_review_board_smoke" set "SUCCESS_MARKER=m5_art_review_board_smoke: all checks passed; human art approval remains independent"
 call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SUCCESS_MARKER%" "%ALLOW_MODE%"
 if errorlevel 1 (
     set "SUITE_FAILED=1"
@@ -249,6 +275,20 @@ set "BOUNDED_EXECUTABLE="
 call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "animation_live_review_suite_smoke: all checks passed"
 if errorlevel 1 (
     echo [smoke] FAILED: live review capture policy
+    type "%RUN_LOG%"
+    exit /b 1
+)
+exit /b 0
+
+:run_editor_executable_parse
+echo [smoke] Verifying editor executable acceptance script parses in Windows PowerShell
+set "SMOKE_ARGS=-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""%PROJECT_DIR%\tests\editor_executable_parse_smoke.ps1"""
+set "BOUNDED_EXECUTABLE=powershell.exe"
+call :run_bounded 45
+set "BOUNDED_EXECUTABLE="
+call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "editor_executable_parse_smoke: all checks passed"
+if errorlevel 1 (
+    echo [smoke] FAILED: editor executable PowerShell parser check
     type "%RUN_LOG%"
     exit /b 1
 )

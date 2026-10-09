@@ -58,7 +58,7 @@ internal sealed class ArtComparisonPanel : UserControl
         if (!canvas.HasBothImages || frameDuration <= 0) throw new InvalidOperationException("A timed current frame and comparison artwork are required.");
         zoom.Value = 100;
         mode.SelectedIndex = 0; canvas.Invalidate(); CaptureCanvas(Path.Combine(outputDirectory, "comparison-side-by-side.png"));
-        if (canvas.CurrentReviewHeight > 576.1f || canvas.CurrentTop < 0 || canvas.CurrentBottom > canvas.Height) throw new InvalidOperationException("The default 576px review view clipped the full character.");
+        if (canvas.ReviewReferenceSize != 576f || canvas.CurrentReviewHeight > 576.1f || canvas.CurrentTop < 0 || canvas.CurrentBottom > canvas.Height) throw new InvalidOperationException("The default 576px review view clipped the full character or used the wrong reference size.");
         mode.SelectedIndex = 1; canvas.Invalidate(); CaptureCanvas(Path.Combine(outputDirectory, "comparison-overlay.png"));
         zoom.Value = 200; canvas.Invalidate(); CaptureCanvas(Path.Combine(outputDirectory, "comparison-zoom.png"));
         if (canvas.CurrentReviewHeight <= 576) throw new InvalidOperationException("Independent pixel zoom did not enlarge the source artwork.");
@@ -86,6 +86,7 @@ internal sealed class ArtComparisonPanel : UserControl
 
 internal sealed class ComparisonCanvas : Control
 {
+    private const float ReviewReferenceSizePx = 576f;
     private readonly record struct RenderBox(RectangleF Bounds, float Scale, float AnchorY)
     {
         public float Height => Bounds.Height;
@@ -106,6 +107,7 @@ internal sealed class ComparisonCanvas : Control
     private Point panOrigin;
     private bool dragging;
     internal bool HasBothImages => current is not null && comparison is not null;
+    internal float ReviewReferenceSize => ReviewReferenceSizePx;
     internal float Zoom { get; set; } = 1f;
     internal Point PanOffset => pan;
     internal float CurrentReviewHeight => current is null ? 0 : GetBox(current, 0, overlay ? Width : Width / 2, Height).Height;
@@ -163,7 +165,7 @@ internal sealed class ComparisonCanvas : Control
     }
     private RenderBox GetBox(Image image, int left, int width, int height)
     {
-        float fit = Math.Min(576f / Math.Max(image.Width, image.Height), Math.Min(Math.Max(1, width - 28f) / image.Width, Math.Max(1, height - 58f) / image.Height));
+        float fit = Math.Min(ReviewReferenceSizePx / Math.Max(image.Width, image.Height), Math.Min(Math.Max(1, width - 28f) / image.Width, Math.Max(1, height - 58f) / image.Height));
         float scale = fit * Zoom, w = image.Width * scale, h = image.Height * scale;
         float baseTop = 42f + (height - 58f - h) / 2f; // Keep the full source in view; draw the anchor at its actual normalized position.
         float x = left + (width - w) / 2f + pan.X;

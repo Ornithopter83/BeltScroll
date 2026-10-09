@@ -36,6 +36,10 @@ func _run() -> void:
 		"run art is included only when an existing candidate PNG is found")
 	_check(not builder_source.contains("animation_manifest.json") and not builder_source.contains("approval_state\" = \"approved\""),
 		"board builder does not edit or promote the animation manifest")
+	var builder_output: Array = []
+	var project_root := ProjectSettings.globalize_path("res://")
+	var builder_exit := OS.execute(OS.get_executable_path(), ["--headless", "--path", project_root, "--script", BUILDER_PATH], builder_output, true)
+	_check(builder_exit == 0, "integrated board is freshly rebuilt from every existing review candidate")
 	var items: Array[Dictionary] = []
 	for item in REQUIRED:
 		items.append(item)
@@ -49,8 +53,14 @@ func _run() -> void:
 	else:
 		for run_file in run_files:
 			items.append({"name":"run candidate", "file":run_file, "support_x":-1})
-	_check(run_files.size() == 1 and run_files[0] == "elven_fighter_run_stride_v1_candidate_1254x1254.png",
-		"the existing run stride candidate is discovered without creating a substitute")
+	var expected_run_files := [
+		"elven_fighter_run_stride_v1_candidate_1254x1254.png",
+		"elven_fighter_run_stride_v1_safe_candidate_1254x1254.png",
+		"elven_fighter_run_stride_v2_opposite_candidate_1254x1254.png",
+		"elven_fighter_run_stride_v2_safe_candidate_1254x1254.png",
+	]
+	_check(run_files == expected_run_files,
+		"all existing v1/v2 run source and safe candidates are discovered in stable order")
 	var board := _load_image(BOARD_PATH)
 	_check(board != null, "integrated board PNG decodes")
 	if board != null:
@@ -65,6 +75,9 @@ func _run() -> void:
 			var source := _load_image(PLAYER_DIR.path_join(item.file))
 			if source == null:
 				continue
+			if item.name == "run candidate":
+				_check(source.get_size() == Vector2i(1254, 1254), "run review candidate keeps its source canvas: " + item.file)
+				_check(not _builder_marks_run_approved(builder_source), "run candidates remain pending human approval: " + item.file)
 			var alpha := _bottom_anchor(source)
 			var marker := panel_rect.position + Vector2i((PANEL_W - DISPLAY) / 2, 60) + Vector2i(roundi(float(alpha.x) * DISPLAY / 1254.0), roundi(float(alpha.y) * DISPLAY / 1254.0))
 			_check(_contains_color_near(board, marker, YELLOW, 8), "alpha anchor is rendered separately: " + item.name)
@@ -94,6 +107,9 @@ func _run_candidate_files() -> Array[String]:
 			result.append(file_name)
 	result.sort()
 	return result
+
+func _builder_marks_run_approved(source: String) -> bool:
+	return source.contains('"RUN / CANDIDATE", "path":run_path, "kind":"APPROVED"')
 
 func _load_image(path: String) -> Image:
 	if not FileAccess.file_exists(path):

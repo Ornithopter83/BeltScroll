@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$EditorPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'dist\BeltScrollEditor.exe'),
     [int]$SelfTestTimeoutSeconds = 120
 )
@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $script:Results = New-Object System.Collections.Generic.List[object]
+$script:ManualAcceptanceBlocked = $false
 
 function Add-Result([string]$Name, [bool]$Passed, [string]$Details) {
     $script:Results.Add([pscustomobject]@{
@@ -29,6 +30,33 @@ function Confirm-Gate([string]$Name, [string]$Instruction) {
     Add-Result $Name $passed $(if ($passed) { '작업자가 확인함' } else { '작업자가 실패 또는 미확인으로 표시함' })
 }
 
+function Start-EditorProcess([string[]]$Arguments, [string]$WorkingDirectory, [string]$StdoutPath, [string]$StderrPath) {
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $resolvedEditor
+    $startInfo.WorkingDirectory = $WorkingDirectory
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $false
+    $startInfo.RedirectStandardOutput = -not [string]::IsNullOrEmpty($StdoutPath)
+    $startInfo.RedirectStandardError = -not [string]::IsNullOrEmpty($StderrPath)
+    $quotedArguments = foreach ($argument in $Arguments) {
+        '"' + ([string]$argument).Replace('"', '\"') + '"'
+    }
+    $startInfo.Arguments = (@($quotedArguments) -join ' ')
+    if ($startInfo.RedirectStandardOutput) { $startInfo.StandardOutputEncoding = [Text.Encoding]::UTF8 }
+    if ($startInfo.RedirectStandardError) { $startInfo.StandardErrorEncoding = [Text.Encoding]::UTF8 }
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startInfo
+    if (-not $process.Start()) { throw 'Process.Start returned false.' }
+    $stdoutTask = if ($startInfo.RedirectStandardOutput) { $process.StandardOutput.ReadToEndAsync() } else { $null }
+    $stderrTask = if ($startInfo.RedirectStandardError) { $process.StandardError.ReadToEndAsync() } else { $null }
+    return [pscustomobject]@{ Process = $process; StdoutTask = $stdoutTask; StderrTask = $stderrTask }
+}
+
+function Save-ProcessOutput($Started, [string]$StdoutPath, [string]$StderrPath) {
+    if ($null -ne $Started.StdoutTask) { [IO.File]::WriteAllText($StdoutPath, $Started.StdoutTask.GetAwaiter().GetResult(), (New-Object System.Text.UTF8Encoding($false))) }
+    if ($null -ne $Started.StderrTask) { [IO.File]::WriteAllText($StderrPath, $Started.StderrTask.GetAwaiter().GetResult(), (New-Object System.Text.UTF8Encoding($false))) }
+}
+
 $resolvedEditor = [IO.Path]::GetFullPath($EditorPath)
 if (-not (Test-Path -LiteralPath $resolvedEditor -PathType Leaf)) {
     Add-Result 'EXE 존재' $false ("파일 없음: {0}" -f $resolvedEditor)
@@ -45,31 +73,33 @@ $reportPath = Join-Path $testRoot 'acceptance-report.json'
 [IO.File]::WriteAllText($badJsonPath, '{ "acceptance": [ this is not valid JSON }', (New-Object System.Text.UTF8Encoding($false)))
 
 try {
-    $selfProcess = Start-Process -FilePath $resolvedEditor -ArgumentList @('--self-test') -WorkingDirectory $testRoot `
-        -RedirectStandardOutput $selfOut -RedirectStandardError $selfErr -PassThru
+    $selfStarted = Start-EditorProcess -Arguments @('--self-test') -WorkingDirectory $testRoot -StdoutPath $selfOut -StderrPath $selfErr
+    $selfProcess = $selfStarted.Process
     if (-not $selfProcess.WaitForExit($SelfTestTimeoutSeconds * 1000)) {
         try { $selfProcess.Kill() } catch { }
         Add-Result '--self-test 완료' $false ("제한 시간 {0}초 초과" -f $SelfTestTimeoutSeconds)
     } else {
         $selfProcess.Refresh()
+        Save-ProcessOutput $selfStarted $selfOut $selfErr
         $selfOutput = ''
         $selfError = ''
         if (Test-Path -LiteralPath $selfOut) { $selfOutput = Get-Content -Encoding UTF8 -Raw -LiteralPath $selfOut }
         if (Test-Path -LiteralPath $selfErr) { $selfError = Get-Content -Encoding UTF8 -Raw -LiteralPath $selfErr }
         $exitOk = $selfProcess.ExitCode -eq 0
-        $details = "exit={0}; stdout={1}; stderr={2}" -f $selfProcess.ExitCode, $selfOutput.Trim(), $selfError.Trim()
+        $details = 'exit=' + [string]$selfProcess.ExitCode + '; stdout=' + [string]$selfOutput + '; stderr=' + [string]$selfError
         Add-Result '--self-test 완료' $exitOk $details
     }
 
     $acceptanceOut = Join-Path $testRoot 'gui-acceptance.stdout.txt'
     $acceptanceErr = Join-Path $testRoot 'gui-acceptance.stderr.txt'
-    $acceptanceProcess = Start-Process -FilePath $resolvedEditor -ArgumentList @('--gui-acceptance', $testRoot) -WorkingDirectory $testRoot `
-        -RedirectStandardOutput $acceptanceOut -RedirectStandardError $acceptanceErr -PassThru
+    $acceptanceStarted = Start-EditorProcess -Arguments @('--gui-acceptance', $testRoot) -WorkingDirectory $testRoot -StdoutPath $acceptanceOut -StderrPath $acceptanceErr
+    $acceptanceProcess = $acceptanceStarted.Process
     if (-not $acceptanceProcess.WaitForExit($SelfTestTimeoutSeconds * 1000)) {
         try { $acceptanceProcess.Kill() } catch { }
         Add-Result '--gui-acceptance 완료' $false ("제한 시간 {0}초 초과" -f $SelfTestTimeoutSeconds)
     } else {
         $acceptanceProcess.Refresh()
+        Save-ProcessOutput $acceptanceStarted $acceptanceOut $acceptanceErr
         $acceptanceExit = $acceptanceProcess.ExitCode
         $acceptanceReport = Join-Path $testRoot 'gui-acceptance.json'
         $capture = Join-Path $testRoot 'gui-capture.png'
@@ -81,7 +111,19 @@ try {
 
     Write-Output ''
     Write-Output ('잘못된 JSON 시험 파일: {0}' -f $badJsonPath)
-    $guiProcess = Start-Process -FilePath $resolvedEditor -WorkingDirectory $testRoot -PassThru
+    if ([Console]::IsInputRedirected) {
+        $script:ManualAcceptanceBlocked = $true
+        $blocked = '차단됨: Y/N 수동 인수 확인은 대화형 입력이 필요합니다. 콘솔에서 다시 실행하세요.'
+        Add-Result 'GUI 실행 및 프로젝트 외부 경로 실행' $false $blocked
+        Add-Result '비정상 JSON 거부' $false $blocked
+        Add-Result '생성·복제·수정·저장' $false $blocked
+        Add-Result '재열기 및 저장값 유지' $false $blocked
+        Add-Result '게임 데이터 재적용' $false $blocked
+        Add-Result 'GUI 정상 종료' $false $blocked
+        Write-Output 'editor_executable_smoke: manual acceptance blocked (redirected input; rerun in an interactive console)'
+    } else {
+    $guiStartedProcess = Start-EditorProcess -Arguments @() -WorkingDirectory $testRoot -StdoutPath '' -StderrPath ''
+    $guiProcess = $guiStartedProcess.Process
     Start-Sleep -Seconds 2
     $guiProcess.Refresh()
     $guiStarted = -not $guiProcess.HasExited
@@ -105,16 +147,22 @@ try {
         Add-Result '게임 데이터 재적용' $false 'GUI 시작 실패로 미검증'
         Add-Result 'GUI 정상 종료' $false 'GUI 시작 실패로 미검증'
     }
+    }
 } catch {
-    Add-Result '스크립트 실행' $false $_.Exception.Message
+    Add-Result '스크립트 실행' $false ($_.Exception.ToString() + "`n" + $_.ScriptStackTrace)
 } finally {
+    $failedResults = @($script:Results | Where-Object { -not $_.passed })
+    $failedCount = 0
+    foreach ($result in $script:Results) { if (-not $result.passed) { $failedCount++ } }
+    $resultsArray = $script:Results.ToArray()
     $report = [pscustomobject]@{
         product = 'BeltScrollEditor'
         editorPath = $resolvedEditor
         externalWorkingDirectory = $testRoot
         invalidJsonFixture = $badJsonPath
-        passed = (@($script:Results | Where-Object { -not $_.passed }).Count -eq 0)
-        results = @($script:Results)
+        status = if ($script:ManualAcceptanceBlocked) { 'blocked' } elseif ($failedCount -gt 0) { 'failed' } else { 'passed' }
+        passed = ($failedCount -eq 0)
+        results = $resultsArray
     } | ConvertTo-Json -Depth 6
     [IO.File]::WriteAllText($reportPath, $report, (New-Object System.Text.UTF8Encoding($false)))
     Write-Output ''
@@ -122,7 +170,9 @@ try {
     Write-Output ("시험 자료: {0}" -f $testRoot)
 }
 
-if (@($script:Results | Where-Object { -not $_.passed }).Count -gt 0) {
+$failedCount = 0
+foreach ($result in $script:Results) { if (-not $result.passed) { $failedCount++ } }
+if ($failedCount -gt 0) {
     exit 1
 }
 Write-Output 'editor_executable_smoke: all acceptance checks passed'

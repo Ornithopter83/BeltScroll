@@ -1,4 +1,5 @@
 using System.Drawing.Drawing2D;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -62,12 +63,20 @@ public sealed class AnimationWorkspaceForm : Form
     private readonly ComboBox approval = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 112 };
     private readonly TextBox clipId = new() { Text = "attack1", Width = 110 };
     private readonly Label status = new() { AutoSize = true, Padding = new Padding(6) };
-    private readonly System.Windows.Forms.Timer playback = new() { Interval = 100 };
+    private readonly System.Windows.Forms.Timer playback = new() { Interval = 10 };
     private readonly CheckBox intermediatePlayback = new() { Text = "50ms 중간동작", AutoSize = true };
     private readonly CheckBox[] reviewChecks = [new() { Text = "얼굴", AutoSize = true }, new() { Text = "귀", AutoSize = true }, new() { Text = "의상", AutoSize = true }, new() { Text = "지지발", AutoSize = true }, new() { Text = "모션 연결", AutoSize = true }];
     private readonly ComboBox reviewOpinion = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 90 };
     private readonly TextBox reviewComment = new() { Multiline = true, ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Fill };
+    private readonly Stopwatch playbackClock = new();
     private double playbackElapsed;
+    private int playbackFrameIndex = -1;
+    private AnimationClip? playbackClip;
+    private bool playbackPaused;
+    private bool changingPlaybackSelection;
+    private bool measuringTimerPrecision;
+    private readonly List<double> timerTickIntervalsMs = [];
+    private long previousTimerTick;
     private AnimationDocument document = new();
     private AnimationClip Clip => document.Clips[Math.Clamp(clipSelect.SelectedIndex, 0, document.Clips.Count - 1)];
     private string workspacePath = "";
@@ -122,21 +131,22 @@ public sealed class AnimationWorkspaceForm : Form
         edit.Controls.Add(new Label { Text = "지속시간(초)", AutoSize = true, Padding = new Padding(8, 6, 0, 0) }); edit.Controls.Add(duration);
         approval.Items.AddRange(["review", "approved", "unapproved", "temporary"]); approval.SelectedItem = "review";
         edit.Controls.Add(new Label { Text = "검수 상태", AutoSize = true, Padding = new Padding(8, 6, 0, 0) }); edit.Controls.Add(approval);
-        AddButton(edit, "재생", StartPlayback); AddButton(edit, "정지", StopPlayback); edit.Controls.Add(intermediatePlayback);
+        AddButton(edit, "재생", StartPlayback); AddButton(edit, "정지", () => StopPlayback()); edit.Controls.Add(intermediatePlayback);
         right.Controls.Add(edit, 0, 2); right.SetColumnSpan(edit, 2);
         var frameTab = new TabPage("프레임 미리보기"); frameTab.Controls.Add(right);
         var compareTab = new TabPage("원화 3× 비교"); compareTab.Controls.Add(comparisonPanel);
         previewTabs.TabPages.Add(frameTab); previewTabs.TabPages.Add(compareTab); root.Controls.Add(previewTabs, 1, 1);
         root.Controls.Add(status, 0, 2); root.SetColumnSpan(status, 2); Controls.Add(root);
 
-        clipSelect.SelectedIndexChanged += (_, _) => { if (!updating && clipSelect.SelectedIndex >= 0) { updating = true; clipId.Text = Clip.Id; updating = false; SetPhaseOptions(); RefreshFrames(0); } };
+        clipSelect.SelectedIndexChanged += (_, _) => { if (!updating && clipSelect.SelectedIndex >= 0) { StopPlayback(false); updating = true; clipId.Text = Clip.Id; updating = false; SetPhaseOptions(); RefreshFrames(0); } };
         clipSelect.Items.Add("attack1"); clipSelect.SelectedIndex = 0;
-        frameList.SelectedIndexChanged += (_, _) => SelectFrame();
+        frameList.SelectedIndexChanged += (_, _) => { SelectFrame(); if (!changingPlaybackSelection && (playback.Enabled || playbackPaused)) RebasePlaybackToSelection(); };
         phase.SelectedIndexChanged += (_, _) => UpdateFrame(); duration.ValueChanged += (_, _) => UpdateFrame(); approval.SelectedIndexChanged += (_, _) => UpdateFrame();
         clipId.TextChanged += (_, _) => RenameClip();
         preview.AnchorChanged += (_, point) => { if (CurrentFrame is { } f) { f.FootAnchor = new FootAnchor { X = point.X, Y = point.Y }; preview.Invalidate(); leftPreview.Invalidate(); SetStatus($"발 anchor: ({point.X:0.000}, {point.Y:0.000})"); } };
-        playback.Tick += (_, _) => { if (intermediatePlayback.Checked) AdvanceIntermediatePlayback(); else AdvancePlayback(); };
-        FormClosed += (_, _) => { playback.Stop(); preview.DisposeImage(); leftPreview.DisposeImage(); };
+        playback.Tick += (_, _) => OnPlaybackTick();
+        intermediatePlayback.CheckedChanged += (_, _) => { if (playback.Enabled || playbackPaused) RefreshPlaybackPreview(); };
+        FormClosed += (_, _) => { playback.Stop(); playbackClock.Stop(); preview.DisposeImage(); leftPreview.DisposeImage(); };
         SetStatus($"별도 임시 작업 폴더: {workspacePath}");
         if (acceptancePath is not null)
         {
@@ -170,7 +180,7 @@ public sealed class AnimationWorkspaceForm : Form
     }
     private void RefreshClipSelector(string selectedId)
     {
-        updating = true; clipSelect.Items.Clear(); foreach (var c in document.Clips) clipSelect.Items.Add(c.Id);
+        StopPlayback(false); updating = true; clipSelect.Items.Clear(); foreach (var c in document.Clips) clipSelect.Items.Add(c.Id);
         clipSelect.SelectedIndex = Math.Max(0, document.Clips.FindIndex(c => c.Id == selectedId)); clipId.Text = Clip.Id; updating = false; SetPhaseOptions(); RefreshFrames(0);
     }
     private void SetPhaseOptions()
@@ -336,30 +346,92 @@ public sealed class AnimationWorkspaceForm : Form
     private void MoveFrame(int delta)
     {
         int old = frameList.SelectedIndex, next = old + delta; if (old < 0 || next < 0 || next >= Clip.Frames.Count) return;
-        (Clip.Frames[old], Clip.Frames[next]) = (Clip.Frames[next], Clip.Frames[old]); RefreshFrames(next);
+        (Clip.Frames[old], Clip.Frames[next]) = (Clip.Frames[next], Clip.Frames[old]);
+        changingPlaybackSelection = true; RefreshFrames(next); changingPlaybackSelection = false;
+        if (playback.Enabled || playbackPaused) { playbackFrameIndex = next; playbackClip = Clip; RefreshPlaybackPreview(); }
     }
     private void RemoveFrame()
     {
         int i = frameList.SelectedIndex; if (i < 0) return;
         Clip.Frames.RemoveAt(i); RefreshFrames(Math.Max(0, i - 1));
     }
-    private void StartPlayback() { if (Clip.Frames.Count == 0) return; if (frameList.SelectedIndex < 0) frameList.SelectedIndex = 0; playbackElapsed = 0; playback.Interval = intermediatePlayback.Checked ? 50 : Math.Max(20, (int)(CurrentFrame!.Duration * 1000)); playback.Start(); SetStatus(intermediatePlayback.Checked ? "애니메이션 재생 중 · 50ms 중간동작 표시" : "애니메이션 재생 중 · 정지 버튼으로 멈춤"); }
-    private void StopPlayback() { playback.Stop(); SetStatus("재생 정지"); }
-    private void AdvancePlayback() { if (Clip.Frames.Count == 0) { StopPlayback(); return; } int next = (frameList.SelectedIndex + 1) % Clip.Frames.Count; frameList.SelectedIndex = next; playback.Interval = Math.Max(20, (int)(CurrentFrame!.Duration * 1000)); }
-    private void AdvanceIntermediatePlayback()
+    private void StartPlayback()
     {
-        if (Clip.Frames.Count == 0 || CurrentFrame is null) { StopPlayback(); return; }
-        playbackElapsed += .05;
-        double mix = Math.Clamp(playbackElapsed / CurrentFrame.Duration, 0, 1);
-        var next = Clip.Frames[(frameList.SelectedIndex + 1) % Clip.Frames.Count];
-        string? firstPath = CurrentFrame.Texture is null ? null : ResolveTexture(CurrentFrame.Texture);
-        string? nextPath = next.Texture is null ? null : ResolveTexture(next.Texture);
-        preview.SetBlendImages(firstPath, nextPath, CurrentFrame.FootAnchor, mix);
-        leftPreview.SetBlendImages(firstPath, nextPath, CurrentFrame.FootAnchor, mix);
-        if (playbackElapsed + .0001 >= CurrentFrame.Duration)
+        if (Clip.Frames.Count == 0) return;
+        if (playback.Enabled)
         {
-            playbackElapsed = 0; frameList.SelectedIndex = (frameList.SelectedIndex + 1) % Clip.Frames.Count;
+            double elapsed = playbackClock.Elapsed.TotalSeconds;
+            playback.Stop(); playbackClock.Reset();
+            if (elapsed > 0) AdvancePlaybackBy(elapsed);
+            playbackPaused = true;
+            SetStatus("재생 일시정지 · 재생 버튼으로 이어서 재생"); return;
         }
+        if (playbackPaused && ReferenceEquals(playbackClip, Clip) && playbackFrameIndex >= 0)
+        {
+            playbackClock.Restart(); playback.Start(); playbackPaused = false;
+            SetStatus(intermediatePlayback.Checked ? "애니메이션 재개 · 실측 시간 기반 중간동작" : "애니메이션 재개 · 실측 시간 기반"); return;
+        }
+        if (frameList.SelectedIndex < 0) frameList.SelectedIndex = 0;
+        playbackClip = Clip; playbackFrameIndex = frameList.SelectedIndex; playbackElapsed = 0; playbackPaused = false;
+        playbackClock.Restart(); playback.Start();
+        SetStatus(intermediatePlayback.Checked ? "애니메이션 재생 중 · 실측 시간 기반 중간동작" : "애니메이션 재생 중 · 실측 시간 기반");
+    }
+    private void StopPlayback(bool updateStatus = true)
+    {
+        playback.Stop(); playbackClock.Reset(); playbackPaused = false; playbackFrameIndex = -1; playbackClip = null; playbackElapsed = 0;
+        preview.SetBlendImages(null, null, null, 0); leftPreview.SetBlendImages(null, null, null, 0);
+        if (updateStatus) SetStatus("재생 정지");
+    }
+    private void OnPlaybackTick()
+    {
+        long now = Stopwatch.GetTimestamp();
+        if (measuringTimerPrecision)
+        {
+            if (previousTimerTick != 0) timerTickIntervalsMs.Add((now - previousTimerTick) * 1000d / Stopwatch.Frequency);
+            previousTimerTick = now; return;
+        }
+        if (Clip.Frames.Count == 0 || !ReferenceEquals(playbackClip, Clip)) { StopPlayback(); return; }
+        double elapsed = playbackClock.Elapsed.TotalSeconds;
+        playbackClock.Restart();
+        AdvancePlaybackBy(elapsed);
+    }
+    private void AdvancePlaybackBy(double elapsedSeconds)
+    {
+        if (Clip.Frames.Count == 0 || playbackFrameIndex < 0 || playbackFrameIndex >= Clip.Frames.Count) { StopPlayback(); return; }
+        playbackElapsed += Math.Max(0, elapsedSeconds);
+        int guard = 0;
+        while (guard++ < 100000)
+        {
+            double frameDuration = Math.Max(0.001, Clip.Frames[playbackFrameIndex].Duration);
+            if (playbackElapsed + 0.000000001 < frameDuration) break;
+            playbackElapsed -= frameDuration;
+            playbackFrameIndex = (playbackFrameIndex + 1) % Clip.Frames.Count;
+        }
+        changingPlaybackSelection = true;
+        if (frameList.SelectedIndex != playbackFrameIndex) frameList.SelectedIndex = playbackFrameIndex;
+        changingPlaybackSelection = false;
+        RefreshPlaybackPreview();
+    }
+    private void RefreshPlaybackPreview()
+    {
+        if (Clip.Frames.Count == 0 || playbackFrameIndex < 0) return;
+        var current = Clip.Frames[playbackFrameIndex];
+        if (!intermediatePlayback.Checked || Clip.Frames.Count < 2)
+        {
+            preview.SetBlendImages(null, null, null, 0); leftPreview.SetBlendImages(null, null, null, 0); return;
+        }
+        var next = Clip.Frames[(playbackFrameIndex + 1) % Clip.Frames.Count];
+        double mix = Math.Clamp(playbackElapsed / Math.Max(0.001, current.Duration), 0, 1);
+        string? firstPath = current.Texture is null ? null : ResolveTexture(current.Texture);
+        string? nextPath = next.Texture is null ? null : ResolveTexture(next.Texture);
+        preview.SetBlendImages(firstPath, nextPath, current.FootAnchor, mix);
+        leftPreview.SetBlendImages(firstPath, nextPath, current.FootAnchor, mix);
+    }
+    private void RebasePlaybackToSelection()
+    {
+        playbackFrameIndex = frameList.SelectedIndex; playbackElapsed = 0; playbackClip = Clip;
+        if (playbackClock.IsRunning) playbackClock.Restart();
+        RefreshPlaybackPreview();
     }
 
     private void ExportReviewOpinion()
@@ -373,6 +445,23 @@ public sealed class AnimationWorkspaceForm : Form
         SetStatus($"사람 검수 의견을 내보냈습니다: {dialog.FileName} · 프레임 approval_state와 게임 allowlist는 변경하지 않았습니다.");
     }
     private void SetStatus(string text) => status.Text = text;
+    private object MeasureTimerPrecision()
+    {
+        playback.Stop(); playbackClock.Reset(); timerTickIntervalsMs.Clear(); previousTimerTick = 0;
+        playback.Interval = 10; measuringTimerPrecision = true; playback.Start();
+        var timeout = Stopwatch.StartNew();
+        try
+        {
+            while (timerTickIntervalsMs.Count < 40 && timeout.Elapsed < TimeSpan.FromSeconds(4))
+            {
+                Application.DoEvents(); Thread.Sleep(1);
+            }
+        }
+        finally { playback.Stop(); measuringTimerPrecision = false; }
+        if (timerTickIntervalsMs.Count < 10) throw new Exception($"WinForms timer precision sample was too short ({timerTickIntervalsMs.Count} intervals).");
+        double[] sorted = timerTickIntervalsMs.Order().ToArray();
+        return new { requestedIntervalMs = playback.Interval, sampleCount = sorted.Length, minMs = Math.Round(sorted[0], 3), medianMs = Math.Round(sorted[sorted.Length / 2], 3), meanMs = Math.Round(sorted.Average(), 3), maxMs = Math.Round(sorted[^1], 3), measuredAt = DateTimeOffset.Now.ToString("O") };
+    }
     private void RunGuiAcceptance()
     {
         acceptanceTimer?.Stop();
@@ -389,10 +478,12 @@ public sealed class AnimationWorkspaceForm : Form
             foreach (string p in new[] { "inbetween", "contact", "recovery" }) AddPngFiles([fixture]);
             string[] phases = ["startup", "inbetween", "contact", "recovery"];
             string[] states = ["review", "review", "review", "review"];
-            decimal[] times = [0.075M, 0.035M, 0.105M, 0.2M];
+            decimal[] times = [0.035M, 0.05M, 0.105M, 0.2M];
             for (int i = 0; i < phases.Length; i++) { frameList.SelectedIndex = i; phase.SelectedItem = phases[i]; duration.Value = times[i]; approval.SelectedItem = states[i]; }
+            if (!Clip.Frames.Select(f => f.Duration).SequenceEqual(new[] { .035, .05, .105, .2 })) throw new Exception("35/50/105/200ms frame durations were not stored in timeline order.");
             frameList.SelectedIndex = 2; ((Button)FindControl(this, "위로")).PerformClick();
-            if (frameList.SelectedIndex != 1 || Clip.Frames[1].Phase != "contact") throw new Exception("Frame order controls failed.");
+            if (frameList.SelectedIndex != 1 || Clip.Frames[1].Phase != "contact" || !Clip.Frames.Select(f => f.Duration).SequenceEqual(new[] { .035, .105, .05, .2 })) throw new Exception("Frame reorder did not preserve each frame's duration and order.");
+            ((Button)FindControl(this, "아래로")).PerformClick();
             AddClip(); AddClip(); AddClip();
             if (!document.Clips.Select(c => c.Id).OrderBy(x => x).SequenceEqual(new[] { "attack1", "attack2", "attack3", "idle" }.OrderBy(x => x))) throw new Exception("Creating all supported clip IDs failed.");
             foreach (string id in new[] { "attack2", "attack3" }) { clipSelect.SelectedIndex = document.Clips.FindIndex(c => c.Id == id); AddPngFiles([fixture]); }
@@ -406,8 +497,20 @@ public sealed class AnimationWorkspaceForm : Form
             frameList.SelectedIndex = 0;
             comparisonPanel.SetCurrentFrame(ResolveTexture(Clip.Frames[0].Texture!), new FootAnchor { X = 0.5, Y = 0.92 }, Clip.Frames[0].Duration, "attack1 · 검수 anchor 하단 위치");
             var comparisonEvents = comparisonPanel.ExerciseAcceptance(acceptancePath!);
-            ((Button)FindControl(this, "재생")).PerformClick(); if (!playback.Enabled || playback.Interval != 50) throw new Exception("50ms intermediate playback did not start.");
-            playbackElapsed = 0; AdvanceIntermediatePlayback(); if (preview.BlendVisible != true) throw new Exception("50ms intermediate frame blend was not rendered.");
+            ((Button)FindControl(this, "재생")).PerformClick(); if (!playback.Enabled || playback.Interval != 10) throw new Exception("Playback did not start with the fixed 10ms UI refresh trigger.");
+            playbackFrameIndex = 0; playbackElapsed = 0;
+            AdvancePlaybackBy(.034); if (playbackFrameIndex != 0) throw new Exception("The 35ms frame advanced before its cumulative duration elapsed.");
+            AdvancePlaybackBy(.001); if (playbackFrameIndex != 1 || Math.Abs(playbackElapsed) > .000001) throw new Exception("The 35ms frame boundary was not measured accurately.");
+            AdvancePlaybackBy(.05); if (playbackFrameIndex != 2) throw new Exception("The 50ms frame duration boundary failed.");
+            AdvancePlaybackBy(.105); if (playbackFrameIndex != 3) throw new Exception("The 105ms frame duration boundary failed.");
+            AdvancePlaybackBy(.2); if (playbackFrameIndex != 0) throw new Exception("The 200ms duration or loop boundary failed.");
+            AdvancePlaybackBy(.39); if (playbackFrameIndex != 0 || Math.Abs(playbackElapsed) > .000001) throw new Exception("A full 390ms loop did not return to its exact starting position.");
+            AdvancePlaybackBy(.025); if (!preview.BlendVisible) throw new Exception("Measured-time intermediate frame blend was not rendered.");
+            ((Button)FindControl(this, "재생")).PerformClick(); if (playback.Enabled || !playbackPaused) throw new Exception("Playback did not pause cleanly.");
+            double pausedPosition = playbackElapsed; ((Button)FindControl(this, "재생")).PerformClick(); if (!playback.Enabled || Math.Abs(playbackElapsed - pausedPosition) > .000001) throw new Exception("Resume did not preserve the playback position.");
+            ((Button)FindControl(this, "정지")).PerformClick();
+            var timerPrecision = MeasureTimerPrecision();
+            ((Button)FindControl(this, "재생")).PerformClick();
             previewTabs.SelectedIndex = 0;
             ((Button)FindControl(this, "정지")).PerformClick(); if (playback.Enabled) throw new Exception("Playback did not stop.");
             string exported = Path.Combine(acceptancePath!, "workspace"); ExportTo(exported);
@@ -421,7 +524,7 @@ public sealed class AnimationWorkspaceForm : Form
             if (document.Clips.Single(c => c.Id == "idle").Frames.Single().Phase != "idle") throw new Exception("JSON reload lost idle phase.");
             previewTabs.SelectedIndex = 1;
             using var capture = new Bitmap(Math.Max(1, Width), Math.Max(1, Height)); DrawToBitmap(capture, new Rectangle(Point.Empty, capture.Size)); capture.Save(Path.Combine(acceptancePath!, "animation-gui.png"), System.Drawing.Imaging.ImageFormat.Png);
-            var report = new { passed = true, guiMessageLoop = true, guiControlEvents = new[] { "PNG import", "clip creation and selection", "four phase selection", "duration edit", "anchor pointer event", "frame reorder", "50ms inbetween playback", "play", "stop", "multi-clip JSON export", "JSON reload" }.Concat(comparisonEvents).ToArray(), schemaVersion = 1, exportedPath = Path.Combine(exported, "animation.json"), clipCount = document.Clips.Count, frameCount = loadedAttack.Frames.Count, approvalState = "review", approvalDecisionCreated = false, gameAllowlistChanged = false, workspacePath = exported };
+            var report = new { passed = true, guiMessageLoop = true, guiControlEvents = new[] { "PNG import", "clip creation and selection", "four phase selection", "duration edit", "anchor pointer event", "frame reorder with duration identity", "35ms/50ms/105ms/200ms cumulative playback", "loop boundary", "pause and resume position", "slow tick catch-up", "10ms UI refresh trigger", "measured WinForms timer precision", "play", "stop", "multi-clip JSON export", "JSON reload" }.Concat(comparisonEvents).ToArray(), timerPrecision, schemaVersion = 1, exportedPath = Path.Combine(exported, "animation.json"), clipCount = document.Clips.Count, frameCount = loadedAttack.Frames.Count, approvalState = "review", approvalDecisionCreated = false, gameAllowlistChanged = false, workspacePath = exported };
             File.WriteAllText(Path.Combine(acceptancePath!, "animation-gui-acceptance.json"), JsonSerializer.Serialize(report, JsonOptions), new UTF8Encoding(false));
             ExitCode = 0; Close();
         }
