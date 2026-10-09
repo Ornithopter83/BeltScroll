@@ -51,14 +51,15 @@ Get-Content -Encoding UTF8 .\docs\review\m5d_acceptance_readiness_gate.md
 | 앉기 제거 | 개정 기준 적용 | `scripts/player/player_controller.gd`; 초기 문서의 과거 앉기 요구는 사용하지 않음 |
 | 양측 체력바 | 구현 및 자동 검사 자료 있음 | `docs/review/combat_skill_hud_gate.md`; 통합 사람 인수는 별도 |
 | 독립 편집기 | 수동 GUI 인수 미검증 | `docs/review/editor_acceptance_gate.md`, `.qa_logs/qa_editor_exe_acceptance_20261009.json` |
-| Num5 skill2 v2 원화 | 원본 파일 확보, 사람 승인 및 본편 등록 전 | `assets/art/player/elven_fighter_skill2_spin_backfist_v2_candidate_1254x1254.png`; 기존 v1은 회전을 입증하지 못함 |
+| Num5 skill2 v2 원화 | 원본 파일 확보 여부와 시각 수용을 별도 판정. 현재 파일은 존재하지만 회전 백피스트 미수용 | `assets/art/player/elven_fighter_skill2_spin_backfist_v2_candidate_1254x1254.png`; 파일 존재는 백피스트 동작 입증이 아님 |
 | 신규 승인 원화 | 0건 | 후보 파일 및 safe 산출물은 승인 기록이 아님. `data/art/animation_manifest.json`, `docs/review/animation_frame_registry_gate.md` |
 | 기존 승인 프레임 | 4장: v8 idle 1장과 attack1/2/3 contact 각 1장 | manifest 및 `docs/review/animation_frame_registry_gate.md`; 신규 승인 수는 별도 0건 |
-| run v1~v5 | 모두 동일 보폭 판정, 반대 보폭 및 run cycle 미수용 | `docs/review/player_run_v3_antiphase_gate.md`, `docs/review/player_run_v4_opposition_gate.md`, `docs/review/player_run_v5_antiphase_gate.md` |
-| jump rise/fall 원화 | 후보 및 safe 자료 확보, 사람 승인/본편 등록 미완료 | `docs/review/player_jump_rise_safe_gate.md`, `docs/review/player_jump_fall_safe_gate.md` |
-| hit 원화 | 후보 및 safe 자료 확보, 사람 승인/본편 등록 미완료 | `docs/review/player_hit_reaction_safe_gate.md`, `docs/review/player_hit_reaction_motion_gate.md` |
-| Num4/Num5 스킬 원화 | 전용 원화 후보가 있어도 사람 승인/본편 등록 미완료 | `docs/review/player_skill1_contact_motion_gate.md`, `docs/review/player_skill2_spin_art_gate.md`; gameplay/절차 포즈 구현과 별개 |
-| turn | idle/walk 기반 0.13초 절차 동작 구현, 전용 원화 없음 | `docs/review/player_turn_motion_gate.md`; 전용 시간 없음이라는 과거 설명은 폐기 |
+| run v1~v5 | 모두 같은 보폭으로 판정되어 보폭 교대 실패, 반대 보폭 및 run cycle 미수용 | `docs/review/player_run_v3_antiphase_gate.md`, `docs/review/player_run_v4_opposition_gate.md`, `docs/review/player_run_v5_antiphase_gate.md` |
+| jump rise/fall 원화 | 후보 및 safe 자료 확보, 크기·발 anchor 검증과 사람 승인/본편 등록 미완료 | `docs/review/player_jump_motion_gate.md`, `docs/review/player_jump_rise_safe_gate.md`, `docs/review/player_jump_fall_safe_gate.md` |
+| hit 원화 | 후보 및 safe 자료 확보, 본편 복장과 불일치 가능성을 해소하지 못함 | `docs/review/player_hit_reaction_safe_gate.md`, `docs/review/player_hit_reaction_motion_gate.md` |
+| Num4 주먹 연장 | 본편 절차 동작에서 주먹 연장 미구현 | `docs/review/player_skill1_contact_motion_gate.md`; gameplay 접촉/돌진은 주먹 연장 시각 증거가 아님 |
+| Num5 백피스트 | v2 파일은 존재하지만 회전·백피스트 시각 입증 미완료 | `docs/review/player_skill2_spin_art_gate.md`; 파일 존재와 시각 수용을 독립 판정 |
+| turn | rear-mid v1 원본·safe 확보, 보폭이 달리기처럼 보여 키포즈 미수용. 0.13초 절차 동작을 본편에서 사용 | `docs/review/player_turn_mid_art_gate.md`, `docs/review/player_turn_motion_gate.md`; 전용 원화가 없다는 표현은 현재 상태와 다름 |
 | QA 편집기 EXE | Git 추적 위반 상태 | `.qa_logs/editor-publish-current/BeltScrollEditor.exe`; 감사기는 `git ls-files`와 해당 경로의 `git status --short`를 직접 확인 |
 | 최신 main/Actions/artifact/원격 ZIP | 실행 시점에 각각 조회·보고 | 감사 출력의 `LatestMain`, `Actions`, `Artifact`, `RemoteZipVerification`을 따로 확인 |
 
@@ -79,22 +80,24 @@ Get-Content -Encoding UTF8 .\docs\review\m5d_acceptance_readiness_gate.md
 
 ### skill2의 별도 Num5 회전 조건
 
-Num5 v1 접촉 원화와 본편 시각 입증은 회전을 입증하지 못했다. v2 원본은 확보했지만 회전축 발, 후방 회전 몸통, 백피스트, 교차 팔, 좌우 방향에서의 식별 가능성을 사람 검토 및 승인해야 한다. 이 항목은 위 10개 슬롯 수에 추가되지 않는다.
+Num5 v1 접촉 원화와 본편 시각 입증은 회전을 입증하지 못했다. v2 원본 파일은 존재하지만, 이는 시각 수용과 별도다. 회전축 발, 후방 회전 몸통, 백피스트, 교차 팔, 좌우 방향 식별은 아직 입증되지 않았다. 이 항목은 위 10개 슬롯 수에 추가되지 않는다.
 
 ## 차단 및 판정 정책
 
 - 신규 승인 원화는 0건이다. 후보와 비교 자료는 사람 승인을 대신하지 않는다.
 - 현재 승인 원화 프레임은 v8 idle과 attack1~3 contact, 총 4장이다. 그 외 신규 승인 원화는 0건이다.
 - run v1~v5는 같은 보폭 상태로 기록되어 반대 보폭 및 cycle 기준을 충족하지 못했다.
-- jump rise/fall·hit·Num4/Num5 스킬 원화 후보는 존재하지만 사람 승인 및 본편 등록 전이다. turn은 0.13초 절차 동작이며 전용 turn 원화는 없다.
+- jump rise/fall 크기와 발 anchor는 미검증이고, hit 원화는 복장 불일치 가능성이 남아 있다.
+- Num4 주먹 연장은 미구현이다. Num5 백피스트는 v2 파일이 있어도 시각적으로 입증되지 않았다.
+- turn rear-mid v1 원본과 safe 후보가 확보됐다. 키포즈는 미수용이며 0.13초 절차 동작이 본편에서 사용된다.
 - 물리 입력과 수동 GUI 인수는 미검증이다.
-- `.qa_logs/editor-publish-current/BeltScrollEditor.exe`가 Git 추적 중이므로 저장소 위생 위반이 남아 있다.
+- `.qa_logs/editor-publish-current/BeltScrollEditor.exe` Git 추적 여부는 감사기가 `git ls-files`로 별도 확인한다. 실제 ZIP 다운로드 검증, 물리 입력, 사람 GUI 인수도 서로 독립 상태다.
 - 최신 main SHA, 같은 SHA의 Actions 성공, artifact 존재, 실제 원격 ZIP 다운로드 검증, Git 위생, 물리 입력 및 GUI 사람 인수를 각각 독립 필드에서 확인한다. 어느 하나의 증거도 다른 상태를 자동 PASS로 만들지 않는다.
 - 감사 출력은 항상 `Verdict: BLOCKED`, `FinalPassAllowed: false`다. 자료가 전부 존재해도 이 도구가 최종 인수를 판정하지 않는다.
 
 ## HIGH 재검증 기록 (2026-10-10)
 
-- 당시 기록은 v1~v4 비교까지다. 최신 상세 게이트에서 v5도 확인했으며 v1~v5 동일 보폭으로 미수용 상태다. 제품 10종과 JSON 11클립은 구분하고, Num5 회전은 별도 조건으로 유지한다. 기존 승인 4장 외 신규 승인 원화는 0건이다. 수동 GUI 및 물리 입력 미검증, Git 추적 EXE 상태를 유지한다.
+- 당시 기록은 v1~v4 비교까지다. 최신 상세 게이트에서 v5도 확인했으며 v1~v5 보폭 교대 실패로 미수용 상태다. 제품 10종과 JSON 11클립은 구분하고, Num5 회전은 별도 조건으로 유지한다. 기존 승인 4장 외 신규 승인 원화는 0건이다. 수동 GUI 및 물리 입력 미검증이다.
 - 저장된 원격 Actions ZIP 검증 보고서의 외부/내부 ZIP 및 EXE 해시를 재확인하고 실제 내부 배포 ZIP의 self-test와 GUI acceptance 재실행을 통과했다. 감사기의 원격 ZIP 검증 상태는 `PASS`로 독립 표시되며, 최신 원격 main SHA/Actions/artifact API 상태는 새 인증 실패로 `UNVERIFIED`다.
 - 전체 smoke에서 skill Window 세 항목, spin-art headless, suite 구성 검사와 PowerShell gate들은 종료 코드와 성공 표식을 통과했다. 전체 suite는 14개 추가 recorder 행 중 실제 12개만 발견해 실패했으며 PASS를 만들지 않았다.
-- `.qa_logs/editor-publish-current/BeltScrollEditor.exe`는 계속 Git 추적 중이다. 최신 원격 API 확인, 사람의 GUI 및 원화 승인, 물리 입력 인수가 끝나기 전 M5D는 `BLOCKED`다.
+- `.qa_logs/editor-publish-current/BeltScrollEditor.exe`의 Git 추적 여부, 실제 ZIP 다운로드 검증, 물리 입력 인수, 사람 GUI 인수는 각각 별도 필드로 확인한다. 최신 원격 API 확인과 시각 인수 전 M5D는 `BLOCKED`다.

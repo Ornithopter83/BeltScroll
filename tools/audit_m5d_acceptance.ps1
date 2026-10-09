@@ -108,6 +108,13 @@ $skillCandidatePaths = @(
 )
 $turnOriginalPath = 'assets/art/player/elven_fighter_turn_rear_mid_v1_candidate_1254x1254.png'
 $turnSafePath = 'assets/art/player/elven_fighter_turn_rear_mid_v1_safe_candidate_1254x1254.png'
+$turnV2PrimaryPath = 'assets/art/player/elven_fighter_turn_rear_mid_v2_candidate_1254x1254.png'
+$turnV2AlternatePath = 'assets/art/player/elven_fighter_turn_pivot_v2_candidate_1254x1254.png'
+$turnV2Path = if (Test-Path -LiteralPath (Join-Path $ProjectRoot ($turnV2PrimaryPath -replace '/', '\')) -PathType Leaf) { $turnV2PrimaryPath } elseif (Test-Path -LiteralPath (Join-Path $ProjectRoot ($turnV2AlternatePath -replace '/', '\')) -PathType Leaf) { $turnV2AlternatePath } else { $null }
+$turnV2FullPath = if ($turnV2Path) { Join-Path $ProjectRoot ($turnV2Path -replace '/', '\') } else { $null }
+$turnV2Exists = [bool]$turnV2Path
+$turnV2Hash = if ($turnV2Exists) { (Get-FileHash -LiteralPath $turnV2FullPath -Algorithm SHA256).Hash.ToLowerInvariant() } else { $null }
+$turnV2Bytes = if ($turnV2Exists) { (Get-Item -LiteralPath $turnV2FullPath).Length } else { $null }
 $turnOriginalFullPath = Join-Path $ProjectRoot ($turnOriginalPath -replace '/', '\')
 $turnSafeFullPath = Join-Path $ProjectRoot ($turnSafePath -replace '/', '\')
 $turnOriginalExists = Test-Path -LiteralPath $turnOriginalFullPath -PathType Leaf
@@ -141,8 +148,11 @@ $artReadiness = [pscustomobject]@{
     Skill2V2OriginalArt = [pscustomobject]@{
         Status = if ($v2Exists) { 'SECURED_UNAPPROVED' } else { 'MISSING' }
         Path = $v2Path
+        FilePresent = $v2Exists
+        VisualAcceptance = 'NOT_ACCEPTED'
         Approved = $false
-        Meaning = '원화 파일 확보와 사람 승인 및 본편 등록은 서로 다른 상태다.'
+        PromotedToRuntime = $false
+        Meaning = '파일 존재 여부와 백피스트·회전 포즈의 시각 수용 및 본편 등록을 각각 분리한다.'
     }
     RunV1ToV5SameStride = [pscustomobject]@{
         Status = 'SAME_STRIDE_NOT_ACCEPTED'
@@ -155,6 +165,8 @@ $artReadiness = [pscustomobject]@{
         Status = 'CANDIDATES_UNAPPROVED'
         CandidateFiles = $jumpHitCandidatePaths
         CandidateFilesPresent = @($jumpHitCandidatePaths | Where-Object { Test-Path -LiteralPath (Join-Path $ProjectRoot ($_ -replace '/', '\')) -PathType Leaf })
+        JumpSizeAndAnchorValidation = 'NOT_VERIFIED'
+        HitOutfitMismatchRisk = 'POSSIBLE_NOT_RESOLVED'
         Meaning = 'jump rise/fall 및 hit 원화 후보와 safe 자료가 있어도 승인·본편 등록 상태는 아니다.'
     }
     Num4Num5DedicatedArt = [pscustomobject]@{
@@ -162,7 +174,9 @@ $artReadiness = [pscustomobject]@{
         DedicatedArtApproved = $false
         CandidateFiles = $skillCandidatePaths
         CandidateFilesPresent = @($skillCandidatePaths | Where-Object { Test-Path -LiteralPath (Join-Path $ProjectRoot ($_ -replace '/', '\')) -PathType Leaf })
-        Meaning = 'Num4/Num5 gameplay와 절차 포즈는 구현됐지만 전용 스킬 원화 후보는 사람 승인 및 본편 등록 전이다.'
+        Num4FistExtension = 'NOT_IMPLEMENTED'
+        Num5BackfistVisualAcceptance = 'NOT_PROVEN'
+        Meaning = '전용 원화의 파일 존재, 사람 시각 수용, 본편 동작 구현은 독립 상태다. Num4 주먹 연장은 미구현이고 Num5 백피스트는 입증되지 않았다.'
     }
     TurnProceduralDurationSeconds = 0.13
     TurnStatus = 'PROCEDURAL_IMPLEMENTED_DRAWING_UNAPPROVED'
@@ -177,7 +191,20 @@ $artReadiness = [pscustomobject]@{
         Approved = $false
         PromotedToRuntime = $false
         Evidence = @('docs/review/player_turn_mid_art_gate.md', 'docs/review/player_turn_candidate_motion_gate.md', 'assets/art/review/player_turn_mid_comparison.png', 'assets/art/review/player_turn_candidate_window.png')
-        Meaning = if ($turnOriginalExists) { '원본과 safe 후보는 존재하나 보폭이 달리기 자세로 읽혀 turn 키포즈 수용은 보류다. 사람 승인 전 본편·manifest·allowlist에 등록하지 않는다.' } else { '전용 원본이 없어 후보를 생성하거나 승인 상태로 취급하지 않는다.' }
+        Meaning = if ($turnOriginalExists -and $turnSafeExists) { 'rear-mid v1 원본과 별도 safe 후보를 확보했다. 보폭이 달리기 자세로 읽혀 키포즈를 수용하지 않았으며, 0.13초 절차 동작이 본편에서 사용된다. 사람 승인 전 후보를 본편 원화로 등록하지 않는다.' } elseif ($turnOriginalExists) { 'rear-mid v1 원본은 확보했으나 safe 후보가 없다. 키포즈 수용은 보류하며 0.13초 절차 동작이 본편에서 사용된다.' } else { 'rear-mid v1 원본이 없다. 0.13초 절차 동작이 본편에서 사용된다.' }
+    }
+    TurnV2CandidateArt = [pscustomobject]@{
+        Status = if ($turnV2Exists) { 'SECURED_UNAPPROVED_KEYPOSE_DEFERRED' } else { 'ORIGINAL_NOT_AVAILABLE' }
+        OriginalPath = $turnV2Path
+        OriginalPresent = $turnV2Exists
+        OriginalSha256 = $turnV2Hash
+        OriginalBytes = $turnV2Bytes
+        SafeCandidatePath = 'assets/art/player/elven_fighter_turn_pivot_v2_safe_candidate_1254x1254.png'
+        SafeCandidatePresent = Test-Path -LiteralPath (Join-Path $ProjectRoot 'assets/art/player/elven_fighter_turn_pivot_v2_safe_candidate_1254x1254.png') -PathType Leaf
+        VisualAcceptance = 'NOT_ACCEPTED'
+        Approved = $false
+        PromotedToRuntime = $false
+        Meaning = if ($turnV2Exists) { '신규 v2 원본 파일은 확보됐으나 지지발·키포즈·identity·크기 팝의 사람 시각 수용은 보류이며 본편 등록하지 않았다.' } else { '신규 v2 원본은 미확보이며 파일 존재 여부와 시각 수용은 별도 상태다.' }
     }
     NewHumanApprovedArtCount = 0
 }
@@ -331,11 +358,15 @@ $blockers = @(
     '제품 필수 동작은 10종(idle, run, turn, jump, hit, attack1~3, skill1~2)이다. 편집기 JSON 11클립은 jump_rise/jump_fall 분리로 설명되며 Num5 회전 증명은 skill2 별도 수용 조건이다.',
     'run v1~v5는 모두 동일 보폭으로 기록되어 반대 보폭/run cycle 수용을 통과하지 못했다: docs/review/player_run_v3_antiphase_gate.md, docs/review/player_run_v4_opposition_gate.md, docs/review/player_run_v5_antiphase_gate.md.',
     'jump rise/fall 및 hit 원화 후보는 확보됐지만 사람 승인과 본편 등록은 미완료다: docs/review/player_jump_rise_safe_gate.md, docs/review/player_jump_fall_safe_gate.md, docs/review/player_hit_reaction_safe_gate.md.',
-    'Num4/Num5 전용 스킬 원화는 미승인이다. 절차 포즈와 gameplay 구현을 원화 승인으로 보지 않는다: docs/review/player_skill1_contact_motion_gate.md, docs/review/player_skill2_spin_art_gate.md.',
-    'turn 동작은 0.13초 절차 표현이다. rear-mid 원본과 safe 후보가 확보된 경우에도 보폭이 달리기 자세로 읽혀 키포즈 수용은 보류이며 사람 승인 전 본편·manifest·allowlist에 등록하지 않는다: docs/review/player_turn_mid_art_gate.md, docs/review/player_turn_candidate_motion_gate.md.',
+    'jump 원화 후보의 본편 크기와 발 anchor 검증은 미완료다: docs/review/player_jump_motion_gate.md, docs/review/player_jump_rise_safe_gate.md, docs/review/player_jump_fall_safe_gate.md.',
+    'hit 후보는 본편 복장과 다를 가능성이 남아 시각 대조 및 수용 전까지 차단한다: docs/review/player_hit_reaction_motion_gate.md, docs/review/player_hit_reaction_safe_gate.md.',
+    'Num4 주먹 연장은 미구현이며, Num5 백피스트 시각 동작은 미입증이다. 파일 존재나 절차 gameplay만으로 수용하지 않는다: docs/review/player_skill1_contact_motion_gate.md, docs/review/player_skill2_spin_art_gate.md.',
+    'turn은 rear-mid v1 원본과 safe 후보를 확보했지만 보폭이 달리기 자세로 읽혀 키포즈 미수용이다. 0.13초 절차 동작이 본편에서 사용된다: docs/review/player_turn_mid_art_gate.md, docs/review/player_turn_candidate_motion_gate.md.',
+    $(if ($turnV2Exists) { "신규 turn v2 원본은 확보됐으나 시각 수용은 미승인이고 본편에 등록하지 않았다: $turnV2Path." } else { '신규 turn v2 원본은 미확보이며 safe 후보 생성을 보류했다.' }),
     '신규 승인 원화 0건이다. 기존 승인 원화는 v8 idle과 attack1~3 접촉 3장이다. Num5 skill2 v2 원화 파일은 확보됐지만 사람 승인 및 본편 등록은 되지 않았다: assets/art/player/elven_fighter_skill2_spin_backfist_v2_candidate_1254x1254.png.',
     '실제 물리 키 입력 인수 미검증: docs/review/manual_input_acceptance_gate.md.',
     '사람의 수동 GUI 인수 미검증: docs/review/editor_acceptance_gate.md 및 .qa_logs/qa_editor_exe_acceptance_20261009.json.',
+    'Num5 v2 원화 파일 존재와 시각 수용은 독립 상태다. 파일이 있어도 백피스트/회전 포즈는 미수용이다: docs/review/player_skill2_spin_art_gate.md.',
     '최종 인수 PASS는 이 감사기가 생성하지 않는다. 증거 파일이나 자동 smoke의 존재만으로 제품 인수를 완료하지 않는다.'
 )
 if ($latestMain.Status -ne 'VERIFIED') { $blockers += "최신 원격 main SHA 미검증: $($latestMain.Detail)" }
@@ -375,8 +406,12 @@ $report = [pscustomobject]@{
         JumpRiseFallArtApproved = $false
         HitArtApproved = $false
         Num4Num5DedicatedArtApproved = $false
+        JumpSizeAndAnchorValidation = 'NOT_VERIFIED'
+        HitOutfitMismatchRisk = 'POSSIBLE_NOT_RESOLVED'
+        Num4FistExtension = 'NOT_IMPLEMENTED'
+        Num5BackfistVisualAcceptance = 'NOT_PROVEN'
     }
-    Skill2Num5RotationAcceptance = [pscustomobject]@{ Required = $true; CountsAsProductAnimation = $false; Status = 'NOT_ACCEPTED'; Evidence = @('docs/review/player_skill_motion_gate.md', 'docs/review/player_skill2_spin_art_gate.md'); V2OriginalArtSecured = $v2Exists }
+    Skill2Num5RotationAcceptance = [pscustomobject]@{ Required = $true; CountsAsProductAnimation = $false; Status = 'NOT_ACCEPTED'; BackfistVisualStatus = 'NOT_PROVEN'; Evidence = @('docs/review/player_skill_motion_gate.md', 'docs/review/player_skill2_spin_art_gate.md'); V2OriginalArtSecured = $v2Exists; V2FilePresent = $v2Exists; V2VisualAcceptance = 'NOT_ACCEPTED' }
     Criteria = $criterionReport
     RequiredAnimationClipReviewSlots = $clipReport
     ArtReadiness = $artReadiness
