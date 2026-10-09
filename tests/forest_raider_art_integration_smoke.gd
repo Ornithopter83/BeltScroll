@@ -10,6 +10,7 @@ const CAMERA_ZOOM := Vector2(1.2, 1.2)
 const TARGET_SCREEN_HEIGHT := 576.0
 const HIT_COLOR := Color(1.0, 0.78, 0.58, 1.0)
 const KNOCKED_OUT_COLOR := Color(0.62, 0.62, 0.62, 0.78)
+const ALPHA_ANCHOR_EPSILON := 0.5
 
 var failures: Array[String] = []
 
@@ -31,6 +32,8 @@ func _run() -> void:
 		return
 
 	var scene := raider_packed.instantiate() as CharacterBody2D
+	root.add_child(scene)
+	await process_frame
 	var sprite := scene.get_node_or_null("VisualRoot/RaiderArt") as Sprite2D
 	_check(sprite != null and sprite.texture != null and sprite.texture.resource_path == ART_PATH, "RaiderArt uses the approved candidate Sprite2D")
 	_check(scene.get_node_or_null("VisualRoot/Body") == null and scene.get_node_or_null("VisualRoot/Cloak") == null and scene.get_node_or_null("VisualRoot/Face") == null and scene.get_node_or_null("VisualRoot/Bandana") == null, "temporary Body, Cloak, Face, and Bandana polygons are removed")
@@ -44,9 +47,13 @@ func _run() -> void:
 	if sprite != null and sprite.texture != null:
 		var displayed_height := float(alpha_bounds.size.y) * sprite.scale.y * camera.zoom.y
 		_check(absf(displayed_height - TARGET_SCREEN_HEIGHT) <= 0.1, "alpha silhouette displays 192 screen pixels at camera zoom 1.2")
-		var alpha_bottom_local := sprite.position.y + (float(alpha_bounds.end.y) - float(sprite.texture.get_height()) * 0.5) * sprite.scale.y
-		var floor_y: float = (scene.get_node("VisualRoot") as Node2D).position.y + alpha_bottom_local
-		_check(absf(floor_y) <= 0.05, "alpha silhouette foot bottom aligns to the Raider physics floor")
+		var alpha_bottom_local := Vector2(
+			float(alpha_bounds.position.x) + float(alpha_bounds.size.x) * 0.5,
+			float(alpha_bounds.end.y)
+		) - Vector2(sprite.texture.get_size()) * 0.5
+		var rendered_foot: Vector2 = sprite.get_global_transform() * alpha_bottom_local
+		var rendered_floor: Vector2 = scene.global_position
+		_check(rendered_foot.distance_to(rendered_floor) <= ALPHA_ANCHOR_EPSILON, "transformed alpha silhouette foot anchor remains fixed to the Raider physics floor within subpixel raster tolerance")
 		_check(is_equal_approx(sprite.scale.x, sprite.scale.y) and absf(sprite.scale.y - 480.0 / 1074.0) < 0.00001, "art scale preserves aspect ratio and uses the revised 3x alpha silhouette target")
 	var raider_scene_text := FileAccess.get_file_as_string(RAIDER_SCENE)
 	_check(not raider_scene_text.contains("elven_fighter_reference_v5_final_candidate"), "unapproved Player candidate is not connected to the Raider scene")

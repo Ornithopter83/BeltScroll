@@ -41,6 +41,10 @@ func _capture() -> void:
 	_check(camera.zoom.is_equal_approx(Vector2(1.2, 1.2)), "Camera2D zoom remains 1.2")
 	_check(camera.position_smoothing_enabled, "Camera2D position smoothing remains enabled")
 	var source := stage.texture.get_image()
+	for raider in get_nodes_in_group("forest_raiders"):
+		raider.set_physics_process(false)
+		raider.velocity = Vector2.ZERO
+		raider.get_node("AttackArea").monitoring = false
 	_check(source != null and source.get_size() == CAPTURE_SIZE, "Forest Ruins source pixels are 1920x1080")
 	_check(camera.limit_left == 0 and camera.limit_top == 0 and camera.limit_right == CAPTURE_SIZE.x and camera.limit_bottom == CAPTURE_SIZE.y, "camera limits match the actual stage texture bounds")
 	if source == null or source.get_size() != CAPTURE_SIZE:
@@ -90,6 +94,7 @@ func _capture() -> void:
 
 	# Wait for accumulated three-hit trauma to decay completely and ensure offset restores.
 	for _frame in range(100):
+		await physics_frame
 		await process_frame
 		await RenderingServer.frame_post_draw
 	_check(is_zero_approx(float(player.get("camera_trauma"))), "camera trauma decays back to zero")

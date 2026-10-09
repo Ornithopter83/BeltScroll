@@ -2,7 +2,8 @@ extends SceneTree
 
 const MAIN_SCENE := "res://scenes/game/main.tscn"
 const BACKGROUND_PATH := "res://assets/art/stage/forest_ruins_v1_1920x1080.png"
-const EXPECTED_ARENA_BOUNDS := Rect2(Vector2(160, 100), Vector2(1600, 880))
+const EXPECTED_ARENA_BOUNDS := Rect2(Vector2(237, 722), Vector2(1446, 258))
+const EXPECTED_RAIDER_ARENA_BOUNDS := Rect2(Vector2(160, 100), Vector2(1600, 880))
 const TEMPORARY_VISUALS := ["Backdrop", "Arena", "FloorMarkings", "CenterLine", "CenterCircle"]
 
 var failures: Array[String] = []
@@ -49,7 +50,7 @@ func _run() -> void:
 		if player != null:
 			_check(player.get_node_or_null("CollisionShape2D") is CollisionShape2D, "Player collision remains present")
 			_check(player.get_node_or_null("Camera2D") is Camera2D, "Player camera remains present")
-			_check(player.get("arena_bounds") == EXPECTED_ARENA_BOUNDS, "logical arena bounds remain 160,100 to 1760,980")
+			_check(player.get("arena_bounds") == EXPECTED_ARENA_BOUNDS, "Player movement bounds retain the HUD-safe band while the camera keeps the full stage limits")
 		var dummy := actors.get_node_or_null("TrainingDummy") as CharacterBody2D
 		_check(dummy != null and dummy.get_node_or_null("CollisionShape2D") is CollisionShape2D, "TrainingDummy and its collision remain present")
 		var raider_count := 0
@@ -57,6 +58,7 @@ func _run() -> void:
 			if child.name == "ForestRaider1" or child.name == "ForestRaider2" or child.name == "ForestRaider3":
 				raider_count += 1
 				_check(child is CharacterBody2D and child.get_node_or_null("CollisionShape2D") is CollisionShape2D, "%s and its collision remain present" % child.name)
+				_check(child.get("arena_bounds") == EXPECTED_RAIDER_ARENA_BOUNDS, "%s keeps the full stage arena so its alpha-safe bounds remain ordered" % child.name)
 		_check(raider_count == 3, "all three ForestRaiders remain in the main scene")
 
 	_finish()

@@ -1,11 +1,11 @@
 extends SceneTree
 
 const RAIDER_SCENE := "res://scenes/enemies/forest_raider.tscn"
-const MIN_REQUIRED_GAP := 35.0
+const MIN_REQUIRED_GAP := 300.0
 const ARENA_MAX_X := 1745.0
 const ARENA_MIN_X := 175.0
-const ARENA_MIN_Y := 143.0
-const ARENA_MAX_Y := 978.0
+const ARENA_MIN_Y := 523.8
+const ARENA_MAX_Y := 980.0
 
 class TestPlayer:
 	extends CharacterBody2D
@@ -31,42 +31,43 @@ func _initialize() -> void:
 func _run() -> void:
 	var packed := load(RAIDER_SCENE) as PackedScene
 	player = TestPlayer.new()
-	player.position = Vector2(1748.0, 410.0)
+	player.position = Vector2(1748.0, 500.0)
 	root.add_child(player)
-	await _spawn_group(packed, 2, Vector2(1728.0, 410.0))
-	await _exercise_group("two Raiders at the arena edge", 90)
+	await _spawn_group(packed, 2, Vector2(1728.0, 100.0))
+	_check(_all_inside_arena(), "top and right edge spawn is clamped to the full-silhouette-safe arena")
+	await _exercise_group("two Raiders at the top-right arena edge", 90)
 
 	# Move the target away, let pursuit restart, then return it for another attack cycle.
 	var pair_before := _center_x()
-	player.global_position = Vector2(1540.0, 410.0)
+	player.global_position = Vector2(1250.0, 600.0)
 	await _observe_spacing(55)
 	_check(_center_x() < pair_before, "two Raiders resume pursuit after the player retreats from the boundary")
-	player.global_position = Vector2(1748.0, 410.0)
+	player.global_position = Vector2(1748.0, 600.0)
 	await _exercise_group("two Raiders after pursuit resumes", 75)
 	_check(attack_observed_during_exercise, "two Raider attack cycles resume after spacing and pursuit")
 	await _clear_group()
 
 	# Three coincident bodies exercise pairwise steering while the player crosses lanes and edges.
-	player.global_position = Vector2(1748.0, 410.0)
-	await _spawn_group(packed, 3, Vector2(1728.0, 410.0))
+	player.global_position = Vector2(1748.0, 600.0)
+	await _spawn_group(packed, 3, Vector2(1728.0, 600.0))
 	await _exercise_group("three Raiders at the arena edge", 100)
 	var center_at_right := _center_x()
-	player.global_position = Vector2(1510.0, 490.0)
+	player.global_position = Vector2(1510.0, 680.0)
 	await _observe_spacing(65)
 	_check(_center_x() < center_at_right, "three Raiders resume pursuit after the player changes position and depth")
-	player.global_position = Vector2(1748.0, 460.0)
+	player.global_position = Vector2(1748.0, 650.0)
 	await _exercise_group("three Raiders on the return attack cycle", 100)
 	var attacker := _nearest_raider_to_player()
 	if attacker != null:
 		for raider in raiders:
 			if raider != attacker:
 				raider.set("health", 0)
-		attacker.global_position = Vector2(1670.0, 460.0)
+		attacker.global_position = Vector2(1670.0, 650.0)
 		attacker.set("attack_phase", "idle")
 		attacker.set("attack_phase_remaining", 0.0)
 		attacker.set("hitstun_remaining", 0.0)
 		attacker.velocity = Vector2.ZERO
-		player.global_position = Vector2(1740.0, 460.0)
+		player.global_position = Vector2(1740.0, 650.0)
 		await _frames(3)
 		attack_observed_during_exercise = attacker.get("attack_phase") == "windup" or attacker.get("attack_phase") == "active"
 	_check(attack_observed_during_exercise, "a Raider re-engages after the group separates when the player returns to its attack lane")
@@ -111,7 +112,7 @@ func _exercise_group(label: String, frame_count: int) -> void:
 			observed_min = gap
 			observed_min_frame = _frame
 			observed_min_positions = _positions_text()
-		_check(gap > MIN_REQUIRED_GAP, "%s keeps every live pair above 35px" % label)
+		_check(gap > MIN_REQUIRED_GAP, "%s keeps every live pair above silhouette spacing" % label)
 		if not _all_inside_arena():
 			_check(false, "%s keeps each Raider inside the arena" % label)
 			break
@@ -169,6 +170,10 @@ func _all_inside_arena() -> bool:
 		if raider.global_position.x < ARENA_MIN_X - 0.2 or raider.global_position.x > ARENA_MAX_X + 0.2:
 			return false
 		if raider.global_position.y < ARENA_MIN_Y - 0.2 or raider.global_position.y > ARENA_MAX_Y + 0.2:
+			return false
+		var top_offset := float(raider.get("_silhouette_top_offset"))
+		var bottom_offset := float(raider.get("_silhouette_bottom_offset"))
+		if raider.global_position.y + top_offset < 99.8 or raider.global_position.y + bottom_offset > 980.2:
 			return false
 	return true
 

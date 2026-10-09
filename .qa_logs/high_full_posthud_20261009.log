@@ -1,0 +1,560 @@
+[smoke] Importing project resources
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] Environment warning: ERROR: Cannot save file 'C:/Users/ornit/AppData/Roaming/Godot/editor_settings-4.7.tres'.
+[smoke probe] Environment warning: ERROR: Error saving editor settings to C:/Users/ornit/AppData/Roaming/Godot/editor_settings-4.7.tres
+[smoke probe] PASS
+[smoke] Running movement_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.24.03.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running ground_dust_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.24.11.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_combat_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.24.14.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_pose_blender_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.24.18.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running training_dummy_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.24.19.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running forest_raider_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.24.23.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running raider_spacing_stress_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.24.28.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running raider_visual_animator_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.24.39.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running combat_hud_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.24.40.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running stage_tools_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.24.44.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running stage_integration_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.24.45.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running game_session_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.24.47.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running game_session_navigation_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.24.50.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running game_pause_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.26.34.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running gamepad_input_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.26.37.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_keypose_pipeline_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.26.39.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_keypose_relayout_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.26.41.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_reference_review_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.26.42.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running art_review_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.26.43.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_art_normalize_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.27.03.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] Expected rejected-input diagnostic: ERROR: Condition "!success" is true. Returning: ERR_FILE_CORRUPT
+[smoke probe] Expected rejected-input diagnostic: ERROR: Condition "err" is true. Returning: Ref<Image>()
+[smoke probe] Expected rejected-input diagnostic: ERROR: Condition "image.is_null()" is true. Returning: ERR_PARSE_ERROR
+[smoke probe] PASS
+[smoke] Running player_reference_compare_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.27.05.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_v5_art_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.27.09.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running forest_raider_matte_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.27.33.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] Expected rejected-input diagnostic: ERROR: Condition "!success" is true. Returning: ERR_FILE_CORRUPT
+[smoke probe] Expected rejected-input diagnostic: ERROR: Condition "err" is true. Returning: Ref<Image>()
+[smoke probe] Expected rejected-input diagnostic: ERROR: Condition "image.is_null()" is true. Returning: ERR_PARSE_ERROR
+[smoke probe] PASS
+[smoke] Running player_v5_final_matte_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.27.34.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running forest_raider_final_matte_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.27.47.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] Expected rejected-input diagnostic: ERROR: Condition "!success" is true. Returning: ERR_FILE_CORRUPT
+[smoke probe] Expected rejected-input diagnostic: ERROR: Condition "err" is true. Returning: Ref<Image>()
+[smoke probe] Expected rejected-input diagnostic: ERROR: Condition "image.is_null()" is true. Returning: ERR_PARSE_ERROR
+[smoke probe] PASS
+[smoke] Running player_v6_art_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.27.52.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_v7_ink_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.28.26.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_attack1_final_matte_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.28.42.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_attack1_edge_v2_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.28.55.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_attack1_contour_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.29.20.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_attack2_art_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.30.03.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_attack2_v2_art_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.30.05.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_attack2_v4_art_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.30.07.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_attack3_art_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.30.09.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_attack3_contour_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.30.11.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running combat_audio_smoke
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.30.14.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running combat_art_overlap_smoke with the window renderer
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.30.15.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running combat_art_candidate_capture_smoke with the window renderer
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.30.17.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running forest_raider_art_integration_smoke with the window renderer
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.30.19.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_art_integration_smoke with the window renderer
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.30.27.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_visual_animator_smoke with the window renderer
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.30.33.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running player_attack_pose_integration_smoke with the window renderer
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.30.35.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running camera_boundary_window_smoke with the window renderer
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.30.37.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] Process exited with code 124.
+[smoke probe] Final success marker mismatch. Expected: camera_boundary_window_smoke: all checks passed; last output: PASS: real player alpha feet remain visible at the lower arena boundary
+[smoke] FAILED: camera_boundary_window_smoke
+[smoke bounded] PID: 152520
+[smoke bounded] Timeout seconds: 240
+[smoke bounded] RESULT: TIMEOUT after 240 seconds; process tree termination: Windows job object termination requested.
+[smoke bounded] Elapsed seconds: 240.179
+----- stderr -----
+ERROR: Failed to open 'user://logs/godot2026-10-09T13.30.37.log'.
+   at: copy (core/io/dir_access.cpp:429)
+ERROR: Failed to open log file for writing: user://logs/godot.log
+   at: rotate_file (core/io/logger.cpp:169)
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+----- stdout -----
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 Core Profile Context 26.8.1.260806 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6900 XT
+
+PASS: smoke runs with a Window Viewport renderer
+PASS: camera zoom is preserved at 1.2
+PASS: camera framing offset keeps the full-size actors below the HUD
+PASS: camera position smoothing stays enabled
+PASS: camera boundary is checked against the 1920x1080 stage texture
+PASS: camera limits cover the stage background exactly
+PASS: player combat arena stays inside the HUD-safe visible band
+PASS: camera trauma offset is constrained by visible background limits (requested=(100.0, -100.0) bounded=(100.0, 0.833313))
+PASS: three-hit trauma produces a bounded shake
+PASS: camera trauma decays and its offset returns to zero
+PASS: real player alpha head at the upper jump boundary clears the full HUD safe area
+PASS: real player alpha feet remain visible at the upper jump boundary
+PASS: real contact pose alpha head clears the HUD during a combo attack
+PASS: real contact pose alpha feet stay visible during a combo attack
+PASS: real contact pose alpha head clears the HUD during a combo attack
+PASS: real contact pose alpha feet stay visible during a combo attack
+PASS: combo attack displays an alpha-bounded pose for the framing regression
+PASS: full player alpha silhouette remains inside the left camera edge
+PASS: full player alpha silhouette remains inside the right camera edge
+PASS: real player alpha feet remain visible at the lower arena boundary
+[smoke] Running gameplay_window_render_smoke with the window renderer
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.34.37.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running combat_live_session_window_smoke with the window renderer
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.34.46.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] Environment warning: ERROR: ERROR: Failed to open 'user://logs/godot2026-10-09T13.34.46.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] Godot error: ERROR: combat_live_session_window_smoke: attack 1 reaches recovery before its combo input buffer press
+[smoke probe] Godot error: ERROR: combat_live_session_window_smoke: 1 check(s) failed
+[smoke probe] Godot error: ERROR: combat_live_session_window_smoke: live combat capture process exits successfully
+[smoke probe] Godot error: ERROR: combat_live_session_window_smoke: capture reports all real combat checks passed
+[smoke probe] Godot error: ERROR: combat_live_session_window_smoke: capture confirms real hit signals
+[smoke probe] Godot error: ERROR: combat_live_session_window_smoke: capture observes hit-stop
+[smoke probe] Godot error: ERROR: combat_live_session_window_smoke: all seven chronological frames contain rendered combat characters
+[smoke probe] Godot error: ERROR: combat_live_session_window_smoke: 5 check(s) failed
+[smoke probe] Process exited with code 1.
+[smoke probe] Final success marker mismatch. Expected: combat_live_session_window_smoke: all checks passed; last output: PASS: live session timeline PNG is 1920x1080
+[smoke] FAILED: combat_live_session_window_smoke
+[smoke bounded] PID: 154448
+[smoke bounded] Timeout seconds: 240
+[smoke bounded] Actual process exit code: 1
+[smoke bounded] Elapsed seconds: 8.849
+----- stderr -----
+ERROR: Failed to open 'user://logs/godot2026-10-09T13.34.46.log'.
+   at: copy (core/io/dir_access.cpp:429)
+ERROR: Failed to open log file for writing: user://logs/godot.log
+   at: rotate_file (core/io/logger.cpp:169)
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+ERROR: ERROR: Failed to open 'user://logs/godot2026-10-09T13.34.46.log'.
+   at: copy (core/io/dir_access.cpp:429)
+ERROR: Failed to open log file for writing: user://logs/godot.log
+   at: rotate_file (core/io/logger.cpp:169)
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 Core Profile Context 26.8.1.260806 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6900 XT
+
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+PASS: Window renderer is available
+PASS: main.tscn loads as the live combat scene
+PASS: main scene provides the real Player
+PASS: main scene provides the real combat HUD
+PASS: main scene provides CombatAudio
+PASS: main scene provides the Player camera
+PASS: main scene provides Raider 1
+PASS: main scene provides Raider 2
+PASS: main scene provides Raider 3
+PASS: '01 쨌 LIVE START' is captured from the real 1920x1080 Window Viewport after frame_post_draw
+PASS: '01 쨌 LIVE START' contains rendered Player/Raider pixels in the Window capture
+PASS: synthetic right action advances live physics and turns Player right
+PASS: '02 쨌 MOVE RIGHT' is captured from the real 1920x1080 Window Viewport after frame_post_draw
+PASS: '02 쨌 MOVE RIGHT' contains rendered Player/Raider pixels in the Window capture
+PASS: synthetic left action reverses live movement and facing
+PASS: '03 쨌 TURN' is captured from the real 1920x1080 Window Viewport after frame_post_draw
+PASS: '03 쨌 TURN' contains rendered Player/Raider pixels in the Window capture
+PASS: attack 1 reached active through its real combo input and physics state
+PASS: attack 1 active phase enables its actual Area2D hitbox
+PASS: attack 1 displays its approved contact keypose
+PASS: '04 쨌 ATTACK 1 ACTIVE' is captured from the real 1920x1080 Window Viewport after frame_post_draw
+PASS: '04 쨌 ATTACK 1 ACTIVE' contains rendered Player/Raider pixels in the Window capture
+PASS: attack 1 emits its actual hit signal
+PASS: attack 1 target emits raider_hit
+PASS: attack 1 reduces real Raider health
+PASS: attack 1 hit signal corresponds to a live hitbox overlap
+PASS: attack 1 is recorded with its enabled live hitbox overlapping a body
+PASS: attack 1 real hit enters hit-stop
+combat-live-session trace:
+render 01 쨌 LIVE START: player=(960.0, 780.0) canvas=(960.7964, 647.0092) art_visible=true in_tree=true scale=(0.447543, 0.448467) modulate=(1.0, 1.0, 1.0, 1.0) texture=(1254.0, 1254.0) camera=(960.0, 420.0) current=true viewport=(1920.0, 1080.0)
+movement right: x=1039.3 facing=(1.0, 0.0) physics=59
+render 02 쨌 MOVE RIGHT: player=(1039.333, 780.0) canvas=(959.1763, 649.1594) art_visible=true in_tree=true scale=(0.446208, 0.44513) modulate=(1.0, 1.0, 1.0, 1.0) texture=(1254.0, 1254.0) camera=(1039.333, 420.0) current=true viewport=(1920.0, 1080.0)
+movement reversal: x=978.7 facing=(-1.0, 0.0) physics=112
+render 03 쨌 TURN: player=(978.6667, 780.0) canvas=(960.5427, 648.9548) art_visible=true in_tree=true scale=(0.446333, -0.445447) modulate=(1.0, 1.0, 1.0, 1.0) texture=(1254.0, 1254.0) camera=(978.6667, 420.0) current=true viewport=(1920.0, 1080.0)
+raider 1 begins windup at physics=147 position=(920.6667, 780.0)
+combo start: physics=149 player=(978.6667, 780.0) target1=(920.6667, 780.0)
+attack tap: physics=151 phase=startup stage=1 buffer=0.000
+stage 1 active: physics=155 phase=active hitbox=true overlaps=1 health=3 time_scale=1.000
+raider 1 received attack stage 1 at physics=155 health=3
+stage 1 hit-stop entered at physics=155 scale=0.080
+raider 1 begins windup at physics=167 position=(893.8974, 780.0)
+player received attack stage 1 at physics=189 health=5 position=(927.9365, 780.0)
+render 04 쨌 ATTACK 1 ACTIVE: player=(953.603, 780.0) canvas=(992.89, 661.7021) art_visible=true in_tree=true scale=(0.462773, -0.427952) modulate=(1.0, 1.0, 1.0, 1.0) texture=(1254.0, 1254.0) camera=(953.603, 420.0) current=true viewport=(1920.0, 1080.0)
+stage 1 contact: raider=1 hp=3->2 raider_hit=1 attack_hit=1 hitstop=true
+raider 2 begins windup at physics=212 position=(897.3529, 780.0)
+player received attack stage 1 at physics=234 health=4 position=(955.3529, 780.0)
+raider 2 begins windup at physics=282 position=(897.3529, 780.0)
+player received attack stage 1 at physics=304 health=3 position=(982.7693, 780.0)
+ERROR: combat_live_session_window_smoke: attack 1 reaches recovery before its combo input buffer press
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _finish (res://tools/capture_combat_live_session.gd:437)
+       [1] _run (res://tools/capture_combat_live_session.gd:97)
+       [2] _run_live_combo (res://tools/capture_combat_live_session.gd:166)
+       [3] _wait_for_stage_phase (res://tools/capture_combat_live_session.gd:196)
+ERROR: combat_live_session_window_smoke: 1 check(s) failed
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _finish (res://tools/capture_combat_live_session.gd:438)
+       [1] _run (res://tools/capture_combat_live_session.gd:97)
+       [2] _run_live_combo (res://tools/capture_combat_live_session.gd:166)
+       [3] _wait_for_stage_phase (res://tools/capture_combat_live_session.gd:196)
+
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:28)
+WARNING: Loaded resource as image file, this will not work on export: 'res://assets/art/review/combat_live_session_window.png'. Instead, import the image file as an Image resource and load it normally as a resource.
+   at: load (core/io/image.cpp:2770)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:30)
+ERROR: combat_live_session_window_smoke: live combat capture process exits successfully
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:39)
+ERROR: combat_live_session_window_smoke: capture reports all real combat checks passed
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:39)
+ERROR: combat_live_session_window_smoke: capture confirms real hit signals
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:39)
+ERROR: combat_live_session_window_smoke: capture observes hit-stop
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:39)
+ERROR: combat_live_session_window_smoke: all seven chronological frames contain rendered combat characters
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:39)
+ERROR: combat_live_session_window_smoke: 5 check(s) failed
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:40)
+----- stdout -----
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 Core Profile Context 26.8.1.260806 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6900 XT
+
+PASS: smoke requires a Window Viewport
+PASS: capture records real rightward movement
+PASS: capture records direction reversal
+PASS: live session timeline PNG is created
+PASS: live session timeline PNG is 1920x1080
+[smoke] Running raider_healthbar_window_smoke with the window renderer
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.34.55.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Running gameplay_endings_window_smoke with the window renderer
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+[smoke] Verifying runner against PASS fixtures
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.35.57.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] Godot error: ERROR: false_pass: intentional runtime failure after the success marker
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.35.57.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] PASS
+Usage: smoke_runner_probe.cmd <log-file> <exit-code> [final-success-marker]
+[smoke probe] Environment warning: ERROR: Failed to open 'user://logs/godot2026-10-09T13.35.58.log'.
+[smoke probe] Environment warning: ERROR: Failed to open log file for writing: user://logs/godot.log
+[smoke probe] Environment warning: ERROR: Failed to read the root certificate store.
+[smoke probe] Process exited with code 1.
+[smoke] Verifying bounded process runner fixtures
+[smoke probe] PASS
+[smoke] FAILED. Diagnostic log: C:\Users\ornit\AppData\Local\Temp\beltscroll_smoke_failure_camera_boundary_window_smoke_483.log
+[smoke bounded] PID: 154448
+[smoke bounded] Timeout seconds: 240
+[smoke bounded] Actual process exit code: 1
+[smoke bounded] Elapsed seconds: 8.849
+----- stderr -----
+ERROR: Failed to open 'user://logs/godot2026-10-09T13.34.46.log'.
+   at: copy (core/io/dir_access.cpp:429)
+ERROR: Failed to open log file for writing: user://logs/godot.log
+   at: rotate_file (core/io/logger.cpp:169)
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+ERROR: ERROR: Failed to open 'user://logs/godot2026-10-09T13.34.46.log'.
+   at: copy (core/io/dir_access.cpp:429)
+ERROR: Failed to open log file for writing: user://logs/godot.log
+   at: rotate_file (core/io/logger.cpp:169)
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 Core Profile Context 26.8.1.260806 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6900 XT
+
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+PASS: Window renderer is available
+PASS: main.tscn loads as the live combat scene
+PASS: main scene provides the real Player
+PASS: main scene provides the real combat HUD
+PASS: main scene provides CombatAudio
+PASS: main scene provides the Player camera
+PASS: main scene provides Raider 1
+PASS: main scene provides Raider 2
+PASS: main scene provides Raider 3
+PASS: '01 쨌 LIVE START' is captured from the real 1920x1080 Window Viewport after frame_post_draw
+PASS: '01 쨌 LIVE START' contains rendered Player/Raider pixels in the Window capture
+PASS: synthetic right action advances live physics and turns Player right
+PASS: '02 쨌 MOVE RIGHT' is captured from the real 1920x1080 Window Viewport after frame_post_draw
+PASS: '02 쨌 MOVE RIGHT' contains rendered Player/Raider pixels in the Window capture
+PASS: synthetic left action reverses live movement and facing
+PASS: '03 쨌 TURN' is captured from the real 1920x1080 Window Viewport after frame_post_draw
+PASS: '03 쨌 TURN' contains rendered Player/Raider pixels in the Window capture
+PASS: attack 1 reached active through its real combo input and physics state
+PASS: attack 1 active phase enables its actual Area2D hitbox
+PASS: attack 1 displays its approved contact keypose
+PASS: '04 쨌 ATTACK 1 ACTIVE' is captured from the real 1920x1080 Window Viewport after frame_post_draw
+PASS: '04 쨌 ATTACK 1 ACTIVE' contains rendered Player/Raider pixels in the Window capture
+PASS: attack 1 emits its actual hit signal
+PASS: attack 1 target emits raider_hit
+PASS: attack 1 reduces real Raider health
+PASS: attack 1 hit signal corresponds to a live hitbox overlap
+PASS: attack 1 is recorded with its enabled live hitbox overlapping a body
+PASS: attack 1 real hit enters hit-stop
+combat-live-session trace:
+render 01 쨌 LIVE START: player=(960.0, 780.0) canvas=(960.7964, 647.0092) art_visible=true in_tree=true scale=(0.447543, 0.448467) modulate=(1.0, 1.0, 1.0, 1.0) texture=(1254.0, 1254.0) camera=(960.0, 420.0) current=true viewport=(1920.0, 1080.0)
+movement right: x=1039.3 facing=(1.0, 0.0) physics=59
+render 02 쨌 MOVE RIGHT: player=(1039.333, 780.0) canvas=(959.1763, 649.1594) art_visible=true in_tree=true scale=(0.446208, 0.44513) modulate=(1.0, 1.0, 1.0, 1.0) texture=(1254.0, 1254.0) camera=(1039.333, 420.0) current=true viewport=(1920.0, 1080.0)
+movement reversal: x=978.7 facing=(-1.0, 0.0) physics=112
+render 03 쨌 TURN: player=(978.6667, 780.0) canvas=(960.5427, 648.9548) art_visible=true in_tree=true scale=(0.446333, -0.445447) modulate=(1.0, 1.0, 1.0, 1.0) texture=(1254.0, 1254.0) camera=(978.6667, 420.0) current=true viewport=(1920.0, 1080.0)
+raider 1 begins windup at physics=147 position=(920.6667, 780.0)
+combo start: physics=149 player=(978.6667, 780.0) target1=(920.6667, 780.0)
+attack tap: physics=151 phase=startup stage=1 buffer=0.000
+stage 1 active: physics=155 phase=active hitbox=true overlaps=1 health=3 time_scale=1.000
+raider 1 received attack stage 1 at physics=155 health=3
+stage 1 hit-stop entered at physics=155 scale=0.080
+raider 1 begins windup at physics=167 position=(893.8974, 780.0)
+player received attack stage 1 at physics=189 health=5 position=(927.9365, 780.0)
+render 04 쨌 ATTACK 1 ACTIVE: player=(953.603, 780.0) canvas=(992.89, 661.7021) art_visible=true in_tree=true scale=(0.462773, -0.427952) modulate=(1.0, 1.0, 1.0, 1.0) texture=(1254.0, 1254.0) camera=(953.603, 420.0) current=true viewport=(1920.0, 1080.0)
+stage 1 contact: raider=1 hp=3->2 raider_hit=1 attack_hit=1 hitstop=true
+raider 2 begins windup at physics=212 position=(897.3529, 780.0)
+player received attack stage 1 at physics=234 health=4 position=(955.3529, 780.0)
+raider 2 begins windup at physics=282 position=(897.3529, 780.0)
+player received attack stage 1 at physics=304 health=3 position=(982.7693, 780.0)
+ERROR: combat_live_session_window_smoke: attack 1 reaches recovery before its combo input buffer press
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _finish (res://tools/capture_combat_live_session.gd:437)
+       [1] _run (res://tools/capture_combat_live_session.gd:97)
+       [2] _run_live_combo (res://tools/capture_combat_live_session.gd:166)
+       [3] _wait_for_stage_phase (res://tools/capture_combat_live_session.gd:196)
+ERROR: combat_live_session_window_smoke: 1 check(s) failed
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _finish (res://tools/capture_combat_live_session.gd:438)
+       [1] _run (res://tools/capture_combat_live_session.gd:97)
+       [2] _run_live_combo (res://tools/capture_combat_live_session.gd:166)
+       [3] _wait_for_stage_phase (res://tools/capture_combat_live_session.gd:196)
+
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:28)
+WARNING: Loaded resource as image file, this will not work on export: 'res://assets/art/review/combat_live_session_window.png'. Instead, import the image file as an Image resource and load it normally as a resource.
+   at: load (core/io/image.cpp:2770)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:30)
+ERROR: combat_live_session_window_smoke: live combat capture process exits successfully
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:39)
+ERROR: combat_live_session_window_smoke: capture reports all real combat checks passed
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:39)
+ERROR: combat_live_session_window_smoke: capture confirms real hit signals
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:39)
+ERROR: combat_live_session_window_smoke: capture observes hit-stop
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:39)
+ERROR: combat_live_session_window_smoke: all seven chronological frames contain rendered combat characters
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:39)
+ERROR: combat_live_session_window_smoke: 5 check(s) failed
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:40)
+----- stdout -----
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 Core Profile Context 26.8.1.260806 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6900 XT
+
+PASS: smoke requires a Window Viewport
+PASS: capture records real rightward movement
+PASS: capture records direction reversal
+PASS: live session timeline PNG is created
+PASS: live session timeline PNG is 1920x1080

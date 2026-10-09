@@ -1,0 +1,118 @@
+ERROR: Failed to open 'user://logs/godot2026-10-09T13.14.12.log'.
+   at: copy (core/io/dir_access.cpp:429)
+ERROR: Failed to open log file for writing: user://logs/godot.log
+   at: rotate_file (core/io/logger.cpp:169)
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 Core Profile Context 26.8.1.260806 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6900 XT
+
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+PASS: smoke requires a Window Viewport
+PASS: capture records real rightward movement
+PASS: capture records direction reversal
+ERROR: ERROR: Failed to open 'user://logs/godot2026-10-09T13.14.13.log'.
+   at: copy (core/io/dir_access.cpp:429)
+ERROR: Failed to open log file for writing: user://logs/godot.log
+   at: rotate_file (core/io/logger.cpp:169)
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 Core Profile Context 26.8.1.260806 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6900 XT
+
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+PASS: Window renderer is available
+PASS: main.tscn loads as the live combat scene
+PASS: main scene provides the real Player
+PASS: main scene provides the real combat HUD
+PASS: main scene provides CombatAudio
+PASS: main scene provides the Player camera
+PASS: main scene provides Raider 1
+PASS: main scene provides Raider 2
+PASS: main scene provides Raider 3
+PASS: '01 쨌 LIVE START' is captured from the real 1920x1080 Window Viewport after frame_post_draw
+PASS: '01 쨌 LIVE START' contains rendered Player/Raider pixels in the Window capture
+PASS: synthetic right action advances live physics and turns Player right
+PASS: '02 쨌 MOVE RIGHT' is captured from the real 1920x1080 Window Viewport after frame_post_draw
+PASS: '02 쨌 MOVE RIGHT' contains rendered Player/Raider pixels in the Window capture
+PASS: synthetic left action reverses live movement and facing
+PASS: '03 쨌 TURN' is captured from the real 1920x1080 Window Viewport after frame_post_draw
+PASS: '03 쨌 TURN' contains rendered Player/Raider pixels in the Window capture
+PASS: attack 1 reaches startup through its real input before introducing the live target
+PASS: attack 1 reached active through its real combo input and physics state
+PASS: attack 1 active phase enables its actual Area2D hitbox
+PASS: attack 1 displays its approved contact keypose
+PASS: '04 쨌 ATTACK 1 ACTIVE' is captured from the real 1920x1080 Window Viewport after frame_post_draw
+PASS: '04 쨌 ATTACK 1 ACTIVE' contains rendered Player/Raider pixels in the Window capture
+PASS: attack 1 emits its actual hit signal
+PASS: attack 1 target emits raider_hit
+PASS: attack 1 reduces real Raider health
+PASS: attack 1 hit signal corresponds to a live hitbox overlap
+PASS: attack 1 is recorded with its enabled live hitbox overlapping a body
+PASS: attack 1 real hit enters hit-stop
+PASS: attack 1 reaches recovery or advances through its buffered combo
+combat-live-session trace:
+render 01 쨌 LIVE START: player=(960.0, 780.0) canvas=(961.1473, 646.5753) art_visible=true in_tree=true scale=(0.447813, 0.449142) modulate=(1.0, 1.0, 1.0, 1.0) texture=(1254.0, 1254.0) camera=(960.0, 420.0) current=true viewport=(1920.0, 1080.0)
+movement right: x=1039.3 facing=(1.0, 0.0) physics=45
+render 02 쨌 MOVE RIGHT: player=(1039.333, 780.0) canvas=(970.7437, 647.2194) art_visible=true in_tree=true scale=(0.447333, 0.44814) modulate=(1.0, 1.0, 1.0, 1.0) texture=(1254.0, 1254.0) camera=(1039.333, 420.0) current=true viewport=(1920.0, 1080.0)
+movement reversal: x=978.7 facing=(-1.0, 0.0) physics=75
+render 03 쨌 TURN: player=(978.6667, 780.0) canvas=(952.5128, 648.4133) art_visible=true in_tree=true scale=(0.446513, -0.446286) modulate=(1.0, 1.0, 1.0, 1.0) texture=(1254.0, 1254.0) camera=(978.6667, 420.0) current=true viewport=(1920.0, 1080.0)
+combo start: physics=96 player=(978.6667, 780.0)
+raider 1 begins windup at physics=98 position=(913.1112, 780.0)
+attack tap: physics=98 phase=startup stage=1 buffer=0.000
+stage 1 active: physics=102 phase=active hitbox=true overlaps=1 health=3 time_scale=1.000
+raider 1 received attack stage 1 at physics=102 health=3
+stage 1 hit-stop entered at physics=102 scale=0.080
+render 04 쨌 ATTACK 1 ACTIVE: player=(927.9365, 780.0) canvas=(938.7492, 651.5607) art_visible=false in_tree=false scale=(0.452879, -0.4417) modulate=(1.0, 1.0, 1.0, 1.0) texture=(1254.0, 1254.0) camera=(927.9365, 420.0) current=true viewport=(1920.0, 1080.0)
+raider 1 begins windup at physics=114 position=(893.8974, 780.0)
+attack tap: physics=123 phase=startup stage=1 buffer=0.000
+raider 1 received attack stage 1 at physics=125 health=2
+stage 1 hit-stop entered at physics=125 scale=0.080
+physics=127 stage=1 phase=active hitbox=true overlaps=1 player_hp=5 raider_hp=1 hitstun=0.162 hitstop=false
+stage 1 contact: raider=1 hp=3->1 raider_hit=2 attack_hit=2 hitstop=true
+ERROR: combat_live_session_window_smoke: combo buffer advances from attack 1 to attack 2
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _finish (res://tools/capture_combat_live_session.gd:450)
+       [1] _run (res://tools/capture_combat_live_session.gd:97)
+       [2] _run_live_combo (res://tools/capture_combat_live_session.gd:177)
+       [3] _wait_for_stage_phase (res://tools/capture_combat_live_session.gd:209)
+ERROR: combat_live_session_window_smoke: 1 check(s) failed
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _finish (res://tools/capture_combat_live_session.gd:451)
+       [1] _run (res://tools/capture_combat_live_session.gd:97)
+       [2] _run_live_combo (res://tools/capture_combat_live_session.gd:177)
+       [3] _wait_for_stage_phase (res://tools/capture_combat_live_session.gd:209)
+
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:28)
+WARNING: Loaded resource as image file, this will not work on export: 'res://assets/art/review/combat_live_session_window.png'. Instead, import the image file as an Image resource and load it normally as a resource.
+   at: load (core/io/image.cpp:2770)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:30)
+PASS: live session timeline PNG is created
+PASS: live session timeline PNG is 1920x1080
+ERROR: combat_live_session_window_smoke: live combat capture process exits successfully
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:39)
+ERROR: combat_live_session_window_smoke: capture reports all real combat checks passed
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:39)
+ERROR: combat_live_session_window_smoke: capture confirms real hit signals
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:39)
+ERROR: combat_live_session_window_smoke: capture observes hit-stop
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:39)
+ERROR: combat_live_session_window_smoke: all seven chronological frames contain rendered combat characters
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:39)
+ERROR: combat_live_session_window_smoke: 5 check(s) failed
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/combat_live_session_window_smoke.gd:40)

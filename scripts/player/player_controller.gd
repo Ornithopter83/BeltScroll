@@ -6,7 +6,7 @@ signal player_hit(stage: int)
 signal player_ko
 
 @export var walk_speed: float = 280.0
-@export var arena_bounds: Rect2 = Rect2(Vector2(160, 100), Vector2(1600, 880))
+@export var arena_bounds: Rect2 = Rect2(Vector2(237, 722), Vector2(1446, 258))
 @export var jump_height: float = 54.0
 @export var jump_velocity: float = 360.0
 @export var jump_buffer_time: float = 0.12
@@ -24,6 +24,7 @@ const BODY_HALF_WIDTH := 13.0
 const BODY_TOP_OFFSET := -38.0
 const BODY_BOTTOM_OFFSET := 2.0
 const VISUAL_BASE_Y := -18.0
+const CAMERA_VERTICAL_FRAME_OFFSET := -360.0
 const COMBO_COUNT := 3
 const HIT_FLASH_COLOR := Color(1.0, 0.42, 0.36, 1.0)
 const KO_COLOR := Color(0.62, 0.62, 0.62, 0.78)
@@ -75,6 +76,9 @@ var _ground_dust_instances: Array[Node2D] = []
 
 func _ready() -> void:
 	health = max_health
+	# Keep the oversized alpha silhouette below the HUD; camera limits still
+	# constrain the view to the full-size stage background.
+	camera.position = Vector2(0.0, CAMERA_VERTICAL_FRAME_OFFSET)
 	add_to_group("hit_receivers")
 	_set_attack_stage_visual(0)
 

@@ -37,8 +37,8 @@ func _run() -> void:
 		quit(1)
 		return
 	print("PASS: actual Window frames captured after frame_post_draw at 1920x1080")
-	print("PASS: VICTORY and DEFEAT are evaluated after existing receive_hit calls")
-	print("PASS: result panel stays below the HUD and actor art in the lower safe band with under 2% actor-bounds overlap")
+	print("PASS: VICTORY and DEFEAT are evaluated after existing receive_hit calls at normal spawn and after WASD movement")
+	print("PASS: result and pause panels avoid HUD overlap and cover under 2% of each actor's visible art")
 	print("PASS: retry restores pause, time scale, and prior CombatAudio")
 	print("PASS: keyboard and synthetic gamepad focus reach result/pause actions")
 	print("PASS: result controls and actor art fit; pause controls render over the live actor scene")

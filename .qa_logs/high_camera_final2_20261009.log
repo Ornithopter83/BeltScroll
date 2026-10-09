@@ -1,0 +1,45 @@
+ERROR: Failed to open 'user://logs/godot2026-10-09T13.09.46.log'.
+   at: copy (core/io/dir_access.cpp:429)
+ERROR: Failed to open log file for writing: user://logs/godot.log
+   at: rotate_file (core/io/logger.cpp:169)
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 Core Profile Context 26.8.1.260806 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6900 XT
+
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+PASS: smoke runs with a Window Viewport renderer
+PASS: camera zoom is preserved at 1.2
+PASS: camera framing offset keeps the full-size actors below the HUD
+PASS: camera position smoothing stays enabled
+PASS: camera boundary is checked against the 1920x1080 stage texture
+PASS: camera limits cover the stage background exactly
+PASS: player combat arena stays inside the HUD-safe visible band
+PASS: camera trauma offset is constrained by visible background limits (requested=(100.0, -100.0) bounded=(100.0, 0.833313))
+PASS: three-hit trauma produces a bounded shake
+PASS: camera trauma decays and its offset returns to zero
+PASS: real player alpha head at the upper jump boundary clears the full HUD safe area
+PASS: real player alpha feet remain visible at the upper jump boundary
+PASS: real contact pose alpha head clears the HUD during a combo attack
+PASS: real contact pose alpha feet stay visible during a combo attack
+PASS: real contact pose alpha head clears the HUD during a combo attack
+PASS: real contact pose alpha feet stay visible during a combo attack
+PASS: combo attack displays an alpha-bounded pose for the framing regression
+PASS: full player alpha silhouette remains inside the left camera edge
+PASS: full player alpha silhouette remains inside the right camera edge
+PASS: real player alpha feet remain visible at the lower arena boundary
+PASS: real Window Viewport boundary capture exits successfully
+PASS: capture tool reports all boundary checks passed
+PASS: all nine rendered positions check for background gaps
+PASS: edge checks compare rendered pixels to the stage source pixels
+WARNING: Loaded resource as image file, this will not work on export: 'res://assets/art/review/camera_boundary_capture.png'. Instead, import the image file as an Image resource and load it normally as a resource.
+   at: load (core/io/image.cpp:2770)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/camera_boundary_window_smoke.gd:61)
+       [1] _check_player_silhouette_at_arena_edges (res://tests/camera_boundary_window_smoke.gd:116)
+       [2] _wait_frames (res://tests/camera_boundary_window_smoke.gd:152)
+PASS: comparison capture PNG is created
+PASS: comparison capture is exactly 1920x1080
+PASS: comparison capture contains rendered Forest Ruins pixels
+PASS: capture tool exits nonzero without a window renderer
+PASS: windowless capture failure explains the unavailable renderer
+camera_boundary_window_smoke: all checks passed

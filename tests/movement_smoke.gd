@@ -53,9 +53,12 @@ func _disable_test_enemies(main: Node) -> void:
 func _check_scene_configuration(main: Node) -> void:
 	_check(main.get_node("YSortActors").y_sort_enabled, "YSortActors enables y sorting")
 	var camera := player.get_node("Camera2D") as Camera2D
+	_check(player.global_position == Vector2(960.0, 780.0), "player starts in the lower HUD-safe combat lane")
+	_check(player.get("arena_bounds") == Rect2(Vector2(237, 722), Vector2(1446, 258)), "arena bounds account for zoomed alpha silhouette limits")
 	var viewport_size := get_root().get_visible_rect().size
 	var visible_world_size := viewport_size / camera.zoom
 	_check(camera.zoom == Vector2(1.2, 1.2), "camera uses the configured zoom for the arena framing")
+	_check(camera.position == Vector2(0.0, -360.0), "camera frames the full-size actor silhouette below the HUD")
 	_check(viewport_size == Vector2(1920, 1080), "headless test uses the logical 1920 by 1080 viewport")
 	_check(camera.limit_left == 0 and camera.limit_top == 0, "camera starts at backdrop origin")
 	_check(camera.limit_right == 1920 and camera.limit_bottom == 1080, "camera limits match backdrop bounds")
@@ -64,27 +67,27 @@ func _check_scene_configuration(main: Node) -> void:
 	_check(camera.position_smoothing_enabled, "camera position smoothing remains enabled")
 
 func _check_cardinal_movement() -> void:
-	await _reset_player(Vector2(960, 540))
+	await _reset_player(Vector2(960, 800))
 	Input.action_press("move_right")
 	await _frames(12)
-	var right_delta: Vector2 = player.global_position - Vector2(960, 540)
-	_check(right_delta.x > 40.0 and absf(right_delta.y) < EPSILON, "right input moves on x only")
+	var right_delta: Vector2 = player.global_position - Vector2(960, 800)
+	_check(right_delta.x > 40.0 and absf(right_delta.y) < EPSILON, "right input moves on x only (delta=%s)" % right_delta)
 	_release("move_right")
 	await _frames(1)
-	await _reset_player(Vector2(960, 540))
+	await _reset_player(Vector2(960, 800))
 	Input.action_press("move_down")
 	await _frames(12)
-	var down_delta: Vector2 = player.global_position - Vector2(960, 540)
+	var down_delta: Vector2 = player.global_position - Vector2(960, 800)
 	_check(down_delta.y > 40.0 and absf(down_delta.x) < EPSILON, "down input moves on y only")
 	_release("move_down")
 	await _frames(1)
 
 func _check_diagonal_movement() -> void:
-	await _reset_player(Vector2(960, 540))
+	await _reset_player(Vector2(960, 800))
 	Input.action_press("move_right")
 	Input.action_press("move_down")
 	await _frames(12)
-	var delta_position: Vector2 = player.global_position - Vector2(960, 540)
+	var delta_position: Vector2 = player.global_position - Vector2(960, 800)
 	_check(delta_position.x > 25.0 and delta_position.y > 25.0, "diagonal input moves on both axes")
 	_check(absf(delta_position.x - delta_position.y) < 1.0, "diagonal movement is normalized")
 	_release("move_right")
@@ -104,7 +107,7 @@ func _check_facing() -> void:
 	await _frames(1)
 
 func _check_blocking() -> void:
-	await _reset_player(Vector2(960, 540))
+	await _reset_player(Vector2(960, 800))
 	Input.action_press("block")
 	Input.action_press("move_right")
 	await _frames(10)
@@ -117,7 +120,7 @@ func _check_blocking() -> void:
 	_release("move_right")
 	_release("block")
 	await _frames(1)
-	await _reset_player(Vector2(960, 540))
+	await _reset_player(Vector2(960, 800))
 	player.set("is_blocking", true)
 	var health_before: int = player.get("health")
 	player.call("receive_hit", {"damage": 2, "direction": Vector2.LEFT, "knockback": 200.0, "hit_stun": 0.4, "attack_stage": 2})
@@ -127,20 +130,20 @@ func _check_blocking() -> void:
 	await _frames(1)
 
 func _check_arena_clamp() -> void:
-	await _reset_player(Vector2(180, 540))
+	await _reset_player(Vector2(200, 800))
 	Input.action_press("move_left")
 	await _frames(2)
-	_check(absf(player.global_position.x - 173.0) < EPSILON, "arena clamps left edge")
+	_check(absf(player.global_position.x - 250.0) < EPSILON, "arena clamps left edge with the full alpha silhouette inside camera bounds (x=%.2f)" % player.global_position.x)
 	_release("move_left")
-	await _reset_player(Vector2(960, 145))
+	await _reset_player(Vector2(960, 700))
 	Input.action_press("move_up")
 	await _frames(2)
-	_check(absf(player.global_position.y - 138.0) < EPSILON, "arena clamps top edge")
+	_check(absf(player.global_position.y - 760.0) < EPSILON, "HUD-safe arena clamps the top edge after accounting for the jump silhouette")
 	_release("move_up")
-	await _reset_player(Vector2(1740, 540))
+	await _reset_player(Vector2(1800, 800))
 	Input.action_press("move_right")
 	await _frames(2)
-	_check(absf(player.global_position.x - 1747.0) < EPSILON, "arena clamps right edge")
+	_check(absf(player.global_position.x - 1670.0) < EPSILON, "arena clamps right edge with the full alpha silhouette inside camera bounds (x=%.2f)" % player.global_position.x)
 	_release("move_right")
 	await _reset_player(Vector2(960, 970))
 	Input.action_press("move_down")
@@ -150,7 +153,7 @@ func _check_arena_clamp() -> void:
 	await _frames(1)
 
 func _check_camera_bounds() -> void:
-	await _reset_player(Vector2(1747.0, 978.0))
+	await _reset_player(Vector2(1670.0, 978.0))
 	await _frames(90)
 	player.set("camera_trauma", 1.0)
 	await _frames(2)
@@ -161,7 +164,7 @@ func _check_camera_bounds() -> void:
 	_check(center.y - half_view.y >= camera.limit_top - 1.0 and center.y + half_view.y <= camera.limit_bottom + 1.0, "camera trauma stays inside vertical arena bounds")
 
 func _check_visual_jump_and_landing() -> void:
-	await _reset_player(Vector2(960, 540))
+	await _reset_player(Vector2(960, 800))
 	var floor_position := player.global_position
 	var floor_visual_y := visual_root.position.y
 	var floor_shadow_alpha := ground_shadow.modulate.a
@@ -176,7 +179,7 @@ func _check_visual_jump_and_landing() -> void:
 	_check(is_equal_approx(ground_shadow.modulate.a, floor_shadow_alpha), "shadow alpha returns after landing")
 
 func _check_jump_buffer() -> void:
-	await _reset_player(Vector2(960, 540))
+	await _reset_player(Vector2(960, 800))
 	# Place the airborne visual just above its landing point. The real action
 	# press then has to survive until the next physics tick lands and relaunches.
 	player.set("is_jumping", true)
@@ -196,7 +199,7 @@ func _check_variable_jump() -> void:
 	_check(full_jump_height > short_jump_height + 5.0, "holding jump produces a higher arc than early release")
 
 func _measure_jump_height(hold_frames: int) -> float:
-	await _reset_player(Vector2(960, 540))
+	await _reset_player(Vector2(960, 800))
 	Input.action_press("jump")
 	await _frames(hold_frames)
 	_release("jump")
@@ -207,7 +210,7 @@ func _measure_jump_height(hold_frames: int) -> float:
 	return max_height
 
 func _check_coyote_grace() -> void:
-	await _reset_player(Vector2(960, 540))
+	await _reset_player(Vector2(960, 800))
 	# This arena has no ledges, so seed the controller's airborne grace state to
 	# model the instant after walking off a platform in the same movement code.
 	player.set("is_jumping", true)
@@ -220,7 +223,7 @@ func _check_coyote_grace() -> void:
 	_check(is_equal_approx(player.get("coyote_remaining"), 0.0), "using coyote grace consumes its timer")
 	_release("jump")
 	await _frames(35)
-	await _reset_player(Vector2(960, 540))
+	await _reset_player(Vector2(960, 800))
 	player.set("is_jumping", true)
 	player.set("jump_height_offset", 70.0)
 	player.set("jump_vertical_velocity", 100.0)

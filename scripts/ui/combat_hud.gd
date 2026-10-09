@@ -13,6 +13,7 @@ const RAIDER_DAMAGE_DELAY := 0.28
 const RAIDER_DAMAGE_BAR_SPEED := 3.0
 const RAIDER_INDICATOR_SIZE := Vector2(92.0, 29.0)
 const RAIDER_HEAD_PADDING := 12.0
+const HUD_TOP_CLEARANCE := 148.0
 
 var health_value_label: Label
 var health_bar: ProgressBar
@@ -121,6 +122,8 @@ func _update_raider_indicator(raider: Node2D, raider_id: int) -> void:
 	indicator["label"].text = "%d / %d" % [health, maximum]
 	indicator["bar"].max_value = maximum
 	indicator["damage_bar"].max_value = maximum
+	indicator["bar"].value = float(indicator["bar_value"])
+	indicator["damage_bar"].value = float(indicator["damage_value"])
 	if not bool(indicator["initialized"]):
 		indicator["bar_value"] = target
 		indicator["damage_value"] = target
@@ -146,17 +149,102 @@ func _update_raider_indicator(raider: Node2D, raider_id: int) -> void:
 	if raider_art == null or raider_art.texture == null:
 		root_control.visible = false
 		return
-	var alpha_bounds: Rect2i = indicator["alpha_bounds"]
-	var local_head := (Vector2(alpha_bounds.position.x + alpha_bounds.size.x * 0.5, alpha_bounds.position.y) - Vector2(raider_art.texture.get_size()) * 0.5) * raider_art.scale
+	# Re-read the alpha bounds each frame: an animated or edited texture can
+	# change its silhouette while the Raider remains alive.
+	var alpha_bounds := _texture_alpha_bounds(raider_art.texture)
+	indicator["alpha_bounds"] = alpha_bounds
+	if alpha_bounds.size == Vector2i.ZERO:
+		root_control.visible = false
+		return
+	# This point is in sprite-local coordinates. The full canvas transform below
+	# applies Sprite2D scale/flip, actor transforms, Camera2D zoom and rotation.
+	var local_head := Vector2(
+		float(alpha_bounds.position.x) + float(alpha_bounds.size.x) * 0.5,
+		float(alpha_bounds.position.y)
+		) - Vector2(raider_art.texture.get_size()) * 0.5
 	var screen_head: Vector2 = raider_art.get_global_transform_with_canvas() * local_head
 	var view_size: Vector2 = get_viewport().get_visible_rect().size
-	var half_size := RAIDER_INDICATOR_SIZE * 0.5
-	root_control.position = Vector2(
-		clampf(screen_head.x - half_size.x, 4.0, maxf(4.0, view_size.x - RAIDER_INDICATOR_SIZE.x - 4.0)),
-		clampf(screen_head.y - RAIDER_INDICATOR_SIZE.y - RAIDER_HEAD_PADDING, 4.0, maxf(4.0, view_size.y - RAIDER_INDICATOR_SIZE.y - 4.0))
+	var indicator_position := Vector2(
+		screen_head.x - RAIDER_INDICATOR_SIZE.x * 0.5,
+		screen_head.y - RAIDER_INDICATOR_SIZE.y - RAIDER_HEAD_PADDING
 	)
+	var viewport_rect := Rect2(Vector2.ZERO, view_size)
+	# Never clamp an off-screen Raider to a viewport edge: that makes a remote
+	# enemy look as if it were beside the player. Hide partially clipped bars too.
+	if screen_head.y < HUD_TOP_CLEARANCE:
+		root_control.visible = false
+		return
+	indicator_position = _choose_raider_indicator_position(raider, indicator_position, viewport_rect)
+	if indicator_position.x < 0.0:
+		root_control.visible = false
+		return
+	root_control.position = indicator_position
+	root_control.visible = true
 	indicator["bar"].value = float(indicator["bar_value"])
 	indicator["damage_bar"].value = float(indicator["damage_value"])
+
+func _choose_raider_indicator_position(raider: Node2D, preferred: Vector2, viewport_rect: Rect2) -> Vector2:
+	var blocker_bounds: Array[Rect2] = []
+	var player := _find_player(get_tree().root)
+	if is_instance_valid(player):
+		for sprite in _visible_actor_sprites(player):
+			var bounds := _sprite_alpha_screen_bounds(sprite)
+			if bounds.get_area() > 0.0:
+				blocker_bounds.append(bounds)
+	for other in get_tree().get_nodes_in_group("forest_raiders"):
+		if other == raider or not is_instance_valid(other):
+			continue
+		for sprite in _visible_actor_sprites(other):
+			var bounds := _sprite_alpha_screen_bounds(sprite)
+			if bounds.get_area() > 0.0:
+				blocker_bounds.append(bounds)
+	var best := Vector2(-1.0, -1.0)
+	var best_score := INF
+	# Keep the bar above the alpha head, but slide it sideways when a nearby
+	# Player or Raider silhouette would otherwise sit directly under the label.
+	for offset in [0.0, -56.0, 56.0, -112.0, 112.0, -168.0, 168.0]:
+		var candidate := preferred + Vector2(offset, 0.0)
+		var rect := Rect2(candidate, RAIDER_INDICATOR_SIZE)
+		if not viewport_rect.encloses(rect):
+			continue
+		if _overlaps_fixed_hud(rect):
+			continue
+		var score := absf(offset) * 2.0
+		for actor_bounds in blocker_bounds:
+			var overlap := rect.intersection(actor_bounds).get_area()
+			if overlap > 0.0:
+				score += overlap * 100.0 + 100000.0
+		if score < best_score:
+			best_score = score
+			best = candidate
+	return best
+
+func _visible_actor_sprites(actor: Node) -> Array[Sprite2D]:
+	var result: Array[Sprite2D] = []
+	for child in actor.find_children("*", "Sprite2D", true, false):
+		var sprite := child as Sprite2D
+		if sprite != null and sprite.is_visible_in_tree() and sprite.texture != null:
+			result.append(sprite)
+	return result
+
+func _sprite_alpha_screen_bounds(sprite: Sprite2D) -> Rect2:
+	var alpha := _texture_alpha_bounds(sprite.texture)
+	if alpha.size == Vector2i.ZERO:
+		return Rect2()
+	var half_size := Vector2(sprite.texture.get_size()) * 0.5
+	var local_rect := Rect2(Vector2(alpha.position) - half_size, Vector2(alpha.size))
+	var transform := sprite.get_global_transform_with_canvas()
+	var points: Array[Vector2] = [transform * local_rect.position, transform * Vector2(local_rect.end.x, local_rect.position.y), transform * local_rect.end, transform * Vector2(local_rect.position.x, local_rect.end.y)]
+	var left := points[0].x
+	var top := points[0].y
+	var right := points[0].x
+	var bottom := points[0].y
+	for point in points.slice(1):
+		left = minf(left, point.x)
+		top = minf(top, point.y)
+		right = maxf(right, point.x)
+		bottom = maxf(bottom, point.y)
+	return Rect2(Vector2(left, top), Vector2(right - left, bottom - top))
 
 func _create_raider_indicator(raider_id: int) -> Dictionary:
 	var root_control := Control.new()
@@ -167,7 +255,7 @@ func _create_raider_indicator(raider_id: int) -> Dictionary:
 	$Overlay.add_child(root_control)
 	var raider := instance_from_id(raider_id) as Node2D
 	var raider_art := raider.get_node_or_null("VisualRoot/RaiderArt") as Sprite2D if is_instance_valid(raider) else null
-	var alpha_bounds := raider_art.texture.get_image().get_used_rect() if raider_art != null and raider_art.texture != null else Rect2i()
+	var alpha_bounds := _texture_alpha_bounds(raider_art.texture) if raider_art != null and raider_art.texture != null else Rect2i()
 	var label := Label.new()
 	label.position = Vector2(0.0, 0.0)
 	label.size = Vector2(RAIDER_INDICATOR_SIZE.x, 14.0)
@@ -316,3 +404,18 @@ func _find_player(node: Node) -> Node:
 		if found != null:
 			return found
 	return null
+
+func _texture_alpha_bounds(texture: Texture2D) -> Rect2i:
+	if texture == null:
+		return Rect2i()
+	var image := texture.get_image()
+	if image == null or image.is_empty():
+		return Rect2i()
+	return image.get_used_rect()
+
+func _overlaps_fixed_hud(indicator_rect: Rect2) -> bool:
+	# Keep actor indicators clear of the persistent top HUD panels. The bars
+	# remain tied to the actor and are hidden when there is no safe slot.
+	var health_panel := Rect2(Vector2(42.0, 34.0), Vector2(330.0, 112.0))
+	var raider_panel := Rect2(Vector2(1638.0, 34.0), Vector2(240.0, 94.0))
+	return indicator_rect.intersects(health_panel) or indicator_rect.intersects(raider_panel)

@@ -1,0 +1,53 @@
+ERROR: Failed to open 'user://logs/godot2026-10-09T13.23.25.log'.
+   at: copy (core/io/dir_access.cpp:429)
+ERROR: Failed to open log file for writing: user://logs/godot.log
+   at: rotate_file (core/io/logger.cpp:169)
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+PASS: main scene containing HUD loads
+PASS: combat HUD is a CanvasLayer
+PASS: initial Player health is displayed
+PASS: idle combo has no active stage
+PASS: initial remaining ForestRaider count is three
+PASS: each ForestRaider gets its own health indicator
+PASS: Raider bar starts from that Raider's model health
+PASS: another Raider displays its own health
+PASS: Raider indicator sits above the transformed alpha silhouette head
+PASS: Player health number updates immediately after damage
+PASS: Player bars begin interpolation from prior health
+PASS: Player live bar interpolates while delayed damage bar holds
+PASS: Player damage bar decreases after its delay
+PASS: healing updates the displayed number immediately
+PASS: healing interpolates the live Player bar
+PASS: partial healing clears the damage trail while the live bar finishes its interpolation
+PASS: first combo stage is displayed
+PASS: combo continuation updates displayed stage
+PASS: combo end clears displayed stage
+PASS: Player KO is reflected immediately in the health number
+PASS: Player KO bar interpolates to zero
+PASS: damage is shown on the correct individual Raider
+PASS: Raider bar retains its prior value at the damage frame
+PASS: Raider bar interpolates from real health
+PASS: unharmed Raider bar remains independent
+PASS: KO Raider indicator hides and remaining count updates
+PASS: Raider indicator follows camera movement, zoom, rotation, and sprite mirroring
+PASS: off-screen Raider indicator hides instead of pinning to the viewport edge
+PASS: Player combat state remains independent of HUD lifetime
+combat_hud_smoke: all checks passed
+ERROR: Failed to open 'user://logs/godot2026-10-09T13.23.28.log'.
+   at: copy (core/io/dir_access.cpp:429)
+ERROR: Failed to open log file for writing: user://logs/godot.log
+   at: rotate_file (core/io/logger.cpp:169)
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 Core Profile Context 26.8.1.260806 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6900 XT
+
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+PASS: actual Window capture process exits successfully (code 0)
+PASS: capture process validates the rendered Raider states
+PASS: actual Window capture PNG loads
+PASS: Window capture is exactly 1920x1080
+PASS: captured Raider health bars contain rendered fill pixels
+raider_healthbar_window_smoke: all checks passed

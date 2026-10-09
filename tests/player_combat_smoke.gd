@@ -46,13 +46,15 @@ func _run() -> void:
 	var packed: PackedScene = load(PLAYER_SCENE) as PackedScene
 	player = packed.instantiate() as CharacterBody2D
 	root.add_child(player)
-	player.global_position = Vector2(400.0, 300.0)
-	for target_y in [360.0, 432.0, 620.0]:
+	player.global_position = Vector2(400.0, 800.0)
+	player.set("facing_direction", Vector2.RIGHT)
+	player.get_node("VisualRoot").scale.x = 1.0
+	for target_x in [460.0, 532.0, 620.0]:
 		var receiver := HitReceiver.new()
-		receiver.position = Vector2(400.0, target_y)
+		receiver.position = Vector2(target_x, 800.0)
 		root.add_child(receiver)
 		receivers.append(receiver)
-	for decoy_position in [Vector2(440.0, 360.0), Vector2(400.0, 250.0)]:
+	for decoy_position in [Vector2(460.0, 840.0), Vector2(350.0, 800.0)]:
 		var decoy := HitReceiver.new()
 		decoy.position = decoy_position
 		root.add_child(decoy)
@@ -128,7 +130,7 @@ func _run() -> void:
 	Input.action_release("move_right")
 	_check(player.global_position.x > position_after_stun.x, "movement input works again after hit stun")
 	_check(player.get("camera_trauma") < 0.22, "camera trauma decays after an incoming hit")
-	player.global_position = Vector2(1747.0, 500.0)
+	player.global_position = Vector2(1747.0, 800.0)
 	player.receive_hit({"damage": 0, "direction": Vector2.RIGHT, "knockback": 800.0, "hit_stun": 0.12, "attack_stage": 1})
 	await _frames(3)
 	_check(player.global_position.x <= 1747.0, "incoming knockback remains clamped at the player arena edge")
@@ -148,7 +150,7 @@ func _run() -> void:
 	await _check_player_hits_training_dummy()
 
 	# KO interrupts an active combo and all player input while preserving floor placement.
-	player.global_position = Vector2(900.0, 500.0)
+	player.global_position = Vector2(900.0, 800.0)
 	player.call("_begin_attack", 2)
 	player.set("attack_phase", "active")
 	player.call("_set_stage_hitbox", 2, true)
@@ -206,11 +208,11 @@ func _wait_for_idle() -> void:
 	_check(false, "combo returns to idle")
 
 func _check_player_hits_training_dummy() -> void:
-	player.global_position = Vector2(900.0, 500.0)
+	player.global_position = Vector2(900.0, 800.0)
 	player.set("facing_direction", Vector2.DOWN)
 	var dummy_scene := load(DUMMY_SCENE) as PackedScene
 	var dummy := dummy_scene.instantiate() as CharacterBody2D
-	dummy.global_position = Vector2(900.0, 560.0)
+	dummy.global_position = Vector2(900.0, 860.0)
 	root.add_child(dummy)
 	await physics_frame
 	Input.action_press("attack")

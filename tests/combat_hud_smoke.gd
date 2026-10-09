@@ -45,9 +45,9 @@ func _run() -> void:
 	_check(second_indicator["label"].text == "3 / 3", "another Raider displays its own health")
 	var second_art := raiders[1].get_node("VisualRoot/RaiderArt") as Sprite2D
 	var second_alpha := second_art.texture.get_image().get_used_rect()
-	var second_head_local := (Vector2(second_alpha.position.x + second_alpha.size.x * 0.5, second_alpha.position.y) - Vector2(second_art.texture.get_size()) * 0.5) * second_art.scale
+	var second_head_local := Vector2(second_alpha.position.x + second_alpha.size.x * 0.5, second_alpha.position.y) - Vector2(second_art.texture.get_size()) * 0.5
 	var second_head_screen: Vector2 = second_art.get_global_transform_with_canvas() * second_head_local
-	_check(float(second_indicator["root"].position.y + second_indicator["root"].size.y) <= second_head_screen.y - 8.0, "Raider indicator sits above the enlarged alpha silhouette head")
+	_check(float(second_indicator["root"].position.y + second_indicator["root"].size.y) <= second_head_screen.y - 8.0, "Raider indicator sits above the transformed alpha silhouette head")
 
 	player.receive_hit({"damage": 2, "direction": Vector2.LEFT, "knockback": 0.0, "hit_stun": 0.0, "attack_stage": 1})
 	hud.refresh()
@@ -106,15 +106,15 @@ func _run() -> void:
 	var before_camera_move: Vector2 = second_indicator["root"].position
 	camera.global_position += Vector2(100.0, 0.0)
 	camera.zoom = Vector2(1.5, 1.5)
+	camera.rotation = 0.12
+	raiders[1].get_node("VisualRoot").scale.x *= -1.0
 	await process_frame
 	hud.refresh()
 	var after_camera_move: Vector2 = second_indicator["root"].position
-	_check(not before_camera_move.is_equal_approx(after_camera_move), "Raider indicator follows camera movement and zoom")
+	_check(not before_camera_move.is_equal_approx(after_camera_move), "Raider indicator follows camera movement, zoom, rotation, and sprite mirroring")
 	raiders[1].global_position = Vector2(-1000.0, -1000.0)
 	hud.refresh()
-	var screen_edge_pos: Vector2 = second_indicator["root"].position
-	var view_size := get_root().get_viewport().get_visible_rect().size
-	_check(screen_edge_pos.x >= 4.0 and screen_edge_pos.y >= 4.0 and screen_edge_pos.x <= view_size.x - second_indicator["root"].size.x - 4.0 and screen_edge_pos.y <= view_size.y - second_indicator["root"].size.y - 4.0, "Raider indicator remains inside screen bounds")
+	_check(not second_indicator["root"].visible, "off-screen Raider indicator hides instead of pinning to the viewport edge")
 
 	var detached_hud: Node = (load(HUD_SCENE) as PackedScene).instantiate()
 	main.remove_child(hud)

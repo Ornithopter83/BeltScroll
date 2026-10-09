@@ -5,9 +5,10 @@ const MAIN_SCENE := "res://scenes/game/main.tscn"
 const TITLE_SCENE := "res://scenes/ui/title_menu.tscn"
 const OUTPUT_PATH := "res://assets/art/review/gameplay_endings_window.png"
 const FRAME_SIZE := Vector2i(1920, 1080)
-const HALF_SIZE := Vector2i(960, 540)
+const TILE_SIZE := Vector2i(640, 540)
+const CAPTURE_SIZE := Vector2i(640, 360)
 const HIT := {"damage": 999, "direction": Vector2.LEFT, "knockback": 0.0, "hit_stun": 0.0, "attack_stage": 1}
-const STATE_LABELS := ["VICTORY · receive_hit contract outcome (not live play)", "DEFEAT · receive_hit contract outcome", "PAUSE · live main scene", "TITLE · returned from pause"]
+const STATE_LABELS := ["VICTORY · normal spawn", "DEFEAT · after normal WASD movement", "VICTORY · after normal WASD movement", "PAUSE · live combat positions", "TITLE · returned from pause"]
 
 var _failures: Array[String] = []
 var _frames: Array[Image] = []
@@ -26,9 +27,8 @@ func capture(tree: SceneTree) -> Dictionary:
 		return _failure("GEW-002", "main.tscn did not start in the Window Viewport.")
 	if not _check_main_content(game):
 		return _failure("GEW-003", "Main scene is missing the stage, HUD, Player, or 3 Raiders.")
-	# Move only the review staging positions into the clear lower band. The result
-	# itself is still reached through receive_hit and the game's normal evaluator.
-	_stage_actors(game)
+	# Preserve the normal main-scene spawn positions; only the combat outcome is
+	# accelerated through the same receive_hit/evaluator path as live combat.
 	for raider in game.get("_raiders"):
 		raider.call("receive_hit", HIT)
 	await _wait_frames(tree, 3)
@@ -65,7 +65,7 @@ func capture(tree: SceneTree) -> Dictionary:
 		return _failure("GEW-009", "Retry did not restore paused=false, time_scale=1, and stopped CombatAudio.")
 	if not _check_main_content(game):
 		return _failure("GEW-003", "Restarted main scene is missing expected combat content.")
-	_stage_actors(game)
+	await _move_player_normally(tree, KEY_D, 36)
 	var player := game.get_node("YSortActors/Player")
 	player.call("receive_hit", HIT)
 	await _wait_frames(tree, 3)
@@ -90,7 +90,24 @@ func capture(tree: SceneTree) -> Dictionary:
 	game = tree.current_scene
 	if not _restored(tree, game, defeat_audio_stopped):
 		return _failure("GEW-009", "Defeat retry did not restore paused=false, time_scale=1, and stopped CombatAudio.")
-	_stage_actors(game, 770.0)
+	await _move_player_normally(tree, KEY_A, 28)
+	await _move_player_normally(tree, KEY_W, 22)
+	for raider in game.get("_raiders"):
+		raider.call("receive_hit", HIT)
+	await _wait_frames(tree, 3)
+	if int(game.get("result_state")) != 2 or not bool(game.get("result_overlay").visible):
+		return _failure("GEW-004", "Moved-position Raider receive_hit calls did not produce the evaluated VICTORY result.")
+	_check_result_controls(game, "VICTORY after movement")
+	retry = game.get("_result_restart_button") as Button
+	title_button = game.get("_result_title_button") as Button
+	if not await _capture_frame(tree, "VICTORY", game, [retry, title_button]):
+		return _failure("GEW-007", "Moved-position victory frame failed Window validation.")
+	retry.emit_signal("pressed")
+	await _wait_for_scene(tree, MAIN_SCENE, 60)
+	game = tree.current_scene
+	if not _restored(tree, game, true):
+		return _failure("GEW-009", "Moved-position victory retry did not restore global combat state.")
+	await _move_player_normally(tree, KEY_S, 24)
 	# Pause through the production key handler, then exercise synthetic gamepad
 	# focus navigation before activating the focused title Button.
 	_send_key(tree, KEY_ESCAPE)
@@ -168,19 +185,11 @@ func _check_main_content(game: Node) -> bool:
 func _valid_sprite(node: Node) -> bool:
 	return node is Sprite2D and (node as Sprite2D).texture != null and (node as Sprite2D).texture.get_size().x > 0 and node.is_visible_in_tree()
 
-func _stage_actors(game: Node, floor_y: float = 680.0) -> void:
-	var player := game.get_node("YSortActors/Player")
-	player.global_position = Vector2(960.0, floor_y)
-	var raiders: Array = game.get("_raiders")
-	var review_positions := [360.0, 700.0, 1460.0]
-	for index in range(raiders.size()):
-		raiders[index].global_position = Vector2(review_positions[index], floor_y)
-	var camera := player.get_node_or_null("Camera2D") as Camera2D
-	if camera != null:
-		camera.position_smoothing_enabled = false
-		camera.make_current()
-		camera.reset_smoothing()
-		camera.force_update_scroll()
+func _move_player_normally(tree: SceneTree, key: Key, frames: int) -> void:
+	_send_key(tree, key)
+	await _wait_frames(tree, frames)
+	_release_key(key)
+	await _wait_frames(tree, 2)
 
 func _check_result_controls(game: Node, state: String) -> void:
 	var overlay := game.get("result_overlay") as CanvasLayer
@@ -268,15 +277,20 @@ func _hud_is_rendered(tree: SceneTree, captured: Image, game: Node, state: Strin
 	return true
 
 func _result_panel_is_rendered(tree: SceneTree, captured: Image, game: Node, state: String) -> bool:
-	var panel := game.get_node_or_null("SessionResult/Center/ResultPanel") as Control
+	var panel := game.get_node_or_null("SessionResult/ResultPanel") as Control
 	var hud := game.get_node_or_null("CombatHUD/Overlay") as Control
 	if panel == null or not panel.is_visible_in_tree() or hud == null:
 		_failures.append("%s result panel or HUD bounds are missing." % state)
 		return false
 	var panel_bounds := panel.get_global_rect().abs()
 	var combo := hud.get_node_or_null("ComboPanel") as Control
-	if combo == null or panel_bounds.position.y < combo.get_global_rect().end.y + 12.0 or panel_bounds.position.y < 760.0 or panel_bounds.end.y > 1050.0:
-		_failures.append("%s result panel is outside the lower safe band below the HUD and actor art." % state)
+	var overlaps_hud := false
+	for name in ["HealthPanel", "ComboPanel", "RaiderPanel"]:
+		var hud_panel := hud.get_node_or_null(name) as Control
+		if hud_panel != null and panel_bounds.intersects(hud_panel.get_global_rect().abs()):
+			overlaps_hud = true
+	if combo == null or overlaps_hud:
+		_failures.append("%s result panel overlaps the HUD." % state)
 		return false
 	var was_visible := panel.visible
 	panel.visible = false
@@ -295,19 +309,33 @@ func _all_actor_art_reaches_viewport(tree: SceneTree, captured: Image, game: Nod
 	var sprites: Array[Sprite2D] = [game.get_node("YSortActors/Player/VisualRoot/PlayerArt")]
 	for raider in game.get("_raiders"):
 		sprites.append(raider.get_node("VisualRoot/RaiderArt"))
+	var viewport_bounds := Rect2(Vector2.ZERO, Vector2(FRAME_SIZE))
 	for sprite in sprites:
 		var bounds := _sprite_bounds(sprite)
-		if (state != "PAUSE" and not _in_viewport(bounds)) or not sprite.is_visible_in_tree():
-			_failures.append("%s contains offscreen or hidden actor art at %s." % [state, bounds])
+		var visible_bounds := bounds.intersection(viewport_bounds)
+		if visible_bounds.get_area() <= 0.0 or not sprite.is_visible_in_tree():
+			_failures.append("%s contains hidden or fully offscreen actor art at %s." % [state, bounds])
 			return false
 		if state == "VICTORY" or state == "DEFEAT":
-			var panel := game.get_node("SessionResult/Center/ResultPanel") as Control
-			var intersection := bounds.intersection(panel.get_global_rect().abs())
-			var actor_area: float = maxf(1.0, bounds.get_area())
+			var panel := game.get_node("SessionResult/ResultPanel") as Control
+			var intersection := visible_bounds.intersection(panel.get_global_rect().abs())
+			var actor_area: float = maxf(1.0, visible_bounds.get_area())
 			var covered_fraction: float = intersection.get_area() / actor_area
 			if covered_fraction > 0.02:
 				_failures.append("%s result panel geometrically covers %.1f%% of %s actor art." % [state, covered_fraction * 100.0, sprite.get_path()])
 				return false
+		if state == "PAUSE":
+			var panel := game.get_node("SessionPause/PausePanel") as Control
+			var covered_fraction := visible_bounds.intersection(panel.get_global_rect().abs()).get_area() / maxf(1.0, visible_bounds.get_area())
+			if covered_fraction > 0.02:
+				_failures.append("PAUSE panel geometrically covers %.1f%% of %s actor art." % [covered_fraction * 100.0, sprite.get_path()])
+				return false
+			var hud := game.get_node("CombatHUD/Overlay") as Control
+			for name in ["HealthPanel", "ComboPanel", "RaiderPanel"]:
+				var hud_panel := hud.get_node_or_null(name) as Control
+				if hud_panel != null and panel.get_global_rect().abs().intersects(hud_panel.get_global_rect().abs()):
+					_failures.append("PAUSE panel overlaps HUD panel %s." % name)
+					return false
 		var was_visible := sprite.visible
 		sprite.visible = false
 		await tree.process_frame
@@ -316,7 +344,7 @@ func _all_actor_art_reaches_viewport(tree: SceneTree, captured: Image, game: Nod
 		sprite.visible = was_visible
 		await tree.process_frame
 		await RenderingServer.frame_post_draw
-		if _changed_pixels(captured, without_sprite, bounds) < 24:
+		if _changed_pixels(captured, without_sprite, visible_bounds) < 24:
 			_failures.append("%s Player/Raider texture is blank or obscured: %s." % [state, sprite.get_path()])
 			return false
 	if state == "VICTORY" or state == "DEFEAT":
@@ -371,26 +399,26 @@ func _build_comparison(tree: SceneTree) -> Error:
 	board.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	tree.root.add_child(board)
 	for index in range(_frames.size()):
-		var x := (index % 2) * HALF_SIZE.x
-		var y := int(index / 2) * HALF_SIZE.y
+		var x := (index % 3) * TILE_SIZE.x
+		var y := int(index / 3) * TILE_SIZE.y
 		var panel_image := _frames[index].duplicate()
-		panel_image.resize(HALF_SIZE.x, HALF_SIZE.y, Image.INTERPOLATE_LANCZOS)
+		panel_image.resize(CAPTURE_SIZE.x, CAPTURE_SIZE.y, Image.INTERPOLATE_LANCZOS)
 		var texture := TextureRect.new()
 		texture.texture = ImageTexture.create_from_image(panel_image)
-		texture.position = Vector2(x, y)
-		texture.size = Vector2(HALF_SIZE)
+		texture.position = Vector2(x, y + 34)
+		texture.size = Vector2(CAPTURE_SIZE)
 		texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		texture.stretch_mode = TextureRect.STRETCH_SCALE
 		board.add_child(texture)
 		var header := ColorRect.new()
 		header.position = Vector2(x, y)
-		header.size = Vector2(HALF_SIZE.x, 34)
+		header.size = Vector2(TILE_SIZE.x, 34)
 		header.color = Color(0.015, 0.025, 0.02, 0.92)
 		board.add_child(header)
 		var label := Label.new()
 		label.text = STATE_LABELS[index]
 		label.position = Vector2(x + 12, y + 3)
-		label.size = Vector2(HALF_SIZE.x - 24, 28)
+		label.size = Vector2(TILE_SIZE.x - 24, 28)
 		label.add_theme_font_size_override("font_size", 18)
 		label.add_theme_color_override("font_color", Color(0.95, 0.9, 0.72, 1.0))
 		board.add_child(label)

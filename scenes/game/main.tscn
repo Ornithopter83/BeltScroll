@@ -20,19 +20,23 @@ z_index = -1
 y_sort_enabled = true
 
 [node name="Player" parent="YSortActors" instance=ExtResource("1_player")]
-position = Vector2(960, 540)
+position = Vector2(960, 780)
+arena_bounds = Rect2(237, 722, 1446, 258)
 
 [node name="TrainingDummy" parent="YSortActors" instance=ExtResource("2_dummy")]
-position = Vector2(1220, 540)
+position = Vector2(1220, 780)
 
 [node name="ForestRaider1" parent="YSortActors" instance=ExtResource("3_raider")]
-position = Vector2(690, 430)
+position = Vector2(690, 762)
+arena_bounds = Rect2(160, 100, 1600, 880)
 
 [node name="ForestRaider2" parent="YSortActors" instance=ExtResource("3_raider")]
-position = Vector2(1270, 650)
+position = Vector2(1270, 900)
+arena_bounds = Rect2(160, 100, 1600, 880)
 
 [node name="ForestRaider3" parent="YSortActors" instance=ExtResource("3_raider")]
-position = Vector2(1450, 470)
+position = Vector2(1450, 820)
+arena_bounds = Rect2(160, 100, 1600, 880)
 
 [node name="CombatHUD" parent="." instance=ExtResource("5_hud")]
 

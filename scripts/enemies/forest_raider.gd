@@ -27,12 +27,11 @@ signal raider_ko
 @onready var receive_area: Area2D = $ReceiveArea
 
 const BODY_HALF_WIDTH := 18.0
-const BODY_TOP_OFFSET := -40.0
-const BODY_BOTTOM_OFFSET := 2.0
-const SPACING_TARGET := 120.0
-const SPACING_ENTER_RADIUS := 132.0
-const SPACING_EXIT_RADIUS := 144.0
-const SPACING_ESCAPE_SPEED := 48.0
+const BODY_BOTTOM_OFFSET := 0.0
+const SPACING_TARGET := 320.0
+const SPACING_ENTER_RADIUS := 336.0
+const SPACING_EXIT_RADIUS := 352.0
+const SPACING_ESCAPE_SPEED := 120.0
 const HIT_COLOR := Color(1.0, 0.78, 0.58, 1.0)
 const KNOCKED_OUT_COLOR := Color(0.62, 0.62, 0.62, 0.78)
 
@@ -44,6 +43,8 @@ var hit_flash_remaining := 0.0
 var facing_direction := Vector2.LEFT
 var _hit_targets: Dictionary = {}
 var _spacing_engaged := false
+var _silhouette_top_offset := -40.0
+var _silhouette_bottom_offset := 0.0
 
 func _ready() -> void:
 	collision_layer = 2
@@ -55,6 +56,22 @@ func _ready() -> void:
 	attack_area.collision_mask = 1
 	attack_area.monitoring = false
 	attack_area.body_entered.connect(_on_attack_body_entered)
+	_measure_silhouette()
+	_apply_arena_bounds()
+
+func _measure_silhouette() -> void:
+	# Movement bounds follow the visible alpha silhouette at its authored 3x
+	# presentation scale, rather than the much smaller collision capsule.
+	if body_visual.texture == null:
+		return
+	var alpha_bounds := body_visual.texture.get_image().get_used_rect()
+	var texture_size := Vector2(body_visual.texture.get_size())
+	var top_in_visual := (float(alpha_bounds.position.y) - texture_size.y * 0.5) * body_visual.scale.y
+	var bottom_in_visual := (float(alpha_bounds.end.y) - texture_size.y * 0.5) * body_visual.scale.y
+	_silhouette_top_offset = visual_root.position.y + body_visual.position.y + top_in_visual
+	_silhouette_bottom_offset = visual_root.position.y + body_visual.position.y + bottom_in_visual
+	# Preserve room for the animator's strongest lean and squash near the top edge.
+	_silhouette_top_offset -= 24.0
 
 func _physics_process(delta: float) -> void:
 	_update_hit_flash(delta)
@@ -201,6 +218,7 @@ func _spacing_adjustment(desired: Vector2) -> Dictionary:
 			away = _coincident_separation_direction(other)
 		else:
 			away /= distance
+		away = _horizontal_separation_direction(away)
 
 		# Remove any steering component that closes this pair. Below the target
 		# gap, add an outward component so coincident groups split promptly.
@@ -241,10 +259,12 @@ func _enforce_nearby_raider_spacing(delta: float) -> void:
 				away = _coincident_separation_direction(other)
 			else:
 				away /= distance
+			away = _horizontal_separation_direction(away)
 			var step := minf(max_step, (SPACING_TARGET - distance) * 0.5)
 			var best_self := global_position
 			var best_other := other.global_position
 			var best_gap := distance
+			var candidate_gap := distance
 			var other_body := other as CharacterBody2D
 			if other_body == null:
 				continue
@@ -252,22 +272,39 @@ func _enforce_nearby_raider_spacing(delta: float) -> void:
 				var direction := away.rotated(TAU * float(direction_index) / 16.0)
 				var candidate_self := _clamp_to_arena(global_position + direction * step)
 				var candidate_other := _clamp_to_arena(other.global_position - direction * step)
-				if test_move(global_transform, candidate_self - global_position) \
-						or other_body.test_move(other_body.global_transform, candidate_other - other_body.global_position):
-					continue
-				var candidate_gap := candidate_self.distance_to(candidate_other)
-				if candidate_gap > best_gap:
+				if not test_move(global_transform, candidate_self - global_position) \
+						and not other_body.test_move(other_body.global_transform, candidate_other - other_body.global_position):
+					candidate_gap = candidate_self.distance_to(candidate_other)
+					if candidate_gap > best_gap:
+						best_gap = candidate_gap
+						best_self = candidate_self
+						best_other = candidate_other
+				candidate_self = _clamp_to_arena(global_position + direction * (step * 2.0))
+				candidate_gap = candidate_self.distance_to(other.global_position)
+				if candidate_gap > best_gap and not test_move(global_transform, candidate_self - global_position):
 					best_gap = candidate_gap
 					best_self = candidate_self
+					best_other = other.global_position
+				candidate_other = _clamp_to_arena(other.global_position - direction * (step * 2.0))
+				candidate_gap = global_position.distance_to(candidate_other)
+				if candidate_gap > best_gap and not other_body.test_move(other_body.global_transform, candidate_other - other_body.global_position):
+					best_gap = candidate_gap
+					best_self = global_position
 					best_other = candidate_other
 			if best_gap > distance:
 				global_position = best_self
 				other.global_position = best_other
 
+func _horizontal_separation_direction(direction: Vector2) -> Vector2:
+	var horizontal := Vector2(direction.x, direction.y * 0.28)
+	if horizontal.length_squared() <= 0.0001:
+		return Vector2(signf(direction.x), 0.0)
+	return horizontal.normalized()
+
 func _clamp_to_arena(position: Vector2) -> Vector2:
 	return Vector2(
 		clampf(position.x, arena_bounds.position.x + BODY_HALF_WIDTH, arena_bounds.end.x - BODY_HALF_WIDTH),
-		clampf(position.y, arena_bounds.position.y - BODY_TOP_OFFSET, arena_bounds.end.y - BODY_BOTTOM_OFFSET)
+		clampf(position.y, arena_bounds.position.y - _silhouette_top_offset, arena_bounds.end.y - _silhouette_bottom_offset)
 	)
 
 func _find_player() -> CharacterBody2D:
@@ -321,6 +358,6 @@ func _update_hit_flash(delta: float) -> void:
 
 func _apply_arena_bounds() -> void:
 	global_position.x = clampf(global_position.x, arena_bounds.position.x + BODY_HALF_WIDTH, arena_bounds.end.x - BODY_HALF_WIDTH)
-	global_position.y = clampf(global_position.y, arena_bounds.position.y - BODY_TOP_OFFSET, arena_bounds.end.y - BODY_BOTTOM_OFFSET)
+	global_position.y = clampf(global_position.y, arena_bounds.position.y - _silhouette_top_offset, arena_bounds.end.y - _silhouette_bottom_offset)
 	if is_on_wall():
 		velocity = Vector2.ZERO

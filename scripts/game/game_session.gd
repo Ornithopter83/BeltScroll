@@ -6,8 +6,7 @@ enum ResultState { PLAYING, DEFEAT, VICTORY }
 const EXPECTED_RAIDER_COUNT := 3
 const OVERLAY_LAYER := 20
 const HELP_LAYER := 10
-const RESULT_SAFE_TOP := 760.0
-const RESULT_SAFE_BOTTOM := 1050.0
+const PANEL_VIEWPORT_MARGIN := 24.0
 const TITLE_SCENE := "res://scenes/ui/title_menu.tscn"
 const MAIN_SCENE := "res://scenes/game/main.tscn"
 
@@ -26,6 +25,8 @@ var _pause_restart_button: Button
 var _pause_title_button: Button
 var _result_restart_button: Button
 var _result_title_button: Button
+var _pause_panel: PanelContainer
+var _result_panel: PanelContainer
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -85,6 +86,7 @@ func _set_paused(paused: bool) -> void:
 	if paused:
 		_cancel_hit_stop_for_pause()
 		Engine.time_scale = 1.0
+		_position_panel_away_from_actors(_pause_panel)
 		pause_overlay.visible = true
 		get_tree().paused = true
 		_pause_resume_button.grab_focus.call_deferred()
@@ -116,6 +118,7 @@ func _finish_session(result: ResultState) -> void:
 		camera.zoom = Vector2.ONE
 		camera.reset_smoothing()
 	result_label.text = "DEFEAT" if result == ResultState.DEFEAT else "VICTORY"
+	_position_panel_away_from_actors(_result_panel)
 	result_overlay.visible = true
 	_result_restart_button.grab_focus.call_deferred()
 
@@ -201,17 +204,18 @@ func _build_pause_overlay() -> void:
 	shade.color = Color(0.015, 0.025, 0.02, 0.58)
 	shade.mouse_filter = Control.MOUSE_FILTER_STOP
 	pause_overlay.add_child(shade)
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pause_overlay.add_child(center)
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(500.0, 360.0)
-	center.add_child(panel)
+	_pause_panel = PanelContainer.new()
+	_pause_panel.name = "PausePanel"
+	_pause_panel.anchor_right = 0.0
+	_pause_panel.anchor_bottom = 0.0
+	_pause_panel.custom_minimum_size = Vector2(430.0, 320.0)
+	_pause_panel.size = _pause_panel.custom_minimum_size
+	_pause_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	pause_overlay.add_child(_pause_panel)
 	var layout := VBoxContainer.new()
 	layout.alignment = BoxContainer.ALIGNMENT_CENTER
 	layout.add_theme_constant_override("separation", 10)
-	panel.add_child(layout)
+	_pause_panel.add_child(layout)
 	var title := Label.new()
 	title.text = "일시정지"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -281,7 +285,7 @@ func _build_help_overlay() -> void:
 	help_panel.add_theme_stylebox_override("panel", style)
 	help_layer.add_child(help_panel)
 	var help_text := Label.new()
-	help_text.text = "조작 도움말  ·  H / Select 닫기\nWASD / 방향키 / 왼쪽 스틱: 이동\nSpace / 남쪽 버튼: 점프\nC / 동쪽 버튼: 앉기\nJ / 마우스 / 서쪽 버튼: 공격\nESC / Start: 일시정지\nR / 북쪽 버튼: 결과 화면에서 재시작"
+	help_text.text = "조작 도움말  ·  H / Select 닫기\nWASD / 방향키 / 왼쪽 스틱: 이동\nSpace / 남쪽 버튼: 점프\nJ / 마우스 / 서쪽 버튼: 공격\n방어: 왼쪽 Shift / 동쪽 버튼\nNum1~Num9: 스킬 슬롯 (현재 예약)\nESC / Start: 일시정지\nR / 북쪽 버튼: 결과 화면에서 재시작"
 	help_text.add_theme_font_size_override("font_size", 16)
 	help_text.add_theme_color_override("font_color", Color(0.94, 0.93, 0.84, 1.0))
 	help_panel.add_child(help_text)
@@ -300,19 +304,13 @@ func _build_result_overlay() -> void:
 	backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
 	result_overlay.add_child(backdrop)
 
-	var center := CenterContainer.new()
-	center.name = "Center"
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# Keep the outcome controls in the clear band below the top HUD and above
-	# the lower combat area where the Player and Raiders are staged.
-	center.offset_top = RESULT_SAFE_TOP
-	center.offset_bottom = RESULT_SAFE_BOTTOM - 1080.0
-	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	result_overlay.add_child(center)
-
-	var panel := PanelContainer.new()
-	panel.name = "ResultPanel"
-	panel.custom_minimum_size = Vector2(500.0, 270.0)
+	_result_panel = PanelContainer.new()
+	_result_panel.name = "ResultPanel"
+	_result_panel.anchor_right = 0.0
+	_result_panel.anchor_bottom = 0.0
+	_result_panel.custom_minimum_size = Vector2(420.0, 228.0)
+	_result_panel.size = _result_panel.custom_minimum_size
+	_result_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	var panel_style := StyleBoxFlat.new()
 	panel_style.bg_color = Color(0.035, 0.075, 0.065, 0.88)
 	panel_style.border_color = Color(0.78, 0.72, 0.42, 0.82)
@@ -322,13 +320,13 @@ func _build_result_overlay() -> void:
 	panel_style.content_margin_right = 24.0
 	panel_style.content_margin_top = 16.0
 	panel_style.content_margin_bottom = 16.0
-	panel.add_theme_stylebox_override("panel", panel_style)
-	center.add_child(panel)
+	_result_panel.add_theme_stylebox_override("panel", panel_style)
+	result_overlay.add_child(_result_panel)
 
 	var layout := VBoxContainer.new()
 	layout.alignment = BoxContainer.ALIGNMENT_CENTER
 	layout.add_theme_constant_override("separation", 7)
-	panel.add_child(layout)
+	_result_panel.add_child(layout)
 
 	result_label = Label.new()
 	result_label.name = "ResultLabel"
@@ -361,3 +359,74 @@ func _make_result_button(caption: String) -> Button:
 	button.custom_minimum_size = Vector2(340.0, 44.0)
 	button.add_theme_font_size_override("font_size", 18)
 	return button
+
+func _position_panel_away_from_actors(panel: PanelContainer) -> void:
+	if panel == null:
+		return
+	var viewport_size := get_viewport_rect().size
+	var panel_size := panel.custom_minimum_size
+	var max_x := maxf(PANEL_VIEWPORT_MARGIN, viewport_size.x - panel_size.x - PANEL_VIEWPORT_MARGIN)
+	var max_y := maxf(PANEL_VIEWPORT_MARGIN, viewport_size.y - panel_size.y - PANEL_VIEWPORT_MARGIN)
+	var actor_bounds: Array[Rect2] = []
+	if is_instance_valid(_player):
+		var player_art := _player.get_node_or_null("VisualRoot/PlayerArt") as Sprite2D
+		if player_art != null and player_art.is_visible_in_tree():
+			actor_bounds.append(_sprite_screen_bounds(player_art))
+	for raider in _raiders:
+		if not is_instance_valid(raider):
+			continue
+		var raider_art := raider.get_node_or_null("VisualRoot/RaiderArt") as Sprite2D
+		if raider_art != null and raider_art.is_visible_in_tree():
+			actor_bounds.append(_sprite_screen_bounds(raider_art))
+	var hud_bounds: Array[Rect2] = []
+	var hud := get_node_or_null("CombatHUD/Overlay") as Control
+	if hud != null:
+		for child_name in ["HealthPanel", "ComboPanel", "RaiderPanel"]:
+			var hud_panel := hud.get_node_or_null(child_name) as Control
+			if hud_panel != null and hud_panel.is_visible_in_tree():
+				hud_bounds.append(hud_panel.get_global_rect().abs())
+	var x_values: Array[float] = []
+	var y_values: Array[float] = []
+	var candidate_step := 16.0
+	for x in range(int(PANEL_VIEWPORT_MARGIN), int(max_x) + 1, int(candidate_step)):
+		x_values.append(float(x))
+	for y in range(int(PANEL_VIEWPORT_MARGIN), int(max_y) + 1, int(candidate_step)):
+		y_values.append(float(y))
+	x_values.append(max_x)
+	y_values.append(max_y)
+	var best_position := Vector2(PANEL_VIEWPORT_MARGIN, PANEL_VIEWPORT_MARGIN)
+	var best_score := INF
+	for y in y_values:
+		for x in x_values:
+			var candidate := Rect2(Vector2(x, y), panel_size)
+			var score := 0.0
+			for actor_bounds_rect in actor_bounds:
+				var overlap := candidate.intersection(actor_bounds_rect)
+				score += overlap.get_area() * 12.0
+				# Keep a small visual buffer around silhouettes, even without overlap.
+				var expanded := actor_bounds_rect.grow(28.0)
+				if candidate.intersects(expanded):
+					score += 250000.0
+			for hud_rect in hud_bounds:
+				if candidate.intersects(hud_rect):
+					score += candidate.intersection(hud_rect).get_area() * 1000.0 + 1000000.0
+			if score < best_score:
+				best_score = score
+				best_position = candidate.position
+	panel.position = best_position
+
+func _sprite_screen_bounds(sprite: Sprite2D) -> Rect2:
+	var texture_size := Vector2(sprite.texture.get_size())
+	var alpha_bounds := sprite.texture.get_image().get_used_rect()
+	if alpha_bounds.size == Vector2i.ZERO:
+		return Rect2()
+	var local_rect := Rect2(
+		Vector2(alpha_bounds.position) - texture_size * 0.5,
+		Vector2(alpha_bounds.size)
+	)
+	var transform := sprite.get_global_transform_with_canvas()
+	var corners: Array[Vector2] = [transform * local_rect.position, transform * Vector2(local_rect.end.x, local_rect.position.y), transform * local_rect.end, transform * Vector2(local_rect.position.x, local_rect.end.y)]
+	var bounds := Rect2(corners[0], Vector2.ZERO)
+	for corner in corners.slice(1):
+		bounds = bounds.expand(corner)
+	return bounds

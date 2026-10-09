@@ -16,6 +16,14 @@ func _run() -> void:
 		return
 
 	var victory_session := packed.instantiate()
+	var victory_player: Node2D = victory_session.get_node("YSortActors/Player") as Node2D
+	var victory_dummy: Node2D = victory_session.get_node("YSortActors/TrainingDummy") as Node2D
+	var raider1: Node2D = victory_session.get_node("YSortActors/ForestRaider1") as Node2D
+	var raider2: Node2D = victory_session.get_node("YSortActors/ForestRaider2") as Node2D
+	var raider3: Node2D = victory_session.get_node("YSortActors/ForestRaider3") as Node2D
+	_check(victory_player.position == Vector2(960.0, 780.0) and victory_dummy.position == Vector2(1220.0, 780.0), "player and training dummy preserve their 260-unit combat spacing in the HUD-safe lane")
+	_check(victory_player.get("arena_bounds") == Rect2(Vector2(237, 722), Vector2(1446, 258)), "player combat bounds use the HUD-safe visible band")
+	_check(raider1.position == Vector2(690.0, 762.0) and raider2.position == Vector2(1270.0, 900.0) and raider3.position == Vector2(1450.0, 820.0), "raiders start in visible Y-sort lanes inside the combat arena")
 	root.add_child(victory_session)
 	current_scene = victory_session
 	await process_frame
@@ -35,11 +43,13 @@ func _run() -> void:
 	help_key.pressed = true
 	victory_session.call("_unhandled_input", help_key)
 	_check(victory_session.get("help_panel").visible, "H shows the compact controls help")
+	var help_panel := victory_session.get("help_panel") as PanelContainer
+	var help_label := help_panel.get_child(0) as Label if help_panel != null and help_panel.get_child_count() > 0 else null
+	_check(help_label != null and help_label.text.contains("WASD") and help_label.text.contains("Num1~Num9") and help_label.text.contains("예약") and not help_label.text.contains("앉"), "in-game help matches WASD and reserved Num1~Num9 controls without a stale sitting entry")
 	victory_session.call("_unhandled_input", help_key)
 	_check(not victory_session.get("help_panel").visible, "H hides the controls help")
 	var raiders: Array = victory_session.get("_raiders")
 	_check(raiders.size() == 3, "session tracks all three ForestRaiders")
-	var victory_player: Node = victory_session.get_node("YSortActors/Player")
 	var victory_impact: Node2D = (load("res://scenes/vfx/combat_impact.tscn") as PackedScene).instantiate()
 	victory_session.get_node("YSortActors/ForestRaider1").add_child(victory_impact)
 	var victory_hitbox := victory_player.get_node("Hitboxes/Hitbox2") as Area2D

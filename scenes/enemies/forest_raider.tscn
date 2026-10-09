@@ -32,7 +32,7 @@ color = Color(0.02, 0.025, 0.03, 0.42)
 position = Vector2(0, -21)
 
 [node name="RaiderArt" type="Sprite2D" parent="VisualRoot"]
-position = Vector2(0.149, -219.028)
+position = Vector2(0.149, -219.2)
 scale = Vector2(0.446928, 0.446928)
 texture = ExtResource("2_raider_art")
 

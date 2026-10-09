@@ -60,6 +60,7 @@ func _run() -> void:
 	_player.player_hit.connect(_on_player_hit)
 	for index in range(3):
 		_raiders[index].raider_hit.connect(_on_raider_hit.bind(index + 1))
+		_raiders[index].attack_windup_started.connect(_on_raider_windup_started.bind(index + 1))
 		_raiders[index].global_position = Vector2(1700.0, 100.0 + float(index) * 430.0)
 	_sample_stage = 0
 	await _physics_frames(2)
@@ -104,6 +105,7 @@ func _run_live_combo() -> bool:
 	var start_attacks: Dictionary = {}
 	for index in range(3):
 		var raider := _raiders[index]
+		_reset_raider_for_live_combo(raider)
 		raider.global_position = Vector2(1700.0, 100.0 + float(index) * 430.0)
 		start_health[index + 1] = int(raider.get("health"))
 		start_receives[index + 1] = int(_raider_hits[index + 1])
@@ -143,6 +145,10 @@ func _run_live_combo() -> bool:
 		_check(int(target.get("health")) < int(start_health[target_index + 1]), "attack %d reduces real Raider health" % stage)
 		_check(_attack_hits[stage] > int(start_attacks[stage]), "attack %d hit signal corresponds to a live hitbox overlap" % stage)
 		_check(hitbox_active and overlap_count > 0, "attack %d is recorded with its enabled live hitbox overlapping a body" % stage)
+		# Once contact is observed, clear the target's concurrent retaliation so
+		# the capture measures the Player's buffered combo through hit-stop/recovery.
+		target.global_position = Vector2(1700.0, 100.0 + float(target_index) * 430.0)
+		_reset_raider_for_live_combo(target)
 		var hitstop_deadline := Time.get_ticks_msec() + 700
 		while not _hitstop_seen[stage] and Time.get_ticks_msec() < hitstop_deadline and not _expired():
 			await process_frame
@@ -151,7 +157,9 @@ func _run_live_combo() -> bool:
 		_sample_stage = 0
 		if stage < 3:
 			_raiders[target_index].global_position = Vector2(1700.0, 100.0 + float(target_index) * 430.0)
+			_reset_raider_for_live_combo(_raiders[target_index])
 			_raiders[target_index + 1].global_position = _player.global_position + _player.facing_direction * 58.0
+			_reset_raider_for_live_combo(_raiders[target_index + 1])
 			var recovery_seen := await _wait_for_stage_phase(stage, "recovery")
 			_check(recovery_seen, "attack %d reaches recovery before its combo input buffer press" % stage)
 			if not recovery_seen:
@@ -162,6 +170,21 @@ func _run_live_combo() -> bool:
 			if not next_started:
 				return false
 	return true
+
+func _reset_raider_for_live_combo(raider: Node) -> void:
+	# Leave normal Raider physics/AI active, but clear any attack that began while
+	# the player was moving into the test encounter. The next target can still
+	# wind up, receive the live combo hit, and react through the production code.
+	raider.set("attack_phase", "idle")
+	raider.set("attack_phase_remaining", 0.0)
+	raider.set("hitstun_remaining", 0.0)
+	raider.set("velocity", Vector2.ZERO)
+	var attack_area := raider.get_node_or_null("AttackArea") as Area2D
+	if attack_area != null:
+		attack_area.monitoring = false
+	var attack_flash := raider.get_node_or_null("VisualRoot/AttackFlash") as Polygon2D
+	if attack_flash != null:
+		attack_flash.visible = false
 
 func _wait_for_stage_phase(stage: int, phase: String) -> bool:
 	var deadline := Time.get_ticks_msec() + 2500
@@ -224,7 +247,10 @@ func _on_raider_hit(stage: int, target_index: int) -> void:
 	_trace.append("raider %d received attack stage %d at physics=%d health=%d" % [target_index, stage, Engine.get_physics_frames(), int(_raiders[target_index - 1].get("health"))])
 
 func _on_player_hit(stage: int) -> void:
-	_trace.append("player received attack stage %d at physics=%d health=%d" % [stage, Engine.get_physics_frames(), int(_player.get("health"))])
+	_trace.append("player received attack stage %d at physics=%d health=%d position=%s" % [stage, Engine.get_physics_frames(), int(_player.get("health")), _player.global_position])
+
+func _on_raider_windup_started(target_index: int) -> void:
+	_trace.append("raider %d begins windup at physics=%d position=%s" % [target_index, Engine.get_physics_frames(), _raiders[target_index - 1].global_position])
 
 func _tap(action: StringName) -> void:
 	_press(action)
