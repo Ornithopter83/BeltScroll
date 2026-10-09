@@ -113,6 +113,14 @@ call :run_smoke player_run_cycle_review_smoke
 call :record_additional_check player_run_cycle_review_smoke
 call :run_smoke m5_art_review_board_smoke
 call :record_additional_check m5_art_review_board_smoke
+call :run_smoke player_run_stride_v2_safe_smoke
+call :record_additional_check player_run_stride_v2_safe_smoke headless
+call :run_smoke player_run_v3_antiphase_smoke
+call :record_additional_check player_run_v3_antiphase_smoke headless
+call :run_smoke player_jump_rise_safe_smoke
+call :record_additional_check player_jump_rise_safe_smoke headless
+call :run_smoke player_skill1_rush_safe_smoke
+call :record_additional_check player_skill1_rush_safe_smoke headless
 
 call :run_suite_coverage
 if errorlevel 1 (
@@ -130,6 +138,14 @@ if errorlevel 1 (
     set "SUITE_FAILED=1"
     call :save_failure editor_executable_parse
 )
+call :record_additional_check editor_executable_parse_smoke powershell
+
+call :run_animation_candidate_coverage
+if errorlevel 1 (
+    set "SUITE_FAILED=1"
+    call :save_failure animation_candidate_coverage
+)
+call :record_additional_check animation_candidate_coverage_smoke powershell
 
 call :probe_fixtures
 if errorlevel 1 (
@@ -173,6 +189,10 @@ if /I "%SMOKE_NAME%"=="player_animation_state_matrix_smoke" set "SMOKE_TIMEOUT=1
 if /I "%SMOKE_NAME%"=="player_attack1_startup_safe_smoke" set "SMOKE_TIMEOUT=120"
 if /I "%SMOKE_NAME%"=="player_attack3_startup_safe_smoke" set "SMOKE_TIMEOUT=120"
 if /I "%SMOKE_NAME%"=="player_run_stride_safe_smoke" set "SMOKE_TIMEOUT=120"
+if /I "%SMOKE_NAME%"=="player_run_stride_v2_safe_smoke" set "SMOKE_TIMEOUT=120"
+if /I "%SMOKE_NAME%"=="player_run_v3_antiphase_smoke" set "SMOKE_TIMEOUT=120"
+if /I "%SMOKE_NAME%"=="player_jump_rise_safe_smoke" set "SMOKE_TIMEOUT=120"
+if /I "%SMOKE_NAME%"=="player_skill1_rush_safe_smoke" set "SMOKE_TIMEOUT=120"
 if /I "%SMOKE_NAME%"=="player_run_cycle_review_smoke" set "SMOKE_TIMEOUT=120"
 if /I "%SMOKE_NAME%"=="m5_art_review_board_smoke" set "SMOKE_TIMEOUT=120"
 echo [smoke] Type=headless timeout=%SMOKE_TIMEOUT%s log=%RUN_LOG%
@@ -204,6 +224,10 @@ if /I "%SMOKE_NAME%"=="player_attack3_startup_safe_smoke" set "SUCCESS_MARKER=pl
 if /I "%SMOKE_NAME%"=="player_run_stride_safe_smoke" set "SUCCESS_MARKER=player_run_stride_safe_smoke: mechanical checks passed; human visual approval remains required"
 if /I "%SMOKE_NAME%"=="player_run_cycle_review_smoke" set "SUCCESS_MARKER=player_run_cycle_review_smoke: isolated v1/v2 gate and Window evidence are present"
 if /I "%SMOKE_NAME%"=="m5_art_review_board_smoke" set "SUCCESS_MARKER=m5_art_review_board_smoke: all checks passed; human art approval remains independent"
+if /I "%SMOKE_NAME%"=="player_run_stride_v2_safe_smoke" set "SUCCESS_MARKER=player_run_stride_v2_safe_smoke: mechanical checks passed; human visual approval remains required and main-game registration is prohibited"
+if /I "%SMOKE_NAME%"=="player_run_v3_antiphase_smoke" set "SUCCESS_MARKER=player_run_v3_antiphase_smoke: v3 capture path available; #70 finding retained; no approval or integration"
+if /I "%SMOKE_NAME%"=="player_jump_rise_safe_smoke" set "SUCCESS_MARKER=player_jump_rise_safe_smoke: mechanical checks passed; airborne feet and identity require human review"
+if /I "%SMOKE_NAME%"=="player_skill1_rush_safe_smoke" set "SUCCESS_MARKER=player_skill1_rush_safe_smoke: mechanical checks passed; face/clothing identity, drive-leg readability, and Num5 rotational distinction remain human review gates"
 call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SUCCESS_MARKER%" "%ALLOW_MODE%"
 if errorlevel 1 (
     set "SUITE_FAILED=1"
@@ -266,6 +290,20 @@ if errorlevel 1 (
 )
 exit /b 0
 
+:run_animation_candidate_coverage
+echo [smoke] Verifying candidate coverage, optional v4 acquisition, and approval isolation
+set "SMOKE_ARGS=-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""%PROJECT_DIR%\tests\animation_candidate_coverage_smoke.ps1"""
+set "BOUNDED_EXECUTABLE=powershell.exe"
+call :run_bounded 45
+set "BOUNDED_EXECUTABLE="
+call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "animation_candidate_coverage_smoke: all checks passed"
+if errorlevel 1 (
+    echo [smoke] FAILED: animation candidate coverage and approval isolation
+    type "%RUN_LOG%"
+    exit /b 1
+)
+exit /b 0
+
 :run_animation_live_review_coverage
 echo [smoke] Verifying explicit live review capture path and visual approval boundary
 set "SMOKE_ARGS=-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""%PROJECT_DIR%\tests\animation_live_review_suite_smoke.ps1"""
@@ -296,7 +334,10 @@ exit /b 0
 
 :record_additional_check
 set /a ADDITIONAL_CHECKS+=1
-echo [smoke] additional_check=%~1 execution_type=headless process_exit=%RUN_EXIT%
+if not "%RUN_EXIT%"=="0" set "SUITE_FAILED=1"
+if "%~2"=="" (set "CHECK_EXECUTION_TYPE=headless") else set "CHECK_EXECUTION_TYPE=%~2"
+echo [smoke] additional_check=%~1 execution_type=%CHECK_EXECUTION_TYPE% process_exit=%RUN_EXIT%
+set "CHECK_EXECUTION_TYPE="
 exit /b 0
 
 :live_review_captures
