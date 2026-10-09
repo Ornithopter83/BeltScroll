@@ -21,12 +21,14 @@ func _run() -> void:
 	var raider1: Node2D = victory_session.get_node("YSortActors/ForestRaider1") as Node2D
 	var raider2: Node2D = victory_session.get_node("YSortActors/ForestRaider2") as Node2D
 	var raider3: Node2D = victory_session.get_node("YSortActors/ForestRaider3") as Node2D
+	var boss: Node = victory_session.get_node("YSortActors/RuinsWardenBoss")
 	_check(victory_player.position == Vector2(960.0, 780.0) and victory_dummy.position == Vector2(1220.0, 780.0), "player and training dummy preserve their 260-unit combat spacing in the HUD-safe lane")
-	_check(victory_player.get("arena_bounds") == Rect2(Vector2(237, 722), Vector2(1446, 258)), "player combat bounds use the HUD-safe visible band")
-	_check(raider1.position == Vector2(1400.0, 762.0) and raider2.position == Vector2(1600.0, 900.0) and raider3.position == Vector2(1740.0, 820.0), "raiders are staged ahead of the player in visible Y-sort lanes")
+	_check(victory_player.get("arena_bounds") == Rect2(Vector2(237, 722), Vector2(5286, 258)), "serialized player movement bounds preserve the continuous-stage side margins")
+	_check(raider1.position == Vector2(1480.0, 780.0) and raider2.position == Vector2(3360.0, 780.0) and raider3.position == Vector2(5160.0, 780.0), "one Raider is staged in each section of the continuous stage")
 	root.add_child(victory_session)
 	current_scene = victory_session
 	await process_frame
+	_check(victory_player.get("arena_bounds") == Rect2(Vector2(237, 722), Vector2(5286, 258)), "runtime player movement bounds span the continuous three-section stage")
 	var escape := InputEventKey.new()
 	escape.physical_keycode = KEY_ESCAPE
 	escape.pressed = true
@@ -50,22 +52,37 @@ func _run() -> void:
 	_check(not victory_session.get("help_panel").visible, "H hides the controls help")
 	var raiders: Array = victory_session.get("_raiders")
 	_check(raiders.size() == 3, "session tracks all three ForestRaiders")
-	_check(victory_session.get("_next_raider_wave") == 0 and raiders.all(func(raider: Node) -> bool: return not raider.visible and not bool(raider.get("combat_active")) and int(raider.get("collision_layer")) == 0 and not (raider.get_node("AttackArea") as Area2D).monitoring and not (raider.get_node("ReceiveArea") as Area2D).monitorable), "all raiders wait with AI, spacing participation, collision, and receive combat disabled")
+	_check(victory_session.get("_next_raider_wave") == 0 and raiders[0].visible and bool(raiders[0].get("combat_active")) and not raiders[1].visible and not raiders[2].visible, "only the first section Raider starts active")
+	_check(boss.is_in_group("boss_units") and not bool(boss.get("combat_active")), "real boss is discoverable by the HUD group but stays inactive before section three")
+	victory_player.global_position.x = 2100.0
+	victory_session.call("_update_raider_waves")
+	_check(victory_player.global_position.x == 1882.0 and victory_session.get("_next_raider_wave") == 0 and not raiders[1].visible, "uncleared section boundary blocks forward travel")
 	victory_player.global_position.x = 1040.0
+	raiders[0].call("receive_hit", HIT)
 	victory_session.call("_update_raider_waves")
-	_check(victory_session.get("_next_raider_wave") == 1 and raiders[0].visible and bool(raiders[0].get("combat_active")) and int(raiders[0].get("collision_layer")) == 2 and not raiders[1].visible, "first raider activates after the player reaches the first progress point")
-	_check(raiders[0].global_position.x - victory_player.global_position.x >= 320.0, "first Raider appears ahead of the player with clear approach space")
-	var first_raider_spacing: Dictionary = raiders[0].call("_spacing_adjustment", Vector2.ZERO)
-	var first_raider_velocity: Vector2 = first_raider_spacing["velocity"]
-	_check(is_zero_approx(first_raider_velocity.length()), "active Raider steering ignores nearby waiting Raiders")
-	victory_player.global_position.x = 1240.0
+	_check(victory_session.get("_next_raider_wave") == 1 and victory_session.get("_current_section") == 1 and raiders[1].visible and bool(raiders[1].get("combat_active")), "first Raider KO unlocks the second section")
 	victory_session.call("_update_raider_waves")
-	_check(victory_session.get("_next_raider_wave") == 2 and raiders[1].visible and not raiders[2].visible, "second raider activates at the next progress point")
-	_check(raiders[1].global_position.x - victory_player.global_position.x >= 320.0, "second Raider appears ahead of the player with clear approach space")
-	victory_player.global_position.x = 1400.0
+	_check(victory_session.get("_next_raider_wave") == 1 and not raiders[2].visible, "repeated wave updates do not skip an uncleared Raider")
+	victory_player.global_position.x = 1300.0
 	victory_session.call("_update_raider_waves")
-	_check(victory_session.get("_next_raider_wave") == 3 and raiders[2].visible, "third raider activates at the final progress point")
-	_check(raiders[2].global_position.x - victory_player.global_position.x >= 320.0, "last staged Raider appears ahead with clear approach space")
+	_check(victory_player.global_position.x == 1300.0, "backtracking into a cleared section remains possible")
+	victory_player.global_position.x = 4000.0
+	victory_session.call("_update_raider_waves")
+	_check(victory_player.global_position.x == 3802.0, "section two cannot be crossed before its Raider is defeated")
+	raiders[1].call("receive_hit", HIT)
+	victory_session.call("_update_raider_waves")
+	_check(victory_session.get("_next_raider_wave") == 2 and victory_session.get("_current_section") == 2 and raiders[2].visible, "second Raider KO unlocks the final section")
+	victory_player.global_position.x = 1300.0
+	victory_session.call("_update_raider_waves")
+	_check(victory_player.global_position.x == 1300.0, "player can backtrack from the final section")
+	raiders[2].call("receive_hit", HIT)
+	victory_session.call("_update_raider_waves")
+	_check(victory_session.get("_next_raider_wave") == 3 and bool(boss.get("combat_active")) and int(boss.get("health")) == int(boss.get("max_health")), "third Raider KO releases the full-health boss")
+	_check(victory_session.get("result_state") == 0, "defeating every Raider does not grant early victory")
+	var hud: Node = victory_session.get_node("CombatHUD")
+	hud.call("refresh")
+	var boss_rows: Dictionary = hud.get("_boss_indicators")
+	_check(boss_rows.has(boss.get_instance_id()) and boss_rows[boss.get_instance_id()]["label"].text.contains("Ruins Warden") and boss_rows[boss.get_instance_id()]["label"].text.contains("20 / 20"), "real active boss creates its named current/max health HUD row")
 	var victory_impact: Node2D = (load("res://scenes/vfx/combat_impact.tscn") as PackedScene).instantiate()
 	victory_session.get_node("YSortActors/ForestRaider1").add_child(victory_impact)
 	var victory_hitbox := victory_player.get_node("Hitboxes/Hitbox2") as Area2D
@@ -75,10 +92,9 @@ func _run() -> void:
 	victory_player.call("_trigger_hit_stop", 0.1)
 	var victory_raider_area := raiders[0].get_node("AttackArea") as Area2D
 	victory_raider_area.monitoring = true
-	for raider in raiders:
-		raider.set("health", 0)
+	boss.call("receive_hit", HIT)
 	await process_frame
-	_check(victory_session.get("result_state") == 2, "all three defeated raiders produce VICTORY")
+	_check(victory_session.get("result_state") == 2, "boss KO after all Raider sections produces VICTORY")
 	_check(victory_session.get("result_label").text == "VICTORY" and victory_session.get("result_overlay").visible, "victory is shown on its own CanvasLayer")
 	_check(not victory_hitbox.monitoring and not (raiders[0].get_node("AttackArea") as Area2D).monitoring, "victory cancels lingering Player and Raider hitboxes")
 	_check(is_equal_approx(Engine.time_scale, 1.0), "victory restores normal engine time scale immediately")

@@ -7,9 +7,8 @@ const EXPECTED_RAIDER_COUNT := 3
 const OVERLAY_LAYER := 20
 const HELP_LAYER := 10
 const PANEL_VIEWPORT_MARGIN := 24.0
-const FIRST_WAVE_PROGRESS := 80.0
-const WAVE_PROGRESS_SPACING := 180.0
-const WAVE_TRIGGER_LEAD := 360.0
+const SECTION_WIDTH := 1920.0
+const WORLD_WIDTH := 5760.0
 const DEFEAT_RESULT_DELAY := 1.25
 const TITLE_SCENE := "res://scenes/ui/title_menu.tscn"
 const MAIN_SCENE := "res://scenes/game/main.tscn"
@@ -32,8 +31,8 @@ var _raiders: Array[Node] = []
 var _wave_order: Array[Node] = []
 var _raider_collision_states: Array[Dictionary] = []
 var _next_raider_wave := 0
-var _furthest_progress_x := 0.0
-var _progress_origin_x := 0.0
+var _current_section := 0
+var _boss: Node
 var _pause_resume_button: Button
 var _pause_restart_button: Button
 var _pause_title_button: Button
@@ -53,8 +52,12 @@ func _ready() -> void:
 	for raider in get_tree().get_nodes_in_group("forest_raiders"):
 		if raider is Node and raider.get_parent() == get_node_or_null("YSortActors"):
 			_raiders.append(raider)
+	_boss = get_node_or_null("YSortActors/RuinsWardenBoss")
+	if is_instance_valid(_boss) and _boss.has_signal("boss_ko"):
+		_boss.boss_ko.connect(_on_boss_ko)
 	_apply_editor_overrides()
 	_initialize_raider_waves()
+	_configure_continuous_stage()
 	_build_result_overlay()
 	_build_pause_overlay()
 	_build_help_overlay()
@@ -143,8 +146,27 @@ func _initialize_raider_waves() -> void:
 		})
 		_set_raider_active(raider, false)
 	_next_raider_wave = 0
-	_progress_origin_x = (_player as Node2D).global_position.x if is_instance_valid(_player) else 0.0
-	_furthest_progress_x = _progress_origin_x
+	_current_section = 0
+	if not _wave_order.is_empty():
+		_set_raider_active(_wave_order[0], true)
+	if is_instance_valid(_boss) and _boss.has_method("set_combat_active"):
+		_boss.call("set_combat_active", false)
+
+func _configure_continuous_stage() -> void:
+	var bounds := Rect2(237.0, 722.0, WORLD_WIDTH - 474.0, 258.0)
+	if is_instance_valid(_player):
+		_player.set("arena_bounds", bounds)
+		var camera := _player.get_node_or_null("Camera2D") as Camera2D
+		if camera != null:
+			camera.limit_left = 0
+			camera.limit_right = int(WORLD_WIDTH)
+			camera.limit_top = 0
+			camera.limit_bottom = 1080
+	for raider in _raiders:
+		if is_instance_valid(raider):
+			raider.set("arena_bounds", Rect2(160.0, 100.0, WORLD_WIDTH - 320.0, 880.0))
+	if is_instance_valid(_boss):
+		_boss.set("arena_bounds", Rect2(160.0, 100.0, WORLD_WIDTH - 320.0, 880.0))
 
 func _set_raider_active(raider: Node, active: bool) -> void:
 	var index := _wave_order.find(raider)
@@ -184,18 +206,26 @@ func _set_raider_active(raider: Node, active: bool) -> void:
 		raider.visible = false
 
 func _update_raider_waves() -> void:
-	if not is_instance_valid(_player) or _next_raider_wave >= _wave_order.size():
+	if not is_instance_valid(_player):
 		return
-	var player_position := (_player as Node2D).global_position
-	_furthest_progress_x = maxf(_furthest_progress_x, player_position.x)
-	while _next_raider_wave < _wave_order.size():
-		var raider := _wave_order[_next_raider_wave] as Node2D
-		var minimum_progress := _progress_origin_x + FIRST_WAVE_PROGRESS + float(_next_raider_wave) * WAVE_PROGRESS_SPACING
-		var spawn_trigger := raider.global_position.x - WAVE_TRIGGER_LEAD
-		if _furthest_progress_x < maxf(minimum_progress, spawn_trigger):
-			break
-		_set_raider_active(raider, true)
-		_next_raider_wave += 1
+	var player := _player as Node2D
+	var section_right := float(_current_section + 1) * SECTION_WIDTH
+	player.global_position.x = minf(player.global_position.x, section_right - 38.0)
+	if _next_raider_wave < _wave_order.size():
+		var active_raider := _wave_order[_next_raider_wave]
+		if is_instance_valid(active_raider) and int(active_raider.get("health")) <= 0:
+			_next_raider_wave += 1
+			if _next_raider_wave < _wave_order.size():
+				_current_section = mini(_current_section + 1, 2)
+				_set_raider_active(_wave_order[_next_raider_wave], true)
+			else:
+				_current_section = 2
+				if is_instance_valid(_boss) and _boss.has_method("set_combat_active"):
+					_boss.call("set_combat_active", true)
+
+func _on_boss_ko() -> void:
+	if result_state == ResultState.PLAYING:
+		_finish_session(ResultState.VICTORY)
 
 func _find_override(records: Array, id: String, kind: String) -> Dictionary:
 	for index in range(records.size()):
@@ -213,11 +243,7 @@ func _process(_delta: float) -> void:
 	if is_instance_valid(_player) and int(_player.get("health")) <= 0:
 		_finish_session(ResultState.DEFEAT)
 		return
-	if _next_raider_wave == EXPECTED_RAIDER_COUNT and _raiders.size() == EXPECTED_RAIDER_COUNT:
-		for raider in _raiders:
-			if is_instance_valid(raider) and int(raider.get("health")) > 0:
-				return
-		_finish_session(ResultState.VICTORY)
+	# Raider KOs unlock the route; the boss signal is the only victory path.
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _transition_pending:
@@ -322,6 +348,14 @@ func _set_combat_active(active: bool) -> void:
 			if not active:
 				raider.velocity = Vector2.ZERO
 			_cancel_raider_attack(raider)
+	if is_instance_valid(_boss):
+		if not active:
+			_boss.velocity = Vector2.ZERO
+			if _boss.has_method("_cancel_attack"):
+				_boss.call("_cancel_attack")
+			# Let the boss finish its short collapse after KO while combat is frozen.
+			if int(_boss.get("health")) > 0:
+				_boss.set_physics_process(false)
 
 func _cancel_player_attack() -> void:
 	if bool(_player.get("_hit_stop_active")):

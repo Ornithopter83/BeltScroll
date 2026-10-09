@@ -14,7 +14,8 @@ func _run() -> void:
 	var output: Array = []
 	var status := OS.execute(OS.get_executable_path(), ["--path", ProjectSettings.globalize_path("res://"), "--script", CAPTURE_SCRIPT], output, true)
 	_check(status == 0, "actual Window capture process exits successfully (code %d)" % status)
-	_check(_contains(output, "raider-healthbar-window-capture: all checks passed"), "capture process validates actual fixed Player and Raider renders")
+	_check(_contains(output, "raider-healthbar-window-capture: all checks passed"), "capture process validates actual Player, Raider, and Ruins Warden renders")
+	_check(_contains(output, "real Ruins Warden row"), "capture process validates the real boss row against Window bounds and neighboring panels")
 	if status != 0:
 		for line in output:
 			push_error(str(line))
@@ -27,13 +28,16 @@ func _run() -> void:
 		var dimensions_valid := image.get_size() == EXPECTED_SIZE
 		var player_rect := _capture_rect(output, "player-bar-rect=")
 		var raider_rect := _capture_rect(output, "raider-bar-rect=")
+		var boss_rect := _capture_rect(output, "boss-bar-rect=")
 		var player_pixels := _is_expected_rect(player_rect, image) and _has_yellow_fill(image, player_rect)
 		var raider_pixels := _is_expected_rect(raider_rect, image) and _has_yellow_fill(image, raider_rect)
+		var boss_pixels := _is_expected_rect(boss_rect, image) and _has_yellow_fill(image, boss_rect)
 		_check(dimensions_valid, "Window capture is exactly 1920x1080")
 		_check(player_rect.size.x > 0 and Rect2i(Vector2i.ZERO, image.get_size()).encloses(player_rect), "capture reports the fixed Player bar pixel location")
 		_check(raider_rect.size.x == 300 and raider_rect.size.y >= 9 and raider_rect.size.y <= 32 and Rect2i(Vector2i.ZERO, image.get_size()).encloses(raider_rect), "capture reports the fixed Raider bar pixel location and rendered height")
-		_check(player_pixels and raider_pixels, "healed Player and Raider capture rows contain rendered yellow fill without red damage pixels")
-		capture_valid = dimensions_valid and player_pixels and raider_pixels
+		_check(boss_rect.size.x == 300 and boss_rect.size.y >= 9 and boss_rect.size.y <= 32 and Rect2i(Vector2i.ZERO, image.get_size()).encloses(boss_rect), "capture reports the dedicated boss bar pixel location within Window bounds")
+		_check(player_pixels and raider_pixels and boss_pixels, "healed Player, Raider, and boss rows contain rendered yellow fill without red damage pixels")
+		capture_valid = dimensions_valid and player_pixels and raider_pixels and boss_pixels
 	if FileAccess.file_exists(capture_absolute):
 		DirAccess.remove_absolute(capture_absolute)
 	if DisplayServer.get_name() == "headless":

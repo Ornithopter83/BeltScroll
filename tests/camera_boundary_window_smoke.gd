@@ -31,9 +31,9 @@ func _run() -> void:
 	_check(camera.zoom.is_equal_approx(Vector2(1.2, 1.2)), "camera zoom is preserved at 1.2")
 	_check(camera.position.is_equal_approx(Vector2(0.0, -360.0)), "camera framing offset keeps the full-size actors below the HUD")
 	_check(camera.position_smoothing_enabled, "camera position smoothing stays enabled")
-	_check(stage.texture.get_size() == Vector2(EXPECTED_SIZE), "camera boundary is checked against the 1920x1080 stage texture")
-	_check(camera.limit_left == 0 and camera.limit_top == 0 and camera.limit_right == 1920 and camera.limit_bottom == 1080, "camera limits cover the stage background exactly")
-	_check(player.get("arena_bounds") == Rect2(Vector2(237, 722), Vector2(1446, 258)), "player combat arena stays inside the HUD-safe visible band")
+	_check(stage.texture.get_size() == Vector2(EXPECTED_SIZE), "each repeated stage tile is 1920x1080")
+	_check(camera.limit_left == 0 and camera.limit_top == 0 and camera.limit_right == 5760 and camera.limit_bottom == 1080, "camera limits cover all three continuous stage tiles")
+	_check(player.get("arena_bounds") == Rect2(Vector2(237, 722), Vector2(5286, 258)), "player combat arena retains its HUD-safe margins across all three sections")
 	player.global_position = Vector2(250.0, 760.0)
 	await _wait_camera_settled(camera)
 	var requested := Vector2(100.0, -100.0)
@@ -105,7 +105,7 @@ func _check_player_silhouette_at_arena_edges(player: CharacterBody2D) -> void:
 	await _wait_camera_settled(player.get_node("Camera2D") as Camera2D)
 	var left_screen_x: float = (player_art.get_global_transform_with_canvas() * alpha_left_local).x
 	_check(left_screen_x >= 0.0, "full player alpha silhouette remains inside the left camera edge")
-	player.global_position.x = 1670.0
+	player.global_position.x = float(arena.end.x) - 13.0
 	await _wait_camera_settled(player.get_node("Camera2D") as Camera2D)
 	var right_screen_x: float = (player_art.get_global_transform_with_canvas() * alpha_right_local).x
 	_check(right_screen_x <= EXPECTED_SIZE.x, "full player alpha silhouette remains inside the right camera edge")

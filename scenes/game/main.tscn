@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="1_player"]
 [ext_resource type="PackedScene" path="res://scenes/combat/training_dummy.tscn" id="2_dummy"]
@@ -7,6 +7,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/combat_hud.tscn" id="5_hud"]
 [ext_resource type="Script" path="res://scripts/game/game_session.gd" id="6_session"]
 [ext_resource type="Script" path="res://scripts/audio/combat_audio.gd" id="7_combat_audio"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/ruins_warden_boss.tscn" id="8_boss"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("6_session")
@@ -16,27 +17,40 @@ position = Vector2(960, 540)
 texture = ExtResource("4_stage")
 z_index = -1
 
+[node name="StageBackground2" type="Sprite2D" parent="."]
+position = Vector2(2880, 540)
+texture = ExtResource("4_stage")
+z_index = -1
+
+[node name="StageBackground3" type="Sprite2D" parent="."]
+position = Vector2(4800, 540)
+texture = ExtResource("4_stage")
+z_index = -1
+
 [node name="YSortActors" type="Node2D" parent="."]
 y_sort_enabled = true
 
 [node name="Player" parent="YSortActors" instance=ExtResource("1_player")]
 position = Vector2(960, 780)
-arena_bounds = Rect2(237, 722, 1446, 258)
+arena_bounds = Rect2(237, 722, 5286, 258)
 
 [node name="TrainingDummy" parent="YSortActors" instance=ExtResource("2_dummy")]
 position = Vector2(1220, 780)
 
 [node name="ForestRaider1" parent="YSortActors" instance=ExtResource("3_raider")]
-position = Vector2(1400, 762)
-arena_bounds = Rect2(160, 100, 1600, 880)
+position = Vector2(1480, 780)
+arena_bounds = Rect2(160, 100, 5440, 880)
 
 [node name="ForestRaider2" parent="YSortActors" instance=ExtResource("3_raider")]
-position = Vector2(1600, 900)
-arena_bounds = Rect2(160, 100, 1600, 880)
+position = Vector2(3360, 780)
+arena_bounds = Rect2(160, 100, 5440, 880)
 
 [node name="ForestRaider3" parent="YSortActors" instance=ExtResource("3_raider")]
-position = Vector2(1740, 820)
-arena_bounds = Rect2(160, 100, 1600, 880)
+position = Vector2(5160, 780)
+arena_bounds = Rect2(160, 100, 5440, 880)
+
+[node name="RuinsWardenBoss" parent="YSortActors" instance=ExtResource("8_boss")]
+position = Vector2(5440, 780)
 
 [node name="CombatHUD" parent="." instance=ExtResource("5_hud")]
 

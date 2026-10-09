@@ -13,6 +13,7 @@ const RAIDER_DAMAGE_DELAY := 0.28
 const RAIDER_DAMAGE_BAR_SPEED := 1.5
 const RAIDER_INDICATOR_SIZE := Vector2(300.0, 46.0)
 const RAIDER_ROW_GAP := 0.0
+const BOSS_INDICATOR_SIZE := Vector2(300.0, 46.0)
 const SKILL_READY_COLOR := Color(0.38, 0.83, 0.63, 1.0)
 const SKILL_COOLDOWN_COLOR := Color(0.88, 0.57, 0.29, 1.0)
 const SKILL_ACTIVE_COLORS := [Color(0.30, 0.78, 0.96, 1.0), Color(0.86, 0.50, 0.96, 1.0)]
@@ -33,6 +34,7 @@ var _player_damage_delay := 0.0
 var _player_health_initialized := false
 var _player_health_target := 1.0
 var _raider_indicators: Dictionary = {}
+var _boss_indicators: Dictionary = {}
 
 func _ready() -> void:
 	_build_hud()
@@ -84,6 +86,29 @@ func refresh() -> void:
 
 	var remaining := 0
 	var live_ids: Dictionary = {}
+	var live_boss_ids: Dictionary = {}
+	for boss in get_tree().get_nodes_in_group("boss_units"):
+		if not is_instance_valid(boss) or boss.get("health") == null:
+			continue
+		var boss_health := int(boss.get("health"))
+		var boss_maximum := maxi(1, int(boss.get("max_health")))
+		var boss_active := boss_health > 0
+		if boss.get("combat_active") != null:
+			boss_active = boss_active and bool(boss.get("combat_active"))
+		if not boss_active and not _boss_indicators.has(boss.get_instance_id()):
+			continue
+		var boss_id := boss.get_instance_id()
+		live_boss_ids[boss_id] = true
+		_update_boss_indicator(boss, boss_id)
+		var boss_indicator: Dictionary = _boss_indicators[boss_id]
+		boss_indicator["root"].position = Vector2(57.0, 190.0 + (live_boss_ids.size() - 1) * (BOSS_INDICATOR_SIZE.y + RAIDER_ROW_GAP))
+		boss_indicator["root"].visible = true
+	for boss_id in _boss_indicators.keys():
+		if not live_boss_ids.has(boss_id):
+			var stale_boss: Control = _boss_indicators[boss_id]["root"]
+			if is_instance_valid(stale_boss):
+				stale_boss.queue_free()
+			_boss_indicators.erase(boss_id)
 	for raider in get_tree().get_nodes_in_group("forest_raiders"):
 		if is_instance_valid(raider):
 			var health := int(raider.get("health"))
@@ -96,7 +121,7 @@ func refresh() -> void:
 			live_ids[raider_id] = true
 			_update_raider_indicator(raider, raider_id)
 			var indicator: Dictionary = _raider_indicators[raider_id]
-			var row_index := live_ids.size() - 1
+			var row_index := live_ids.size() - 1 + live_boss_ids.size()
 			indicator["root"].position = Vector2(57.0, 190.0 + row_index * (RAIDER_INDICATOR_SIZE.y + RAIDER_ROW_GAP))
 			indicator["root"].visible = true
 	for raider_id in _raider_indicators.keys():
@@ -106,6 +131,16 @@ func refresh() -> void:
 				stale.queue_free()
 			_raider_indicators.erase(raider_id)
 	raider_value_label.text = "%02d" % remaining
+	# The Active Raiders panel also reserves space for the optional boss row.
+	var raiders_panel := $Overlay/ActiveRaidersPanel
+	var combo_panel := $Overlay/ComboPanel
+	var row_count := live_ids.size() + live_boss_ids.size()
+	if row_count > 3:
+		raiders_panel.size.y = 178.0 + float(row_count - 3) * RAIDER_INDICATOR_SIZE.y
+		combo_panel.position.y = 336.0 + float(row_count - 3) * RAIDER_INDICATOR_SIZE.y
+	else:
+		raiders_panel.size.y = 178.0
+		combo_panel.position.y = 336.0
 
 func _advance_health_bars(delta: float) -> void:
 	if not _player_health_initialized:
@@ -117,7 +152,12 @@ func _advance_health_bars(delta: float) -> void:
 		_player_damage_value = move_toward(_player_damage_value, _player_health_target, PLAYER_DAMAGE_BAR_SPEED * delta)
 	else:
 		_player_damage_value = _player_bar_value
-	for indicator in _raider_indicators.values():
+	_advance_indicator_dictionary(_raider_indicators, delta)
+	_advance_indicator_dictionary(_boss_indicators, delta)
+
+func _advance_indicator_dictionary(indicators: Dictionary, delta: float) -> void:
+	for indicator_id in indicators.keys():
+		var indicator: Dictionary = indicators[indicator_id]
 		var target := float(indicator["target"])
 		indicator["bar_value"] = move_toward(float(indicator["bar_value"]), target, RAIDER_BAR_SPEED * delta)
 		if float(indicator["damage_delay"]) > 0.0:
@@ -128,6 +168,7 @@ func _advance_health_bars(delta: float) -> void:
 			indicator["damage_value"] = float(indicator["bar_value"])
 		indicator["bar"].value = float(indicator["bar_value"])
 		indicator["damage_bar"].value = float(indicator["damage_value"])
+		indicators[indicator_id] = indicator
 
 func _update_raider_indicator(raider: Node2D, raider_id: int) -> void:
 	var indicator: Dictionary
@@ -143,14 +184,12 @@ func _update_raider_indicator(raider: Node2D, raider_id: int) -> void:
 	indicator["label"].text = "%s%s  %d / %d" % [raider_name, "  ·  KO" if health <= 0 else "", health, maximum]
 	indicator["bar"].max_value = 1.0
 	indicator["damage_bar"].max_value = 1.0
-	indicator["bar"].value = float(indicator["bar_value"])
-	indicator["damage_bar"].value = float(indicator["damage_value"])
 	if not bool(indicator["initialized"]):
 		indicator["bar_value"] = target
 		indicator["damage_value"] = target
 		indicator["target"] = target
 		indicator["initialized"] = true
-	elif target != float(indicator["target"]):
+	elif not is_equal_approx(target, float(indicator["target"])):
 		if target > float(indicator["target"]):
 			indicator["bar_value"] = target
 			indicator["damage_value"] = target
@@ -158,7 +197,40 @@ func _update_raider_indicator(raider: Node2D, raider_id: int) -> void:
 		else:
 			indicator["damage_delay"] = RAIDER_DAMAGE_DELAY
 		indicator["target"] = target
-	# Apply state changes so recovery never leaves a red damage tail visible.
+	indicator["bar"].value = float(indicator["bar_value"])
+	indicator["damage_bar"].value = float(indicator["damage_value"])
+
+func _update_boss_indicator(boss: Node, boss_id: int) -> void:
+	var indicator: Dictionary
+	if _boss_indicators.has(boss_id):
+		indicator = _boss_indicators[boss_id]
+	else:
+		indicator = _create_raider_indicator(boss_id)
+		indicator["root"].name = "BossHealth_%d" % boss_id
+		_boss_indicators[boss_id] = indicator
+	var maximum := maxi(1, int(boss.get("max_health")))
+	var health := clampi(int(boss.get("health")), 0, maximum)
+	var target := float(health) / float(maximum)
+	var boss_name := str(boss.name).replace("_", " ")
+	var configured_name = boss.get("display_name")
+	if configured_name != null and not str(configured_name).strip_edges().is_empty():
+		boss_name = str(configured_name).strip_edges()
+	indicator["label"].text = "BOSS  /  %s  %d / %d%s" % [boss_name, health, maximum, "  ·  KO" if health <= 0 else ""]
+	indicator["bar"].max_value = 1.0
+	indicator["damage_bar"].max_value = 1.0
+	if not bool(indicator["initialized"]):
+		indicator["bar_value"] = target
+		indicator["damage_value"] = target
+		indicator["target"] = target
+		indicator["initialized"] = true
+	elif not is_equal_approx(target, float(indicator["target"])):
+		if target > float(indicator["target"]):
+			indicator["bar_value"] = target
+			indicator["damage_value"] = target
+			indicator["damage_delay"] = 0.0
+		else:
+			indicator["damage_delay"] = RAIDER_DAMAGE_DELAY
+		indicator["target"] = target
 	indicator["bar"].value = float(indicator["bar_value"])
 	indicator["damage_bar"].value = float(indicator["damage_value"])
 

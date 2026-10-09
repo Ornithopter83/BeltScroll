@@ -19,7 +19,7 @@ func _run() -> void:
 	var stage_values := _find(second_read.stages, "ForestRuins", "stages")
 	_check(player_values.get("walk_speed") == 280.0 and player_values.get("max_health") == 5 and player_values.get("skill_cooldowns") == [1.35, 1.8], "Player ID resolves with its authored baseline values")
 	_check(enemy_values.get("attack_damage") == 1 and enemy_values.get("attack_range") == 96.0 and enemy_values.get("recovery_duration") == 0.62, "ForestRaider ID resolves with original attack and cooldown values")
-	_check(stage_values.get("left") == 160.0 and stage_values.get("right") == 1760.0 and stage_values.get("spawns", []).size() == 4, "stage boundaries and actor placements parse")
+	_check(stage_values.get("left") == 160.0 and stage_values.get("right") == 5600.0 and stage_values.get("spawns", []).size() == 4, "three-section stage boundaries and actor placements parse")
 
 	var invalid_enemy: Dictionary = DATA_LOADER.validate_record({"id": "bad", "attack_range": 0.0, "attack_damage": 1.5, "attack_knockback": 200.0}, "enemies", 0)
 	_check(not invalid_enemy.has("attack_range") and not invalid_enemy.has("attack_damage") and invalid_enemy.get("attack_knockback") == 200.0, "invalid fields are diagnosed and dropped individually")
@@ -44,15 +44,15 @@ func _run() -> void:
 	player.call("_request_skill", 2)
 	_check(is_equal_approx(float(player.get("skill_cooldowns")[1]), 1.8), "second Player skill cooldown is applied independently")
 	_check(raider.get("max_health") == 3 and raider.get("health") == 3 and raider.get("attack_damage") == 1, "runtime applies ForestRaider data by ID")
-	_check(player.get("arena_bounds") == Rect2(Vector2(237, 722), Vector2(1446, 258)), "stage player boundary preserves the original HUD-safe movement bounds")
-	_check(raider.get("arena_bounds") == Rect2(Vector2(160, 100), Vector2(1600, 880)), "stage boundary overrides apply to ForestRaider")
+	_check(player.get("arena_bounds") == Rect2(Vector2(237, 722), Vector2(5286, 258)), "stage player boundary spans the expanded HUD-safe movement lane")
+	_check(raider.get("arena_bounds") == Rect2(Vector2(160, 100), Vector2(5440, 880)), "stage boundary overrides span the continuous Raider arena")
 	var raider2: Node2D = main.get_node("YSortActors/ForestRaider2") as Node2D
 	var raider3: Node2D = main.get_node("YSortActors/ForestRaider3") as Node2D
-	_check(player.position == Vector2(960, 780) and raider.position == Vector2(1400, 762) and raider2.position == Vector2(1600, 900) and raider3.position == Vector2(1740, 820), "editor spawn overrides apply the forward, staged Raider positions")
-	_check(not raider.visible and not raider2.visible and not raider3.visible and not bool(raider.get("combat_active")), "editor spawn overrides remain gated until player progress")
-	player.global_position.x = 1040.0
+	_check(player.position == Vector2(960, 780) and raider.position == Vector2(1480, 780) and raider2.position == Vector2(3360, 780) and raider3.position == Vector2(5160, 780), "editor spawn overrides place one Raider in each continuous-stage section")
+	_check(raider.visible and bool(raider.get("combat_active")) and not raider2.visible and not raider3.visible, "only the first section Raider starts active")
+	player.global_position.x = 2100.0
 	main.call("_update_raider_waves")
-	_check(raider.visible and bool(raider.get("combat_active")) and not raider2.visible and not raider3.visible and raider.global_position.x - player.global_position.x >= 320.0, "first editor-positioned Raider activates ahead at the first progress point")
+	_check(player.global_position.x == 1882.0 and raider.visible and bool(raider.get("combat_active")) and not raider2.visible, "uncleared first section prevents crossing into the next section")
 
 	# Original player attack payload and hitbox sizing remain the combat regression baseline.
 	var player_scene := (load(PLAYER_SCENE) as PackedScene).instantiate()

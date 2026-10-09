@@ -17,6 +17,10 @@ func _run() -> void:
 	_disable_test_enemies(main)
 	root.add_child(main)
 	await physics_frame
+	# Route progression is covered by stage-session tests. Open the final section
+	# here so this movement-only suite can check the actual world-right clamp.
+	main.set("_current_section", 2)
+	main.set("_next_raider_wave", 3)
 	player = main.get_node("YSortActors/Player") as CharacterBody2D
 	visual_root = player.get_node("VisualRoot") as Node2D
 	ground_shadow = player.get_node("GroundShadow") as Polygon2D
@@ -55,14 +59,14 @@ func _check_scene_configuration(main: Node) -> void:
 	_check(main.get_node("YSortActors").y_sort_enabled, "YSortActors enables y sorting")
 	var camera := player.get_node("Camera2D") as Camera2D
 	_check(player.global_position == Vector2(960.0, 780.0), "player starts in the lower HUD-safe combat lane")
-	_check(player.get("arena_bounds") == Rect2(Vector2(237, 722), Vector2(1446, 258)), "arena bounds account for zoomed alpha silhouette limits")
+	_check(player.get("arena_bounds") == Rect2(Vector2(237, 722), Vector2(5286, 258)), "arena bounds span the continuous three-section world with alpha-safe side margins")
 	var viewport_size := get_root().get_visible_rect().size
 	var visible_world_size := viewport_size / camera.zoom
 	_check(camera.zoom == Vector2(1.2, 1.2), "camera uses the configured zoom for the arena framing")
 	_check(camera.position == Vector2(0.0, -360.0), "camera frames the full-size actor silhouette below the HUD")
 	_check(viewport_size == Vector2(1920, 1080), "headless test uses the logical 1920 by 1080 viewport")
 	_check(camera.limit_left == 0 and camera.limit_top == 0, "camera starts at backdrop origin")
-	_check(camera.limit_right == 1920 and camera.limit_bottom == 1080, "camera limits match backdrop bounds")
+	_check(camera.limit_right == 5760 and camera.limit_bottom == 1080, "camera limits span all three backdrop tiles")
 	_check(camera.offset == Vector2.ZERO, "camera offset does not shift the visible bounds")
 	_check(visible_world_size.x <= camera.limit_right - camera.limit_left and visible_world_size.y <= camera.limit_bottom - camera.limit_top, "zoomed camera view fits inside backdrop at limits")
 	_check(camera.position_smoothing_enabled, "camera position smoothing remains enabled")
@@ -143,10 +147,10 @@ func _check_arena_clamp() -> void:
 	await _frames(2)
 	_check(absf(player.global_position.y - 760.0) < EPSILON, "HUD-safe arena clamps the top edge after accounting for the jump silhouette")
 	_release("move_up")
-	await _reset_player(Vector2(1800, 800))
+	await _reset_player(Vector2(5600, 800))
 	Input.action_press("move_right")
 	await _frames(2)
-	_check(absf(player.global_position.x - 1670.0) < EPSILON, "arena clamps right edge with the full alpha silhouette inside camera bounds (x=%.2f)" % player.global_position.x)
+	_check(absf(player.global_position.x - 5510.0) < EPSILON, "arena clamps right edge of the expanded world with the full alpha silhouette inside camera bounds (x=%.2f)" % player.global_position.x)
 	_release("move_right")
 	await _reset_player(Vector2(960, 970))
 	Input.action_press("move_down")
@@ -156,7 +160,7 @@ func _check_arena_clamp() -> void:
 	await _frames(1)
 
 func _check_camera_bounds() -> void:
-	await _reset_player(Vector2(1670.0, 978.0))
+	await _reset_player(Vector2(5510.0, 978.0))
 	await _frames(90)
 	player.set("camera_trauma", 1.0)
 	await _frames(2)

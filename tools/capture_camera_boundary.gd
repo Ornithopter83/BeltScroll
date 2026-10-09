@@ -5,12 +5,13 @@ const MAIN_SCENE := "res://scenes/game/main.tscn"
 const OUTPUT_PATH := "res://assets/art/review/camera_boundary_capture.png"
 const CAPTURE_SIZE := Vector2i(1920, 1080)
 const TILE_SIZE := Vector2i(640, 360)
+const WORLD_WIDTH := 5760.0
 const POSITIONS := [
-	Vector2(173, 138), Vector2(960, 138), Vector2(1747, 138),
-	Vector2(173, 558), Vector2(960, 558), Vector2(1747, 558),
-	Vector2(173, 978), Vector2(960, 978), Vector2(1747, 978),
+	Vector2(173, 138), Vector2(1120, 558), Vector2(1920, 978),
+	Vector2(2720, 138), Vector2(2880, 558), Vector2(3520, 978),
+	Vector2(3840, 138), Vector2(4640, 558), Vector2(5520, 978),
 ]
-const POSITION_NAMES := ["top-left", "top-edge", "top-right", "left-edge", "center", "right-edge", "bottom-left", "bottom-edge", "bottom-right"]
+const POSITION_NAMES := ["section-one-left", "first-seam-right", "first-seam-center", "section-two-left", "section-two-center", "second-seam-right", "second-seam-center", "section-three-left", "world-right"]
 
 var _failures: Array[String] = []
 var _check_count := 0
@@ -49,7 +50,7 @@ func _capture() -> void:
 		raider.velocity = Vector2.ZERO
 		raider.get_node("AttackArea").monitoring = false
 	_check(source != null and source.get_size() == CAPTURE_SIZE, "Forest Ruins source pixels are 1920x1080")
-	_check(camera.limit_left == 0 and camera.limit_top == 0 and camera.limit_right == CAPTURE_SIZE.x and camera.limit_bottom == CAPTURE_SIZE.y, "camera limits match the actual stage texture bounds")
+	_check(camera.limit_left == 0 and camera.limit_top == 0 and camera.limit_right == int(WORLD_WIDTH) and camera.limit_bottom == CAPTURE_SIZE.y, "camera limits span the full three-tile stage background")
 	if source == null or source.get_size() != CAPTURE_SIZE:
 		_finish()
 		return
@@ -131,10 +132,11 @@ func _check_boundary_pixels(frame: Image, source: Image, camera: Camera2D, posit
 	var center := camera.get_screen_center_position()
 	for screen_pixel in edge_points:
 		var world_pixel := center + (Vector2(screen_pixel) - Vector2(CAPTURE_SIZE) * 0.5) / camera.zoom
-		if world_pixel.x < 0.0 or world_pixel.y < 0.0 or world_pixel.x >= source.get_width() or world_pixel.y >= source.get_height():
+		if world_pixel.x < 0.0 or world_pixel.y < 0.0 or world_pixel.x >= WORLD_WIDTH or world_pixel.y >= source.get_height():
 			continue
 		samples_inside_stage += 1
-		var expected := source.get_pixelv(Vector2i(roundi(world_pixel.x), roundi(world_pixel.y)))
+		var source_x := posmod(roundi(world_pixel.x), source.get_width())
+		var expected := source.get_pixelv(Vector2i(source_x, roundi(world_pixel.y)))
 		var actual := frame.get_pixelv(screen_pixel)
 		if _color_distance_squared(actual, expected) < 0.018:
 			matched_background_pixels += 1

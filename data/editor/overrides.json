@@ -33,19 +33,19 @@
       "id": "ForestRuins",
       "left": 160.0,
       "top": 100.0,
-      "right": 1760.0,
+      "right": 5600.0,
       "bottom": 980.0,
       "player_bounds": {
         "left": 237.0,
         "top": 722.0,
-        "right": 1683.0,
+        "right": 5523.0,
         "bottom": 980.0
       },
       "spawns": [
         { "actor_id": "Player", "x": 960.0, "y": 780.0 },
-        { "actor_id": "ForestRaider", "x": 1400.0, "y": 762.0 },
-        { "actor_id": "ForestRaider2", "x": 1600.0, "y": 900.0 },
-        { "actor_id": "ForestRaider3", "x": 1740.0, "y": 820.0 }
+        { "actor_id": "ForestRaider", "x": 1480.0, "y": 780.0 },
+        { "actor_id": "ForestRaider2", "x": 3360.0, "y": 780.0 },
+        { "actor_id": "ForestRaider3", "x": 5160.0, "y": 780.0 }
       ]
     }
   ]
