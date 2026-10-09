@@ -89,7 +89,7 @@ WASD와 방향키는 상·하·좌·우 이동입니다. 숫자 키는 Num1 공�
 
 ## 독립 편집기 EXE 인수 검증
 
-`dist/BeltScrollEditor.exe` 산출물의 존재·실행·`--self-test`, GUI 동작과 프로젝트 외부 경로 실행을 확인하려면 [편집기 EXE 인수 게이트](docs/review/editor_acceptance_gate.md)를 따릅니다.
+`dist/BeltScrollEditor.exe` 산출물의 존재·실행·`--self-test`, WinForms 메시지 루프 기반 자동 GUI 편집·저장 인수 시험과 프로젝트 외부 경로 실행을 확인하려면 [편집기 EXE 인수 게이트](docs/review/editor_acceptance_gate.md)를 따릅니다. 자동 시험은 결과 JSON·창 캡처·종료 코드를 임시 경로에 남깁니다. 게임 데이터 재적용은 수동 확인 항목으로 유지합니다.
 
 ```powershell
 .\tests\editor_executable_smoke.ps1

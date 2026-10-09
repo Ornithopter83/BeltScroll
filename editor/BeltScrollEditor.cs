@@ -12,12 +12,13 @@ public sealed class OverrideDocument
     [JsonPropertyName("characters")] public List<EditorItem> Characters { get; set; } = [];
     [JsonPropertyName("enemies")] public List<EditorItem> Enemies { get; set; } = [];
     [JsonPropertyName("stages")] public List<EditorItem> Stages { get; set; } = [];
+    [JsonExtensionData] public Dictionary<string, JsonElement>? ExtraFields { get; set; }
 }
 
 public sealed class EditorItem
 {
     [JsonPropertyName("id")] public string Id { get; set; } = "";
-    [JsonPropertyName("name")] public string Name { get; set; } = "";
+    [JsonPropertyName("name"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Name { get; set; }
     [JsonPropertyName("max_health")] public int MaxHealth { get; set; } = 100;
     [JsonPropertyName("attack_damage")] public int AttackDamage { get; set; } = 10;
     [JsonPropertyName("walk_speed")] public double WalkSpeed { get; set; } = 1;
@@ -35,6 +36,7 @@ public sealed class EditorItem
     [JsonPropertyName("bottom")] public double Bottom { get; set; } = 600;
     [JsonPropertyName("player_bounds")] public Dictionary<string, double> PlayerBounds { get; set; } = new();
     [JsonPropertyName("spawns")] public List<SpawnPoint> Spawns { get; set; } = [];
+    [JsonExtensionData] public Dictionary<string, JsonElement>? ExtraFields { get; set; }
     [JsonIgnore] public double X { get; set; }
     [JsonIgnore] public double Y { get; set; }
     public override string ToString() => string.IsNullOrWhiteSpace(Name) ? Id : $"{Name} ({Id})";
@@ -46,6 +48,7 @@ public sealed class SpawnPoint
     [JsonPropertyName("actor_id")] public string ActorId { get; set; } = "Player";
     [JsonPropertyName("x")] public double X { get; set; }
     [JsonPropertyName("y")] public double Y { get; set; }
+    [JsonExtensionData] public Dictionary<string, JsonElement>? ExtraFields { get; set; }
 }
 
 internal static class Program
@@ -59,8 +62,12 @@ internal static class Program
             catch (Exception e) { Console.Error.WriteLine($"Self-test failed: {e.Message}"); return 1; }
         }
         ApplicationConfiguration.Initialize();
-        Application.Run(new EditorForm());
-        return 0;
+        string? acceptanceDir = null;
+        for (int i = 0; i < args.Length; i++)
+            if (args[i].Equals("--gui-acceptance", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length) acceptanceDir = Path.GetFullPath(args[++i]);
+        using var form = new EditorForm(acceptanceDir);
+        Application.Run(form);
+        return form.ExitCode;
     }
 
     private static void SelfTest()
@@ -101,7 +108,6 @@ internal static class Program
             if (item is null) throw new InvalidDataException($"{kind} 목록에 빈 항목이 있습니다.");
             if (string.IsNullOrWhiteSpace(item.Id)) throw new InvalidDataException($"{kind} ID는 비워둘 수 없습니다.");
             if (!ids.Add(item.Id.Trim())) throw new InvalidDataException($"중복 ID: {item.Id}");
-            if (string.IsNullOrWhiteSpace(item.Name)) throw new InvalidDataException($"{item.Id}: 이름은 비워둘 수 없습니다.");
             Check(item.MaxHealth, 1, 999, item.Id, "체력"); Check(item.AttackDamage, 0, 999, item.Id, "공격력");
             Check(item.WalkSpeed, 1, 2000, item.Id, "속도"); Check(item.AttackHitStun, 0, 10, item.Id, "경직");
             Check(item.AttackKnockback, 0, 3000, item.Id, "넉백"); Check(item.AttackRange, 1, 1200, item.Id, "공격 범위");
@@ -135,9 +141,14 @@ internal sealed class EditorForm : Form
     private EditorItem? selected;
     private string currentPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "data", "editor", "overrides.json"));
     private bool loading;
+    private readonly string? acceptanceDir;
+    private System.Windows.Forms.Timer? acceptanceTimer;
+    private int acceptanceStep;
+    internal int ExitCode { get; private set; }
 
-    public EditorForm()
+    public EditorForm(string? acceptanceDir = null)
     {
+        this.acceptanceDir = acceptanceDir;
         Text = "BeltScroll 에디터"; Width = 1120; Height = 780; MinimumSize = new Size(900, 600); StartPosition = FormStartPosition.CenterScreen;
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, Padding = new Padding(8) };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 290)); root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -155,7 +166,21 @@ internal sealed class EditorForm : Form
         { var b = new Button { Text = label, AutoSize = true }; b.Click += (_, _) => action(); fileButtons.Controls.Add(b); }
         footer.Controls.Add(fileButtons, 1, 0); root.Controls.Add(footer, 0, 1); root.SetColumnSpan(footer, 2); Controls.Add(root);
         category.SelectedIndexChanged += (_, _) => RefreshList(); items.SelectedIndexChanged += (_, _) => SelectItem();
-        BuildFields(); RefreshList(); status.Text = $"파일: {currentPath}";
+        BuildFields(); RefreshList();
+        if (acceptanceDir is not null)
+        {
+            Directory.CreateDirectory(acceptanceDir);
+            currentPath = Path.Combine(acceptanceDir, "overrides.json");
+            string fixture = Path.Combine(acceptanceDir, "source-overrides.json");
+            if (!File.Exists(fixture)) File.WriteAllText(fixture, """{"schema_version":1,"characters":[{"id":"Player","max_health":5,"walk_speed":280,"custom_runtime_key":{"korean":"보존"}}],"enemies":[{"id":"Raider","name":"적","max_health":10}],"stages":[{"id":"AcceptanceStage","name":"인수 스테이지","left":10,"top":20,"right":1000,"bottom":900,"spawns":[{"actor_id":"Player","x":960,"y":780,"custom_spawn_field":"preserve"}],"custom_stage_field":{"enabled":true}}],"custom_document_field":"preserve"}""", new UTF8Encoding(false));
+            LoadPath(fixture);
+            currentPath = Path.Combine(acceptanceDir, "overrides.json");
+            acceptanceTimer = new System.Windows.Forms.Timer { Interval = 180 };
+            acceptanceTimer.Tick += (_, _) => RunAcceptanceStep();
+            Shown += (_, _) => acceptanceTimer.Start();
+        }
+        else LoadStartupFile();
+        if (acceptanceDir is not null) status.Text = $"인수 시험: {acceptanceDir}";
     }
 
     private IEnumerable<EditorItem> CurrentList => category.SelectedIndex switch { 0 => document.Characters, 1 => document.Enemies, _ => document.Stages };
@@ -195,40 +220,80 @@ internal sealed class EditorForm : Form
     }
     private void AddItem()
     {
-        var item = new EditorItem { Id = $"{(category.SelectedIndex == 0 ? "character" : category.SelectedIndex == 1 ? "enemy" : "stage")}_{DateTime.Now:yyyyMMdd_HHmmssfff}", Name = $"새 {CurrentKind}" };
+        string prefix = category.SelectedIndex == 0 ? "character" : category.SelectedIndex == 1 ? "enemy" : "stage";
+        var item = new EditorItem { Id = UniqueId($"{prefix}_{DateTime.Now:yyyyMMdd_HHmmssfff}"), Name = $"새 {CurrentKind}" };
         if (category.SelectedIndex == 0) document.Characters.Add(item); else if (category.SelectedIndex == 1) document.Enemies.Add(item); else document.Stages.Add(item);
         RefreshList(); items.SelectedItem = item;
     }
     private void CloneItem()
     {
-        if (selected is null) return; var clone = selected.Copy(); clone.Id += "_copy"; clone.Name += " 복사본";
+        if (selected is null) return; var clone = selected.Copy(); clone.Id = UniqueId($"{clone.Id}_copy"); clone.Name = $"{clone.Name} 복사본";
         if (category.SelectedIndex == 0) document.Characters.Add(clone); else if (category.SelectedIndex == 1) document.Enemies.Add(clone); else document.Stages.Add(clone);
         RefreshList(); items.SelectedItem = clone;
     }
+    private string UniqueId(string candidate)
+    {
+        var used = document.Characters.Concat(document.Enemies).Concat(document.Stages)
+            .Select(item => item.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (!used.Contains(candidate)) return candidate;
+        for (int suffix = 2; ; suffix++)
+        {
+            string unique = $"{candidate}_{suffix}";
+            if (!used.Contains(unique)) return unique;
+        }
+    }
     private void DeleteItem()
     {
-        if (selected is null || MessageBox.Show($"'{selected.Name}' 항목을 삭제할까요?", "삭제 확인", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        if (selected is null || (acceptanceDir is null && MessageBox.Show($"'{selected.Name}' 항목을 삭제할까요?", "삭제 확인", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)) return;
         if (category.SelectedIndex == 0) document.Characters.Remove(selected); else if (category.SelectedIndex == 1) document.Enemies.Remove(selected); else document.Stages.Remove(selected); RefreshList();
     }
     private void LoadFile()
     {
         using var dialog = new OpenFileDialog { Title = "오버라이드 불러오기", Filter = "JSON 파일 (*.json)|*.json|모든 파일 (*.*)|*.*", FileName = Path.GetFileName(currentPath) };
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
-        try { var loaded = JsonSerializer.Deserialize<OverrideDocument>(File.ReadAllText(dialog.FileName, Encoding.UTF8), Program.JsonOptions) ?? throw new InvalidDataException("JSON 문서가 비어 있습니다."); Program.Validate(loaded); foreach (var stage in loaded.Stages) { var playerSpawn = stage.Spawns.FirstOrDefault(s => s.ActorId == "Player"); if (playerSpawn is not null) { stage.X = playerSpawn.X; stage.Y = playerSpawn.Y; } } document = loaded; currentPath = dialog.FileName; RefreshList(); status.Text = $"불러옴: {currentPath}"; }
+        try { LoadPath(dialog.FileName); currentPath = dialog.FileName; status.Text = $"불러옴: {currentPath}"; }
         catch (Exception ex) { ShowError("불러오기 실패", ex); }
+    }
+    private void LoadStartupFile()
+    {
+        if (!File.Exists(currentPath)) { status.Text = $"새 문서: {currentPath}"; return; }
+        try { LoadPath(currentPath); status.Text = $"불러옴: {currentPath}"; }
+        catch (Exception ex) { status.Text = $"기존 파일을 적용하지 않았습니다: {ex.Message}"; }
+    }
+    private void LoadPath(string path)
+    {
+        var loaded = JsonSerializer.Deserialize<OverrideDocument>(File.ReadAllText(path, Encoding.UTF8), Program.JsonOptions) ?? throw new InvalidDataException("JSON 문서가 비어 있습니다.");
+        Program.Validate(loaded);
+        foreach (var stage in loaded.Stages) { var spawn = stage.Spawns.FirstOrDefault(s => s.ActorId == "Player"); if (spawn is not null) { stage.X = spawn.X; stage.Y = spawn.Y; } }
+        document = loaded; RefreshList();
     }
     private void Save() => SaveTo(currentPath);
     private void SaveAs()
     {
         using var dialog = new SaveFileDialog { Title = "오버라이드 저장", Filter = "JSON 파일 (*.json)|*.json", FileName = Path.GetFileName(currentPath), DefaultExt = "json" };
-        if (dialog.ShowDialog(this) == DialogResult.OK) { currentPath = dialog.FileName; SaveTo(currentPath); }
+        if (dialog.ShowDialog(this) == DialogResult.OK) SaveAsTo(dialog.FileName);
     }
-    private void SaveTo(string path)
+    private bool SaveAsTo(string path)
+    {
+        if (!SaveTo(path)) return false;
+        currentPath = Path.GetFullPath(path);
+        return true;
+    }
+    private bool SaveTo(string path)
     {
         try
         {
             var output = JsonSerializer.Deserialize<OverrideDocument>(JsonSerializer.Serialize(document, Program.JsonOptions), Program.JsonOptions)!;
-            foreach (var stage in output.Stages) { var playerSpawn = stage.Spawns.FirstOrDefault(s => s.ActorId == "Player"); if (playerSpawn is null) stage.Spawns.Add(new SpawnPoint { ActorId = "Player", X = stage.X, Y = stage.Y }); else { playerSpawn.X = stage.X; playerSpawn.Y = stage.Y; } }
+            for (int i = 0; i < output.Stages.Count; i++)
+            {
+                // X/Y are editor-only properties and are intentionally ignored by JSON serialization.
+                // Restore them from the live model before writing the runtime Player spawn.
+                output.Stages[i].X = document.Stages[i].X;
+                output.Stages[i].Y = document.Stages[i].Y;
+                var playerSpawn = output.Stages[i].Spawns.FirstOrDefault(s => s.ActorId == "Player");
+                if (playerSpawn is null) output.Stages[i].Spawns.Add(new SpawnPoint { ActorId = "Player", X = output.Stages[i].X, Y = output.Stages[i].Y });
+                else { playerSpawn.X = output.Stages[i].X; playerSpawn.Y = output.Stages[i].Y; }
+            }
             Program.Validate(output); string full = Path.GetFullPath(path); Directory.CreateDirectory(Path.GetDirectoryName(full)!);
             byte[] content = new UTF8Encoding(false).GetBytes(JsonSerializer.Serialize(output, Program.JsonOptions) + Environment.NewLine);
             string temp = full + ".tmp." + Guid.NewGuid().ToString("N");
@@ -240,8 +305,39 @@ internal sealed class EditorForm : Form
             }
             finally { if (File.Exists(temp)) File.Delete(temp); }
             status.Text = $"저장 완료: {full}";
+            return true;
         }
-        catch (Exception ex) { ShowError("저장 실패", ex); }
+        catch (Exception ex) { ShowError("저장 실패", ex); return false; }
     }
-    private void ShowError(string title, Exception ex) { status.Text = $"오류: {ex.Message}"; MessageBox.Show(this, ex.Message, title, MessageBoxButtons.OK, MessageBoxIcon.Error); }
+    private void ShowError(string title, Exception ex) { status.Text = $"오류: {ex.Message}"; if (acceptanceDir is null) MessageBox.Show(this, ex.Message, title, MessageBoxButtons.OK, MessageBoxIcon.Error); }
+
+    private void RunAcceptanceStep()
+    {
+        try
+        {
+            acceptanceStep++;
+            switch (acceptanceStep)
+            {
+                case 1: category.SelectedIndex = 0; items.SelectedIndex = 0; if (items.Items.Count != 1 || selected is null || selected.Name is not null) throw new Exception("Partial record did not load with missing name."); break;
+                case 2: ((Button)FindButton("새 항목")).PerformClick(); if (selected is null || document.Characters.Count != 2) throw new Exception("Character create failed."); break;
+                case 3: ((Button)FindButton("복제")).PerformClick(); var idBox = (TextBox)editors["Id"]; idBox.Text = "acceptance_character_clone"; var health = (TextBox)editors["MaxHealth"]; health.Text = "7"; if (selected?.Id != "acceptance_character_clone" || selected.MaxHealth != 7) throw new Exception("Character clone/edit failed."); ((Button)FindButton("삭제")).PerformClick(); if (document.Characters.Any(x => x.Id == "acceptance_character_clone")) throw new Exception("Character clone delete failed."); items.SelectedItem = document.Characters.Single(x => x.Id.StartsWith("character_", StringComparison.Ordinal)); ((Button)FindButton("삭제")).PerformClick(); if (document.Characters.Count != 1) throw new Exception("Created character delete failed."); break;
+                case 4: category.SelectedIndex = 1; items.SelectedItem = document.Enemies.Single(x => x.Id == "Raider"); ((Button)FindButton("복제")).PerformClick(); ((TextBox)editors["Id"]).Text = "acceptance_enemy_clone"; ((TextBox)editors["MaxHealth"]).Text = "17"; if (selected?.Id != "acceptance_enemy_clone" || selected.MaxHealth != 17) throw new Exception("Enemy clone/edit failed."); ((Button)FindButton("삭제")).PerformClick(); if (document.Enemies.Count != 1) throw new Exception("Enemy clone delete failed."); ((Button)FindButton("새 항목")).PerformClick(); if (document.Enemies.Count != 2) throw new Exception("Enemy create failed."); ((Button)FindButton("삭제")).PerformClick(); if (document.Enemies.Count != 1) throw new Exception("Created enemy delete failed."); break;
+                case 5: category.SelectedIndex = 2; var stage = document.Stages.Single(x => x.Id == "AcceptanceStage"); items.SelectedItem = stage; if (stage.X != 960 || stage.Y != 780) throw new Exception("Stage Player placement did not load."); ((Button)FindButton("복제")).PerformClick(); ((TextBox)editors["Id"]).Text = "acceptance_stage_clone"; ((TextBox)editors["X"]).Text = "961"; ((TextBox)editors["Y"]).Text = "781"; if (selected?.Id != "acceptance_stage_clone" || selected.X != 961 || selected.Y != 781) throw new Exception("Stage clone/edit failed."); if (!SaveTo(currentPath)) throw new Exception("Stage save failed."); ((Button)FindButton("삭제")).PerformClick(); if (document.Stages.Any(x => x.Id == "acceptance_stage_clone")) throw new Exception("Stage clone delete failed."); ((Button)FindButton("새 항목")).PerformClick(); if (document.Stages.Count != 2) throw new Exception("Stage create failed."); ((Button)FindButton("삭제")).PerformClick(); if (document.Stages.Count != 1) throw new Exception("Created stage delete failed."); break;
+                case 6: category.SelectedIndex = 0; var player = document.Characters.Single(x => x.Id == "Player"); items.SelectedItem = player; if (!SaveTo(currentPath)) throw new Exception("Could not establish the preexisting save fixture."); string priorPath = currentPath; byte[] priorContent = File.ReadAllBytes(currentPath); string priorBackupPath = currentPath + ".bak"; bool hadPriorBackup = File.Exists(priorBackupPath); byte[] priorBackup = hadPriorBackup ? File.ReadAllBytes(priorBackupPath) : []; ((TextBox)editors["MaxHealth"]).Text = "0"; string rejectedPath = Path.Combine(acceptanceDir!, "failed-save", "should-not-exist.json"); if (SaveAsTo(rejectedPath) || currentPath != priorPath || File.Exists(rejectedPath)) throw new Exception("Failed Save As changed the active path or created a file."); bool backupChanged = File.Exists(priorBackupPath) != hadPriorBackup || (hadPriorBackup && !File.ReadAllBytes(priorBackupPath).SequenceEqual(priorBackup)); if (SaveTo(currentPath) || !status.Text.StartsWith("오류:") || !File.ReadAllBytes(currentPath).SequenceEqual(priorContent) || backupChanged) throw new Exception("Rejected overwrite changed the prior file or backup."); ((TextBox)editors["MaxHealth"]).Text = "6"; if (!SaveTo(currentPath)) throw new Exception("Corrected value did not save."); break;
+                case 7: File.WriteAllText(Path.Combine(acceptanceDir!, "malformed.json"), "{invalid", new UTF8Encoding(false)); var before = document; try { LoadPath(Path.Combine(acceptanceDir!, "malformed.json")); throw new Exception("Malformed JSON was accepted."); } catch (JsonException) { if (!ReferenceEquals(before, document)) throw new Exception("Malformed load replaced the current document."); } break;
+                case 8: if (!SaveTo(currentPath)) throw new Exception("Save failed."); if (!File.Exists(currentPath + ".bak")) throw new Exception("Backup was not created on overwrite."); LoadPath(currentPath); if (document.Characters.Single(x => x.Id == "Player").MaxHealth != 6) throw new Exception("Saved value did not survive reopen."); var root = JsonDocument.Parse(File.ReadAllText(currentPath, Encoding.UTF8)).RootElement; var playerJson = root.GetProperty("characters")[0]; var savedStage = root.GetProperty("stages")[0]; var savedSpawn = savedStage.GetProperty("spawns").EnumerateArray().Single(x => x.GetProperty("actor_id").GetString() == "Player"); if (playerJson.TryGetProperty("name", out _) || !playerJson.TryGetProperty("custom_runtime_key", out _)) throw new Exception("Partial name or unknown character field was not preserved."); if (savedSpawn.GetProperty("x").GetDouble() != 960 || savedSpawn.GetProperty("y").GetDouble() != 780 || !savedStage.TryGetProperty("custom_stage_field", out _) || !savedSpawn.TryGetProperty("custom_spawn_field", out _) || !root.TryGetProperty("custom_document_field", out _)) throw new Exception("Stage placement or unknown source fields were not preserved."); break;
+                case 9: CaptureAcceptance(); WriteAcceptanceReport(true, "WinForms message loop verified character, enemy, and stage create/clone/edit/delete; range rejection; malformed JSON rejection; save/reopen/backup; source field and stage placement preservation; normal close."); acceptanceTimer!.Stop(); ExitCode = 0; Close(); break;
+            }
+        }
+        catch (Exception ex) { acceptanceTimer?.Stop(); ExitCode = 1; WriteAcceptanceReport(false, ex.ToString()); try { CaptureAcceptance(); } catch { } Close(); }
+    }
+    private Control FindButton(string label) => Controls.Find(label, true).FirstOrDefault() ?? FindControls(this).OfType<Button>().First(b => b.Text == label);
+    private static IEnumerable<Control> FindControls(Control root) { foreach (Control child in root.Controls) { yield return child; foreach (var descendant in FindControls(child)) yield return descendant; } }
+    private void CaptureAcceptance() { using var bitmap = new Bitmap(Math.Max(1, Width), Math.Max(1, Height)); DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size)); bitmap.Save(Path.Combine(acceptanceDir!, "gui-capture.png"), System.Drawing.Imaging.ImageFormat.Png); }
+    private void WriteAcceptanceReport(bool passed, string details)
+    {
+        var report = new { product = "BeltScrollEditor", mode = "--gui-acceptance", passed, details, steps = new[] { "startup partial record load", "character create/clone/edit/delete", "enemy create/clone/edit/delete", "stage create/clone/edit/delete", "stage Player coordinate preservation", "range rejection", "failed Save As path preservation", "failed overwrite preserves existing file and backup", "malformed JSON rejection", "save", "reopen", "backup", "unknown document/item/spawn field preservation", "normal close" }, workingDirectory = Environment.CurrentDirectory, output = currentPath, screenshot = Path.Combine(acceptanceDir!, "gui-capture.png"), exitCode = passed ? 0 : 1 };
+        File.WriteAllText(Path.Combine(acceptanceDir!, "gui-acceptance.json"), JsonSerializer.Serialize(report, Program.JsonOptions), new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(acceptanceDir!, "exit-code.txt"), (passed ? "0" : "1") + Environment.NewLine, new UTF8Encoding(false));
+    }
 }

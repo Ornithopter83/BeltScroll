@@ -61,6 +61,24 @@ try {
         Add-Result '--self-test 완료' $exitOk $details
     }
 
+    $acceptanceOut = Join-Path $testRoot 'gui-acceptance.stdout.txt'
+    $acceptanceErr = Join-Path $testRoot 'gui-acceptance.stderr.txt'
+    $acceptanceProcess = Start-Process -FilePath $resolvedEditor -ArgumentList @('--gui-acceptance', $testRoot) -WorkingDirectory $testRoot `
+        -RedirectStandardOutput $acceptanceOut -RedirectStandardError $acceptanceErr -PassThru
+    if (-not $acceptanceProcess.WaitForExit($SelfTestTimeoutSeconds * 1000)) {
+        try { $acceptanceProcess.Kill() } catch { }
+        Add-Result '--gui-acceptance 완료' $false ("제한 시간 {0}초 초과" -f $SelfTestTimeoutSeconds)
+    } else {
+        $acceptanceProcess.Refresh()
+        $acceptanceExit = $acceptanceProcess.ExitCode
+        $acceptanceReport = Join-Path $testRoot 'gui-acceptance.json'
+        $capture = Join-Path $testRoot 'gui-capture.png'
+        $acceptancePassed = $acceptanceExit -eq 0 -and (Test-Path -LiteralPath $acceptanceReport) -and (Test-Path -LiteralPath $capture)
+        $acceptanceDetails = "exit={0}; report={1}; capture={2}" -f $acceptanceExit, (Test-Path -LiteralPath $acceptanceReport), (Test-Path -LiteralPath $capture)
+        if (Test-Path -LiteralPath $acceptanceReport) { $acceptanceDetails += '; ' + (Get-Content -Encoding UTF8 -Raw -LiteralPath $acceptanceReport).Trim() }
+        Add-Result '--gui-acceptance 완료' $acceptancePassed $acceptanceDetails
+    }
+
     Write-Output ''
     Write-Output ('잘못된 JSON 시험 파일: {0}' -f $badJsonPath)
     $guiProcess = Start-Process -FilePath $resolvedEditor -WorkingDirectory $testRoot -PassThru
