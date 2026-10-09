@@ -74,6 +74,7 @@ call :run_window_smoke player_visual_animator_smoke
 call :run_window_smoke player_attack_pose_integration_smoke
 call :run_window_smoke camera_boundary_window_smoke
 call :run_window_smoke gameplay_window_render_smoke
+call :run_window_smoke combat_live_session_window_smoke
 
 call :probe_fixtures
 if errorlevel 1 (
