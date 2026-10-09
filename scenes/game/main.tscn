@@ -27,6 +27,9 @@ position = Vector2(4800, 540)
 texture = ExtResource("4_stage")
 z_index = -1
 
+[node name="StageDressing" type="Node2D" parent="."]
+z_index = -1
+
 [node name="YSortActors" type="Node2D" parent="."]
 y_sort_enabled = true
 

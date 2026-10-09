@@ -92,5 +92,6 @@ shape = SubResource("BossReceive")
 [node name="HealthBar" type="ProgressBar" parent="."]
 position = Vector2(-70, -171)
 size = Vector2(140, 13)
+visible = false
 show_percentage = false
 value = 100.0

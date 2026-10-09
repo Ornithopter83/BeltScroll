@@ -44,6 +44,7 @@ func _ready() -> void:
 	health = max_health
 	health_bar.max_value = max_health
 	health_bar.value = health
+	health_bar.hide()
 	attack_area.collision_layer = 0
 	attack_area.collision_mask = 1
 	attack_area.monitoring = false

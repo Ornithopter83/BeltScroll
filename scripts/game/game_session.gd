@@ -10,6 +10,8 @@ const PANEL_VIEWPORT_MARGIN := 24.0
 const SECTION_WIDTH := 1920.0
 const WORLD_WIDTH := 5760.0
 const DEFEAT_RESULT_DELAY := 1.25
+const SECTION_NAMES := ["THE GREENWAY", "THE VEIL PASS", "THE RUIN GATE"]
+const SECTION_TINTS := [Color(0.98, 0.82, 0.54, 0.11), Color(0.42, 0.77, 0.86, 0.21), Color(0.52, 0.44, 0.74, 0.23)]
 const TITLE_SCENE := "res://scenes/ui/title_menu.tscn"
 const MAIN_SCENE := "res://scenes/game/main.tscn"
 const PLAYER_ID := "Player"
@@ -58,6 +60,7 @@ func _ready() -> void:
 	_apply_editor_overrides()
 	_initialize_raider_waves()
 	_configure_continuous_stage()
+	_build_stage_dressing()
 	_build_result_overlay()
 	_build_pause_overlay()
 	_build_help_overlay()
@@ -167,6 +170,69 @@ func _configure_continuous_stage() -> void:
 			raider.set("arena_bounds", Rect2(160.0, 100.0, WORLD_WIDTH - 320.0, 880.0))
 	if is_instance_valid(_boss):
 		_boss.set("arena_bounds", Rect2(160.0, 100.0, WORLD_WIDTH - 320.0, 880.0))
+
+func _build_stage_dressing() -> void:
+	var dressing := get_node_or_null("StageDressing") as Node2D
+	if dressing == null:
+		return
+	for section in range(3):
+		var left := float(section) * SECTION_WIDTH
+		var tint := ColorRect.new()
+		tint.name = "SectionTint%d" % (section + 1)
+		tint.position = Vector2(left, 0.0)
+		tint.size = Vector2(SECTION_WIDTH, 1080.0)
+		tint.color = SECTION_TINTS[section]
+		tint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		dressing.add_child(tint)
+		_add_section_title(dressing, section, left)
+		_add_section_landmarks(dressing, section, left)
+
+func _add_section_title(parent: Node2D, section: int, left: float) -> void:
+	var title := Label.new()
+	title.name = "SectionTitle%d" % (section + 1)
+	title.text = "%02d   %s" % [section + 1, SECTION_NAMES[section]]
+	title.position = Vector2(left + 660.0, 365.0)
+	title.add_theme_font_size_override("font_size", 34)
+	title.add_theme_color_override("font_color", Color(0.95, 0.91, 0.73, 0.96))
+	title.add_theme_color_override("font_shadow_color", Color(0.025, 0.055, 0.05, 0.96))
+	title.add_theme_constant_override("shadow_offset_x", 2)
+	title.add_theme_constant_override("shadow_offset_y", 3)
+	parent.add_child(title)
+
+func _add_section_landmarks(parent: Node2D, section: int, left: float) -> void:
+	var stone_colors: Array[Color] = [Color("857957"), Color("617b7a"), Color("5d5968")]
+	var stone: Color = stone_colors[section]
+	var landmark_x := left + 1540.0
+	var base_y := 748.0
+	# Each section ends at a distinct landmark; the arrow points to the next encounter.
+	if section == 0:
+		_add_polygon(parent, "BrokenPillar1", [Vector2(left + 1490, 610), Vector2(left + 1545, 610), Vector2(left + 1556, 766), Vector2(left + 1484, 766)], stone.darkened(0.32))
+		_add_polygon(parent, "BrokenPillarCap1", [Vector2(left + 1477, 598), Vector2(left + 1553, 598), Vector2(left + 1568, 619), Vector2(left + 1486, 625)], stone.lightened(0.12))
+		_add_polygon(parent, "RootSweep1", [Vector2(left + 1260, 861), Vector2(left + 1370, 825), Vector2(left + 1460, 850), Vector2(left + 1590, 818), Vector2(left + 1700, 862), Vector2(left + 1670, 886), Vector2(left + 1510, 871), Vector2(left + 1400, 892)], Color(0.19, 0.22, 0.12, 0.9))
+		_add_polygon(parent, "GreenwayRootForeground", [Vector2(left, 1005), Vector2(left + 255, 962), Vector2(left + 486, 986), Vector2(left + 735, 945), Vector2(left + 1010, 989), Vector2(left + 1256, 951), Vector2(left + 1510, 995), Vector2(left + 1712, 954), Vector2(left + SECTION_WIDTH, 988), Vector2(left + SECTION_WIDTH, 1080), Vector2(left, 1080)], Color(0.10, 0.16, 0.075, 0.86))
+	elif section == 1:
+		_add_polygon(parent, "VeilArchLeft", [Vector2(left + 1420, 762), Vector2(left + 1444, 530), Vector2(left + 1470, 520), Vector2(left + 1492, 762)], stone.darkened(0.24))
+		_add_polygon(parent, "VeilArchTop", [Vector2(left + 1433, 540), Vector2(left + 1450, 503), Vector2(left + 1612, 497), Vector2(left + 1635, 527), Vector2(left + 1617, 547)], stone.lightened(0.08))
+		_add_polygon(parent, "VeilArchRight", [Vector2(left + 1592, 762), Vector2(left + 1616, 526), Vector2(left + 1647, 530), Vector2(left + 1662, 762)], stone.darkened(0.28))
+		_add_polygon(parent, "VeilMist", [Vector2(left + 150, 540), Vector2(left + 420, 518), Vector2(left + 780, 544), Vector2(left + 1090, 523), Vector2(left + 1410, 546), Vector2(left + 1770, 522), Vector2(left + 1900, 540), Vector2(left + 1880, 640), Vector2(left + 1560, 654), Vector2(left + 1330, 635), Vector2(left + 960, 663), Vector2(left + 620, 642), Vector2(left + 320, 670), Vector2(left + 140, 647)], Color(0.72, 0.89, 0.92, 0.31))
+		_add_polygon(parent, "VeilMistLow", [Vector2(left + 20, 716), Vector2(left + 420, 690), Vector2(left + 800, 714), Vector2(left + 1240, 689), Vector2(left + 1660, 716), Vector2(left + 1900, 700), Vector2(left + 1880, 773), Vector2(left + 1430, 786), Vector2(left + 980, 758), Vector2(left + 480, 790), Vector2(left + 40, 768)], Color(0.80, 0.91, 0.91, 0.14))
+	else:
+		_add_polygon(parent, "GatePillarLeft", [Vector2(left + 1380, 770), Vector2(left + 1400, 397), Vector2(left + 1480, 360), Vector2(left + 1515, 770)], stone.darkened(0.24))
+		_add_polygon(parent, "GateLintel", [Vector2(left + 1394, 408), Vector2(left + 1430, 346), Vector2(left + 1694, 346), Vector2(left + 1732, 410)], stone.lightened(0.08))
+		_add_polygon(parent, "GatePillarRight", [Vector2(left + 1655, 770), Vector2(left + 1686, 394), Vector2(left + 1740, 410), Vector2(left + 1770, 770)], stone.darkened(0.32))
+		_add_polygon(parent, "GateRune", [Vector2(left + 1548, 474), Vector2(left + 1580, 434), Vector2(left + 1612, 474), Vector2(left + 1580, 522)], Color(0.78, 0.68, 0.93, 0.46))
+		_add_polygon(parent, "RuinGateHaze", [Vector2(left + 1280, 520), Vector2(left + 1370, 478), Vector2(left + 1530, 500), Vector2(left + 1710, 470), Vector2(left + 1820, 522), Vector2(left + 1780, 724), Vector2(left + 1320, 730)], Color(0.40, 0.34, 0.61, 0.18))
+		_add_polygon(parent, "RuinForeground", [Vector2(left, 976), Vector2(left + 225, 930), Vector2(left + 438, 971), Vector2(left + 690, 926), Vector2(left + 904, 966), Vector2(left + 1115, 937), Vector2(left + 1392, 981), Vector2(left + 1600, 934), Vector2(left + SECTION_WIDTH, 969), Vector2(left + SECTION_WIDTH, 1080), Vector2(left, 1080)], Color(0.12, 0.11, 0.17, 0.92))
+	# A visible route marker sits in the distant scenery and never participates in collisions.
+	_add_polygon(parent, "TrailMarkerStem%d" % (section + 1), [Vector2(landmark_x, base_y - 98), Vector2(landmark_x + 16, base_y - 98), Vector2(landmark_x + 20, base_y), Vector2(landmark_x - 4, base_y)], stone.darkened(0.22))
+	_add_polygon(parent, "TrailMarkerArrow%d" % (section + 1), [Vector2(landmark_x - 34, base_y - 88), Vector2(landmark_x + 27, base_y - 88), Vector2(landmark_x + 27, base_y - 108), Vector2(landmark_x + 62, base_y - 78), Vector2(landmark_x + 27, base_y - 48), Vector2(landmark_x + 27, base_y - 68), Vector2(landmark_x - 34, base_y - 68)], stone.lightened(0.2))
+
+func _add_polygon(parent: Node2D, polygon_name: String, points: Array[Vector2], color: Color) -> void:
+	var shape := Polygon2D.new()
+	shape.name = polygon_name
+	shape.polygon = PackedVector2Array(points)
+	shape.color = color
+	parent.add_child(shape)
 
 func _set_raider_active(raider: Node, active: bool) -> void:
 	var index := _wave_order.find(raider)
