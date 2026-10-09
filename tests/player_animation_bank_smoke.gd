@@ -59,6 +59,13 @@ func _run() -> void:
 	_check(blender.set_timed_pose("run", "stride", 0.12, 0.2, 0.0, true) and blender.get_current_texture_path() == run_texture_b, "run stride clock advances to the second registered texture in order")
 	_check(blender.set_timed_pose("run", "stride", 0.21, 0.2, 0.0, true) and blender.get_current_texture_path() == run_texture_a, "run stride clock loops on its registered phase duration")
 	_check(blender.get_current_registered_frame_label() == "stride 1", "texture-specific frame labels survive same-phase registration")
+	var replacement_blender: PlayerPoseBlender = BLENDER_SCRIPT.new()
+	root.add_child(replacement_blender)
+	await process_frame
+	_check(replacement_blender.register_pose_frame("run", "stride", run_a, 0.1, "approved manifest frame", "manifest frame 1", Vector2(-1.0, -1.0), true), "bank replacement batch starts by replacing stale phase art")
+	_check(replacement_blender.register_pose_frame("run", "stride", run_b, 0.1, "approved manifest frame", "manifest frame 2", Vector2(-1.0, -1.0), true), "bank replacement batch retains subsequent ordered frames")
+	_check(replacement_blender.get_registered_frame_count("run", "stride") == 2, "replacement batch preserves all approved frames for timed playback")
+	_check(replacement_blender.set_timed_pose("run", "stride", 0.12, 0.2, 0.0, true) and replacement_blender.get_current_texture_path() == run_texture_b, "replacement-batched frame order is visible on the runtime movement clock")
 	var run_reject_blender: PlayerPoseBlender = BLENDER_SCRIPT.new()
 	root.add_child(run_reject_blender)
 	await process_frame
@@ -117,7 +124,9 @@ func _run() -> void:
 	var integrated_blender: PlayerPoseBlender = player.get_node("VisualRoot/PoseBlender") as PlayerPoseBlender
 	for stage in range(1, 4):
 		var duration: float = EXPECTED_ACTIVE[stage - 1]
-		_check(is_equal_approx(float(animator.call("_attack_phase_duration", stage - 1, "active")), duration), "integrated attack %d reads contact timing from the bank" % stage)
+		bank.set("_phase_durations", {"attack%d_contact" % stage: duration * 2.0})
+		animator.set("_animation_bank", bank)
+		_check(is_equal_approx(float(animator.call("_attack_phase_duration", stage - 1, "active")), duration), "integrated attack %d keeps its hitbox clock when registered art duration differs" % stage)
 		player.set("attack_stage", stage)
 		player.set("attack_phase", "active")
 		player.set("attack_phase_remaining", duration * 0.5)

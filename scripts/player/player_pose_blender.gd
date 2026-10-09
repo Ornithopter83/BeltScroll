@@ -30,6 +30,7 @@ var _bounds_cache: Dictionary = {}
 var _anchor_overrides: Dictionary = {}
 var _approved_textures: Dictionary = {}
 var _registered_frames: Dictionary = {}
+var _replacement_batch_keys: Dictionary = {}
 var _current_key := "idle"
 var _current_registered_frame := 0
 var _current_registered_frame_elapsed := 0.0
@@ -113,7 +114,13 @@ func register_pose_frame(action: String, phase: String, texture_source: Variant,
 		texture = load(texture_source) as Texture2D
 	if not _texture_is_usable(texture):
 		return false
-	if replace_existing or not _registered_frames.has(key):
+	# Bank loaders mark each manifest frame as replacing the prior approved
+	# registration. Consecutive frames for one phase form one replacement batch:
+	# clear the previous phase once, then preserve manifest order for the rest.
+	if replace_existing and not _replacement_batch_keys.has(key):
+		_registered_frames[key] = []
+		_replacement_batch_keys[key] = true
+	elif not _registered_frames.has(key):
 		_registered_frames[key] = []
 	var frames: Array = _registered_frames[key]
 	frames.append({"texture": texture, "duration": duration, "status": art_status, "label": label if not label.is_empty() else phase})
@@ -176,7 +183,16 @@ func set_timed_pose(action: String, phase: String, phase_elapsed: float, phase_d
 			frame_start = time_cursor - float(frames[index].get("duration", 0.0))
 			break
 	_clear_sequence()
-	_select_pose(action, phase, transition_duration, frame_index)
+	# Contact art represents the exact hitbox window. Show its first drawing on
+	# the boundary instead of spending that window fading toward it. Likewise,
+	# don't blend between frames within a phase: short authored frames must each
+	# be visible for their scheduled interval.
+	var same_phase := _current_key == key
+	var frame_changed := _current_registered_frame != frame_index
+	var selection_fade := transition_duration
+	if phase == "contact" or (same_phase and frame_changed):
+		selection_fade = 0.0
+	_select_pose(action, phase, selection_fade, frame_index)
 	_current_registered_frame_elapsed = clampf(phase_time - frame_start, 0.0, get_current_registered_frame_duration())
 	_current_registered_frame_effective_duration = float(frames[frame_index].get("duration", 0.0)) * (1.0 if loop else phase_duration / maxf(total_duration, 0.001))
 	return true
@@ -342,6 +358,8 @@ func get_displayed_textures() -> Array[Texture2D]:
 	return result
 
 func _process(delta: float) -> void:
+	# A later independent bank load starts a fresh replacement batch.
+	_replacement_batch_keys.clear()
 	_advance_sequence(delta)
 	if not _transitioning:
 		return

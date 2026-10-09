@@ -604,11 +604,10 @@ func _attack_phase_progress(index: int, phase: String, remaining: float) -> floa
 	return clampf((duration - remaining) / duration, 0.0, 1.0)
 
 func _attack_phase_duration(index: int, phase: String) -> float:
-	var fallback: float = ATTACK_STARTUP[index] if phase == "startup" else (ATTACK_ACTIVE[index] if phase == "active" else ATTACK_RECOVERY[index])
-	if _animation_bank == null:
-		return fallback
-	var bank_phase := "contact" if phase == "active" else phase
-	return _animation_bank.get_phase_duration("attack%d" % (index + 1), bank_phase, fallback)
+	# Gameplay owns these phase boundaries. Registered frame durations are mapped
+	# across this live window, so adding reviewed art cannot shift startup, the
+	# active hitbox, or recovery away from the controller's timers.
+	return ATTACK_STARTUP[index] if phase == "startup" else (ATTACK_ACTIVE[index] if phase == "active" else ATTACK_RECOVERY[index])
 
 func _ease_in_out(value: float) -> float:
 	var t := clampf(value, 0.0, 1.0)

@@ -68,6 +68,12 @@ func _run() -> void:
 	_check(not blender.register_pose_frame("attack1", "inbetween", contact_variant, 0.04, "temporary transform frame"), "refuses to register temporary transform motion as completed approved art")
 	_check(blender.register_pose_frame("attack1", "contact", contact_variant, 0.04, "approved inbetween drawing", "contact variant"), "registers an explicitly reviewed additional frame with its own duration")
 	_check(blender.set_timed_pose("attack1", "contact", 0.11, 0.14, 0.0) and _visible_texture(blender) == contact_variant, "combat phase time selects the registered drawing whose duration contains that instant")
+	var contact_first := fixtures["attack1_contact"] as Texture2D
+	blender.set_pose("attack1", "startup", 0.0)
+	blender.set_timed_pose("attack1", "contact", 0.0, 0.14, FADE)
+	_check(blender.get_displayed_textures().size() == 1 and _visible_texture(blender) == contact_first, "contact begins on its approved pose without a crossfade hiding the hitbox frame")
+	blender.set_timed_pose("attack1", "contact", 0.11, 0.14, FADE)
+	_check(blender.get_displayed_textures().size() == 1 and _visible_texture(blender) == contact_variant, "same-phase registered frame changes display directly for their authored interval")
 	var registered_sequence: Array[Dictionary] = [
 		{"phase": "contact", "frame": 0, "duration": 0.025},
 		{"phase": "contact", "frame": 1, "duration": 0.065},

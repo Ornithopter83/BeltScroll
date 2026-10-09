@@ -390,6 +390,53 @@ func _run() -> void:
 	left_animator.call("_process", 1.0 / 60.0)
 	_check(left_animator.get_animation_state() == "attack1_startup" and left_animator.get_state_elapsed() == 0.0, "rapid state changes reset the active state clock")
 
+	# Synthetic approved frames prove the live animator follows movement, attack,
+	# and skill clocks without relying on any unreviewed project artwork.
+	var playback_player := packed.instantiate() as CharacterBody2D
+	canvas.add_child(playback_player)
+	playback_player.set_physics_process(false)
+	(playback_player.get_node("Camera2D") as Camera2D).queue_free()
+	var playback_animator: Node = playback_player.get_node("VisualAnimator")
+	var playback_blender: PlayerPoseBlender = playback_player.get_node("VisualRoot/PoseBlender") as PlayerPoseBlender
+	await process_frame
+	var synthetic_frame_a := _synthetic_frame(Color(0.95, 0.2, 0.2, 1.0))
+	var synthetic_frame_b := _synthetic_frame(Color(0.2, 0.9, 0.3, 1.0))
+	_check(playback_blender.register_pose_frame("attack1", "contact", synthetic_frame_a, 0.0525, "approved synthetic test frame", "contact A", Vector2(0.5, 0.9375), true), "synthetic attack frame A registers explicitly")
+	_check(playback_blender.register_pose_frame("attack1", "contact", synthetic_frame_b, 0.0525, "approved synthetic test frame", "contact B", Vector2(0.5, 0.9375)), "synthetic attack frame B registers explicitly")
+	playback_player.set("attack_stage", 1)
+	playback_player.set("attack_phase", "active")
+	playback_player.set("attack_phase_remaining", 0.105)
+	playback_animator.call("_process", 0.0)
+	_check(playback_blender.get_registered_frame_count("attack1", "contact") == 2, "synthetic attack contact frames register as an ordered pair")
+	_check(playback_blender.visible and playback_blender.get_current_registered_frame_label() == "contact A" and playback_blender.get_displayed_textures().size() == 1, "attack hitbox start immediately displays the first contact drawing")
+	playback_player.set("attack_phase_remaining", 0.0525)
+	playback_animator.call("_process", 0.0)
+	_check(playback_animator.get_art_frame_label() == "contact B" and playback_blender.get_displayed_textures().size() == 1, "attack contact advances to its second synthetic drawing at the controller clock boundary")
+	_check(_blender_keeps_common_foot(playback_blender), "both synthetic attack frames retain their planted-foot anchor")
+	playback_player.set("attack_phase", "idle")
+	playback_player.set("attack_stage", 0)
+	playback_player.velocity = Vector2(280.0, 0.0)
+	playback_blender.register_pose_frame("run", "stride", synthetic_frame_a, 0.05, "approved synthetic test frame", "stride A", Vector2(0.5, 0.9375), true)
+	playback_blender.register_pose_frame("run", "stride", synthetic_frame_b, 0.05, "approved synthetic test frame", "stride B", Vector2(0.5, 0.9375))
+	playback_animator.call("_process", 0.0)
+	playback_animator.call("_process", 0.06)
+	_check(playback_animator.get_animation_state() == "walk" and playback_animator.get_art_frame_label() == "stride B", "registered movement frames advance in order on the live stride clock")
+	playback_player.velocity = Vector2.ZERO
+	playback_animator.call("_process", 0.0)
+	playback_player.set("skill_id", 1)
+	playback_player.set("skill_phase", "active")
+	playback_player.set("skill_phase_remaining", 0.12)
+	playback_blender.register_pose_frame("skill1", "contact", synthetic_frame_a, 0.06, "approved synthetic test frame", "skill A", Vector2(0.5, 0.9375), true)
+	playback_blender.register_pose_frame("skill1", "contact", synthetic_frame_b, 0.06, "approved synthetic test frame", "skill B", Vector2(0.5, 0.9375))
+	playback_animator.call("_process", 0.0)
+	playback_player.set("skill_phase_remaining", 0.06)
+	playback_animator.call("_process", 0.0)
+	_check(playback_animator.get_animation_state() == "skill1_contact" and playback_animator.get_art_frame_label() == "skill B", "skill contact advances on the skill controller's active timer")
+	playback_player.set("skill_phase", "idle")
+	playback_player.set("skill_id", 0)
+	playback_animator.call("_process", 0.0)
+	_check(not playback_blender.visible and (playback_player.get_node("VisualRoot/PlayerArt") as Sprite2D).visible, "skill interruption discards the registered pose and restores procedural art")
+
 	await process_frame
 	await RenderingServer.frame_post_draw
 	var rendered := root.get_texture().get_image()
@@ -487,6 +534,14 @@ func _baseline_foot(player: CharacterBody2D) -> Vector2:
 	var size := Vector2(sprite.texture.get_size())
 	var centered_foot := Vector2(float(bounds.position.x) + float(bounds.size.x) * 0.5, float(bounds.end.y)) - size * 0.5
 	return Vector2(0.0, -62.0) + centered_foot * Vector2(0.1489758, 0.1489758)
+
+func _synthetic_frame(color: Color) -> Texture2D:
+	var image := Image.create(32, 48, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.0, 0.0, 0.0, 0.0))
+	for y in range(5, 45):
+		for x in range(7, 25):
+			image.set_pixel(x, y, color)
+	return ImageTexture.create_from_image(image)
 
 func _alpha_bounds_fit_cell(sprite: Sprite2D) -> bool:
 	var bounds := sprite.texture.get_image().get_used_rect()
