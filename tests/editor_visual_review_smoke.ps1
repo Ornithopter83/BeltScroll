@@ -5,7 +5,11 @@ param(
 $ErrorActionPreference = 'Stop'
 $OutputEncoding = [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $root = Split-Path -Parent $PSScriptRoot
-if ([string]::IsNullOrWhiteSpace($EditorPath)) { $EditorPath = Join-Path $root 'dist\BeltScrollEditor.exe' }
+if ([string]::IsNullOrWhiteSpace($EditorPath)) {
+    & (Join-Path $root 'editor\build_editor.ps1') -SelfTest
+    if ($LASTEXITCODE -ne 0) { throw "Editor build/self-test failed: $LASTEXITCODE" }
+    $EditorPath = Join-Path $root 'dist\BeltScrollEditor.exe'
+}
 $EditorPath = (Resolve-Path -LiteralPath $EditorPath).Path
 $allowlistPath = Join-Path $root 'data\editor\overrides.json'
 $allowlistHash = if (Test-Path -LiteralPath $allowlistPath) { (Get-FileHash -LiteralPath $allowlistPath -Algorithm SHA256).Hash } else { $null }
@@ -17,8 +21,13 @@ $reportPath = Join-Path $work 'animation-gui-acceptance.json'
 if (-not (Test-Path -LiteralPath $reportPath)) { throw "Visual review report missing (exit=$($process.ExitCode)). Artifacts: $work" }
 $report = Get-Content -Encoding UTF8 -Raw -LiteralPath $reportPath | ConvertFrom-Json
 if ($process.ExitCode -ne 0 -or -not $report.passed) { throw "Visual review GUI failed. Artifacts: $work`n$($report.error)" }
-foreach ($event in @('50ms inbetween playback', '3x artwork side-by-side and overlay', 'anchor pointer event')) {
+foreach ($event in @('50ms inbetween playback', 'anchor pointer event', '576px default review size', 'side-by-side full-body and foot anchor', 'overlay full-body and foot anchor', 'independent 200% pixel zoom', 'drag pan at pixel zoom', 'source dimensions and display multiplier', 'actual frame duration')) {
     if ($report.guiControlEvents -notcontains $event) { throw "Visual review event not verified: $event. Artifacts: $work" }
+}
+$comparisonCaptures = @('comparison-side-by-side.png', 'comparison-overlay.png', 'comparison-zoom.png', 'comparison-pan.png')
+foreach ($capture in $comparisonCaptures) {
+    $path = Join-Path $work $capture
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or (Get-Item -LiteralPath $path).Length -lt 2048) { throw "Comparison capture is missing or empty: $capture. Artifacts: $work" }
 }
 $capturePath = Join-Path $work 'animation-gui.png'
 if (-not (Test-Path -LiteralPath $capturePath -PathType Leaf) -or (Get-Item -LiteralPath $capturePath).Length -lt 4096) { throw "Rebuilt WinForms capture is missing or empty. Artifacts: $work" }

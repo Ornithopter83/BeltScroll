@@ -14,12 +14,18 @@ const RAIDER_DAMAGE_BAR_SPEED := 3.0
 const RAIDER_INDICATOR_SIZE := Vector2(92.0, 29.0)
 const RAIDER_HEAD_PADDING := 12.0
 const HUD_TOP_CLEARANCE := 148.0
+const SKILL_READY_COLOR := Color(0.38, 0.83, 0.63, 1.0)
+const SKILL_COOLDOWN_COLOR := Color(0.88, 0.57, 0.29, 1.0)
+const SKILL_ACTIVE_COLORS := [Color(0.30, 0.78, 0.96, 1.0), Color(0.86, 0.50, 0.96, 1.0)]
+const SKILL_NAMES := ["돌진", "회전"]
+const SKILL_COOLDOWN_MAX := [1.35, 1.8]
 
 var health_value_label: Label
 var health_bar: ProgressBar
 var health_damage_bar: ProgressBar
 var combo_value_label: Label
 var raider_value_label: Label
+var skill_slots: Array[Dictionary] = []
 var _player: Node
 var _player_bar_value := 5.0
 var _player_damage_value := 5.0
@@ -64,10 +70,12 @@ func refresh() -> void:
 			_player_health_target = float(current)
 		var stage := int(_player.get("attack_stage"))
 		combo_value_label.text = "%d / 3" % stage if stage > 0 else "—"
+		_update_skill_slots()
 	else:
 		health_value_label.text = "— / —"
 		_player_health_target = 0.0
 		combo_value_label.text = "—"
+		_update_skill_slots()
 	health_bar.value = _player_bar_value
 	health_damage_bar.value = _player_damage_value
 
@@ -358,6 +366,85 @@ func _build_hud() -> void:
 	raider_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	raider_layout.add_child(raider_value_label)
 
+	var skills_panel := _make_panel("SkillsPanel", Vector2(650.0, 34.0), Vector2(620.0, 112.0))
+	skills_panel.name = "SkillsPanel"
+	overlay.add_child(skills_panel)
+	var skills_layout := HBoxContainer.new()
+	skills_layout.add_theme_constant_override("separation", 14)
+	skills_panel.add_child(skills_layout)
+	for index in range(2):
+		var slot := _create_skill_slot(index)
+		skill_slots.append(slot)
+		skills_layout.add_child(slot["root"])
+	_update_skill_slots()
+
+func _create_skill_slot(index: int) -> Dictionary:
+	var root_control := VBoxContainer.new()
+	root_control.name = "Skill%dSlot" % (index + 1)
+	root_control.custom_minimum_size = Vector2(270.0, 82.0)
+	root_control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root_control.add_theme_constant_override("separation", 5)
+	var title := Label.new()
+	title.text = "NUM%d  /  %s" % [index + 4, SKILL_NAMES[index]]
+	title.add_theme_font_size_override("font_size", 14)
+	title.add_theme_color_override("font_color", TEXT_COLOR)
+	root_control.add_child(title)
+	var status := Label.new()
+	status.add_theme_font_size_override("font_size", 12)
+	status.add_theme_color_override("font_color", SKILL_READY_COLOR)
+	root_control.add_child(status)
+	var meter := ProgressBar.new()
+	meter.custom_minimum_size = Vector2(0.0, 9.0)
+	meter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	meter.show_percentage = false
+	meter.max_value = 1.0
+	meter.value = 1.0
+	meter.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_style_health_bar(meter, SKILL_READY_COLOR)
+	root_control.add_child(meter)
+	return {"root": root_control, "title": title, "status": status, "meter": meter, "last_color": Color.TRANSPARENT}
+
+func _update_skill_slots() -> void:
+	if skill_slots.size() != 2:
+		return
+	var phase := str(_player.get("skill_phase")) if is_instance_valid(_player) else "idle"
+	var active_skill := int(_player.get("skill_id")) if is_instance_valid(_player) else 0
+	var phase_remaining := float(_player.get("skill_phase_remaining")) if is_instance_valid(_player) else 0.0
+	var cooldowns: Array = _player.get("skill_cooldowns") if is_instance_valid(_player) else [0.0, 0.0]
+	for index in range(2):
+		var slot: Dictionary = skill_slots[index]
+		var status: Label = slot["status"]
+		var meter: ProgressBar = slot["meter"]
+		var color := SKILL_READY_COLOR
+		var fraction := 1.0
+		if phase != "idle" and active_skill == index + 1:
+			color = SKILL_ACTIVE_COLORS[index]
+			var phase_name := "준비 동작" if phase == "startup" else ("사용 중" if phase == "active" else "회복")
+			status.text = "%s  ·  %.1f초" % [phase_name, maxf(0.0, phase_remaining)]
+			var phase_max := 0.22 if index == 1 else 0.16
+			fraction = clampf(phase_remaining / phase_max, 0.0, 1.0)
+		elif index < cooldowns.size() and float(cooldowns[index]) > 0.001:
+			color = SKILL_COOLDOWN_COLOR
+			var remaining := float(cooldowns[index])
+			status.text = "재사용 대기  ·  %.1f초" % remaining
+			fraction = clampf(1.0 - remaining / _skill_cooldown_limit(index), 0.0, 1.0)
+		else:
+			status.text = "사용 가능"
+		meter.value = fraction
+		if slot["last_color"] != color:
+			var fill := StyleBoxFlat.new()
+			fill.bg_color = color
+			fill.set_corner_radius_all(5)
+			meter.add_theme_stylebox_override("fill", fill)
+			slot["last_color"] = color
+
+func _skill_cooldown_limit(index: int) -> float:
+	if is_instance_valid(get_parent()):
+		var configured: Array = get_parent().get("_player_skill_cooldowns")
+		if index < configured.size() and float(configured[index]) > 0.0:
+			return float(configured[index])
+	return SKILL_COOLDOWN_MAX[index]
+
 func _make_panel(node_name: String, at: Vector2, size: Vector2) -> PanelContainer:
 	var panel := PanelContainer.new()
 	panel.name = node_name
@@ -431,5 +518,6 @@ func _overlaps_fixed_hud(indicator_rect: Rect2) -> bool:
 	# Keep actor indicators clear of the persistent top HUD panels. The bars
 	# remain tied to the actor and are hidden when there is no safe slot.
 	var health_panel := Rect2(Vector2(42.0, 34.0), Vector2(330.0, 112.0))
+	var skills_panel := Rect2(Vector2(650.0, 34.0), Vector2(620.0, 112.0))
 	var raider_panel := Rect2(Vector2(1638.0, 34.0), Vector2(240.0, 94.0))
-	return indicator_rect.intersects(health_panel) or indicator_rect.intersects(raider_panel)
+	return indicator_rect.intersects(health_panel) or indicator_rect.intersects(skills_panel) or indicator_rect.intersects(raider_panel)

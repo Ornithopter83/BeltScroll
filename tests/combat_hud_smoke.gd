@@ -29,9 +29,51 @@ func _run() -> void:
 	var health_damage_bar: ProgressBar = hud.get("health_damage_bar")
 	var combo_label: Label = hud.get("combo_value_label")
 	var raider_label: Label = hud.get("raider_value_label")
+	var skill_slots: Array = hud.get("skill_slots")
 	_check(health_label.text == "5 / 5" and is_equal_approx(health_bar.value, 5.0), "initial Player health is displayed")
 	_check(combo_label.text == "—", "idle combo has no active stage")
 	_check(raider_label.text == "03", "initial remaining ForestRaider count is three")
+	_check(skill_slots.size() == 2, "Num4 and Num5 have separate skill slots")
+	if skill_slots.size() == 2:
+		_check(skill_slots[0]["title"].text.contains("NUM4") and skill_slots[0]["title"].text.contains("돌진"), "Num4 slot names the dash skill")
+		_check(skill_slots[1]["title"].text.contains("NUM5") and skill_slots[1]["title"].text.contains("회전"), "Num5 slot names the spin skill")
+		_check(skill_slots[0]["status"].text == "사용 가능" and skill_slots[1]["status"].text == "사용 가능", "both skills start ready")
+		var cooldowns: Array = player.get("skill_cooldowns")
+		cooldowns[0] = 0.9
+		player.set("skill_cooldowns", cooldowns)
+		hud.refresh()
+		_check(skill_slots[0]["status"].text == "재사용 대기  ·  0.9초" and float(skill_slots[0]["meter"].value) > 0.0, "dash cooldown time and progress read the live Player cooldown")
+		_check(skill_slots[1]["status"].text == "사용 가능", "spin remains available while dash cools down")
+		cooldowns[0] = 1.35
+		player.set("skill_cooldowns", cooldowns)
+		player.set("skill_id", 1)
+		player.set("skill_phase", "startup")
+		player.set("skill_phase_remaining", 0.12)
+		hud.refresh()
+		_check(skill_slots[0]["status"].text.contains("준비 동작") and skill_slots[0]["status"].text.contains("0.1초"), "dash startup state and remaining phase time are displayed")
+		player.set("skill_phase", "active")
+		player.set("skill_phase_remaining", 0.08)
+		hud.refresh()
+		_check(skill_slots[0]["status"].text.contains("사용 중"), "dash active state is distinct")
+		player.set("skill_phase", "recovery")
+		player.set("skill_phase_remaining", 0.2)
+		hud.refresh()
+		_check(skill_slots[0]["status"].text.contains("회복"), "skill recovery state is distinct")
+		player.set("skill_phase", "idle")
+		player.set("skill_id", 0)
+		player.set("skill_phase_remaining", 0.0)
+		cooldowns[0] = 0.0
+		cooldowns[1] = 1.2
+		player.set("skill_cooldowns", cooldowns)
+		hud.refresh()
+		_check(skill_slots[0]["status"].text == "사용 가능" and skill_slots[1]["status"].text.contains("재사용 대기"), "dash returns ready and spin cooldown restores independently")
+		paused = true
+		hud.refresh()
+		_check(skill_slots[1]["status"].text.contains("재사용 대기"), "HUD retains the same skill state while the tree is paused")
+		paused = false
+		cooldowns[1] = 0.0
+		player.set("skill_cooldowns", cooldowns)
+		hud.refresh()
 
 	var raiders := get_nodes_in_group("forest_raiders")
 	hud.refresh()
@@ -132,7 +174,19 @@ func _run() -> void:
 	main.add_child(detached_hud)
 	detached_hud.queue_free()
 	_check(player.get("health") == 0 and player.has_method("receive_hit"), "Player combat state remains independent of HUD lifetime")
-	main.queue_free()
+	current_scene = main
+	main.call("_restart_session")
+	await process_frame
+	await process_frame
+	var restarted_hud := current_scene.get_node_or_null("CombatHUD") if is_instance_valid(current_scene) else null
+	_check(is_instance_valid(current_scene) and current_scene != main, "game restart creates a fresh combat HUD")
+	if restarted_hud != null:
+		var restarted_slots: Array = restarted_hud.get("skill_slots")
+		_check(restarted_slots[0]["status"].text == "사용 가능" and restarted_slots[1]["status"].text == "사용 가능", "restart restores both skill slots to ready")
+		_check(restarted_hud.get("health_value_label").text == "5 / 5", "restart restores the Player health HUD")
+	if is_instance_valid(current_scene):
+		current_scene.queue_free()
+	current_scene = null
 	_finish()
 
 func _finish() -> void:

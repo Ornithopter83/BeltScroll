@@ -315,13 +315,13 @@ public sealed class AnimationWorkspaceForm : Form
     private void SelectFrame()
     {
         var f = CurrentFrame; updating = true;
-        if (f is null) { preview.SetImage(null, null); leftPreview.SetImage(null, null); comparisonPanel.SetCurrentImage(null); phase.SelectedIndex = -1; approval.SelectedIndex = -1; }
+        if (f is null) { preview.SetImage(null, null); leftPreview.SetImage(null, null); comparisonPanel.SetCurrentFrame(null, null, 0); phase.SelectedIndex = -1; approval.SelectedIndex = -1; }
         else
         {
             phase.SelectedItem = f.Phase; duration.Value = Math.Clamp((decimal)f.Duration, duration.Minimum, duration.Maximum); approval.SelectedItem = f.ApprovalState;
             string? path = f.Texture is null ? null : ResolveTexture(f.Texture);
             preview.SetImage(path, f.FootAnchor); leftPreview.SetImage(path, f.FootAnchor);
-            comparisonPanel.SetCurrentImage(path);
+            comparisonPanel.SetCurrentFrame(path, f.FootAnchor, f.Duration, $"{Clip.Id} · 프레임 {frameList.SelectedIndex + 1}");
         }
         updating = false;
     }
@@ -330,6 +330,7 @@ public sealed class AnimationWorkspaceForm : Form
         if (updating || CurrentFrame is not { } f) return;
         f.Phase = phase.SelectedItem?.ToString() ?? (Clip.Id == "idle" ? "idle" : "startup");
         f.Duration = (double)duration.Value; f.ApprovalState = approval.SelectedItem?.ToString() ?? "review";
+        comparisonPanel.SetCurrentFrame(f.Texture is null ? null : ResolveTexture(f.Texture), f.FootAnchor, f.Duration, $"{Clip.Id} · 프레임 {frameList.SelectedIndex + 1}");
         int index = frameList.SelectedIndex; RefreshFrames(index); SetStatus(f.ApprovalState == "approved" ? "편집 데이터에 approved로 표시했습니다. 게임 사용은 런타임 allowlist 검증이 별도로 적용됩니다." : $"approval_state={f.ApprovalState}");
     }
     private void MoveFrame(int delta)
@@ -403,6 +404,8 @@ public sealed class AnimationWorkspaceForm : Form
             using (var bitmap = new Bitmap(24, 32)) using (var graphics = Graphics.FromImage(bitmap)) { graphics.Clear(Color.Transparent); using var brush = new SolidBrush(Color.OrangeRed); graphics.FillRectangle(brush, 2, 8, 20, 18); bitmap.Save(comparisonFixture, System.Drawing.Imaging.ImageFormat.Png); }
             comparisonPanel.ConfigureForAcceptance(comparisonFixture);
             frameList.SelectedIndex = 0;
+            comparisonPanel.SetCurrentFrame(ResolveTexture(Clip.Frames[0].Texture!), new FootAnchor { X = 0.5, Y = 0.92 }, Clip.Frames[0].Duration, "attack1 · 검수 anchor 하단 위치");
+            var comparisonEvents = comparisonPanel.ExerciseAcceptance(acceptancePath!);
             ((Button)FindControl(this, "재생")).PerformClick(); if (!playback.Enabled || playback.Interval != 50) throw new Exception("50ms intermediate playback did not start.");
             playbackElapsed = 0; AdvanceIntermediatePlayback(); if (preview.BlendVisible != true) throw new Exception("50ms intermediate frame blend was not rendered.");
             previewTabs.SelectedIndex = 0;
@@ -418,7 +421,7 @@ public sealed class AnimationWorkspaceForm : Form
             if (document.Clips.Single(c => c.Id == "idle").Frames.Single().Phase != "idle") throw new Exception("JSON reload lost idle phase.");
             previewTabs.SelectedIndex = 1;
             using var capture = new Bitmap(Math.Max(1, Width), Math.Max(1, Height)); DrawToBitmap(capture, new Rectangle(Point.Empty, capture.Size)); capture.Save(Path.Combine(acceptancePath!, "animation-gui.png"), System.Drawing.Imaging.ImageFormat.Png);
-            var report = new { passed = true, guiMessageLoop = true, guiControlEvents = new[] { "PNG import", "clip creation and selection", "four phase selection", "duration edit", "anchor pointer event", "frame reorder", "50ms inbetween playback", "3x artwork side-by-side and overlay", "play", "stop", "multi-clip JSON export", "JSON reload" }, schemaVersion = 1, exportedPath = Path.Combine(exported, "animation.json"), clipCount = document.Clips.Count, frameCount = loadedAttack.Frames.Count, approvalState = "review", approvalDecisionCreated = false, gameAllowlistChanged = false, workspacePath = exported };
+            var report = new { passed = true, guiMessageLoop = true, guiControlEvents = new[] { "PNG import", "clip creation and selection", "four phase selection", "duration edit", "anchor pointer event", "frame reorder", "50ms inbetween playback", "play", "stop", "multi-clip JSON export", "JSON reload" }.Concat(comparisonEvents).ToArray(), schemaVersion = 1, exportedPath = Path.Combine(exported, "animation.json"), clipCount = document.Clips.Count, frameCount = loadedAttack.Frames.Count, approvalState = "review", approvalDecisionCreated = false, gameAllowlistChanged = false, workspacePath = exported };
             File.WriteAllText(Path.Combine(acceptancePath!, "animation-gui-acceptance.json"), JsonSerializer.Serialize(report, JsonOptions), new UTF8Encoding(false));
             ExitCode = 0; Close();
         }
