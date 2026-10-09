@@ -1,10 +1,12 @@
 # M6D 통합 인수 게이트 (2026-10-10)
 
-이 표는 M6D 요구 6개 항목을 실행·사람 검토·저장소 상태까지 통합해 감사한다. 행의 상태는 서로 독립이다. 자동 입력, Window 캡처, Godot smoke 또는 편집기 self-test는 물리 키 입력, 화면의 사람 확인, GUI 왕복 또는 원화 승인을 대신하지 않는다. 신규 원화 사람 승인 수가 0장이거나 필수 증거가 빠지면 최종 결과는 `BLOCKED`다. 감사기는 어떤 증거가 있더라도 최종 `PASS`를 만들지 않는다.
+이 감사는 원격 SHA, 검사 대상 HEAD, Godot 자동 검증, 실제 Window 플레이, 물리 키보드, 표시, 편집기 GUI, 신규 원화 승인, 플레이 결과, 필수 문서와 Git 위생을 각각 독립 판정한다. 조건이 하나라도 미충족이면 `BLOCKED`다. 모든 증거 조건을 충족하면 `PENDING_HUMAN_APPROVAL`로 전환하지만 제품 `PASS`는 어떤 경우에도 발급하지 않는다. 사람의 최종 제품 인수는 이 보고서 바깥에서 별도로 승인해야 한다.
+
+자동 입력은 물리 입력이 아니며, Window 캡처는 사람의 화면 확인이나 원화 승인이 아니다. 신규 승인 원화가 0장이면 항상 `BLOCKED`다. 누락 서류, 오래된 보고서/증거, 검사 커밋 불일치, 해시 불일치, 합성 입력, 손상되었거나 작은 가짜 캡처, Git 위생 실패도 계속 `BLOCKED`다.
 
 ## 실행
 
-Windows PowerShell 5.1에서 UTF-8 출력으로 실행한다. 차단 결과는 JSON과 종료 코드 `2`로 보고한다.
+Windows PowerShell 5.1에서 실행한다. 스크립트와 보고서는 UTF-8이다. 차단/승인 대기 판정은 JSON을 출력하고 종료 코드 `2`를 반환한다.
 
 ```powershell
 $OutputEncoding = [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
@@ -12,36 +14,45 @@ Get-Content -Encoding UTF8 .\docs\review\m6d_integrated_acceptance_gate.md
 & .\tools\audit_m6d_acceptance.ps1
 ```
 
-기본 경로는 `.qa_logs/m6d_godot_automated.json`, `.qa_logs/m6d_window_playthrough.json`, `.qa_logs/m6d_manual_acceptance.json`이다. 경로는 실행 인자로 바꿀 수 있다. `-SkipRemoteQuery`는 스모크/오프라인 실행용으로 원격 SHA를 `UNVERIFIED`에 둔다. 원격 확인은 `git ls-remote origin refs/heads/main` 읽기 전용 조회이며 fetch/pull은 하지 않는다. Git 위생은 기존 `tools/check_repository_hygiene.ps1`를 `origin/main` 기준으로 호출한다.
+기본 보고서 경로는 `.qa_logs/m6d_godot_automated.json`, `.qa_logs/m6d_window_playthrough.json`, `.qa_logs/m6d_manual_acceptance.json`이다. `-GodotReport`, `-WindowReport`, `-ManualReviewReport`로 경로를 지정할 수 있다. `-MaxEvidenceAgeDays` 기본값은 7일이다. `-SkipRemoteQuery`는 오프라인 스모크 전용이며 원격 SHA를 미검증으로 둔다. 감사기는 `git ls-remote origin refs/heads/main`과 `git rev-parse HEAD`만 읽는다. 저장소를 변경하는 Git 명령은 호출하지 않는다.
+
+보고서의 `InspectedCommitSha`는 실행 시점의 로컬 HEAD다. 원격 조회 SHA와 이 SHA가 정확히 일치해야 해당 행이 `PASS_VERIFIED_MATCH`가 된다. 자동/수동 보고서에도 `targetCommitSha`가 있어야 하며 실제 검사 HEAD와 달라지면 해당 증거를 모두 거부한다. 원격 SHA 조회를 건너뛰거나 실패해도 로컬 SHA만으로 대신하지 않는다.
 
 ## 독립 인수표
 
-| 항목 | 증거와 통과 조건 | 자동으로 대체할 수 없는 항목 |
+| 항목 | 통과 증거 | 통과하지 않는 경우 |
 |---|---|---|
-| 원격 main SHA | `RemoteMain.Status=VERIFIED`, 40~64자리 SHA. `git ls-remote` 결과 | 로컬 HEAD 또는 오래된 문서의 SHA로 원격 상태를 추정하지 않는다. |
-| Godot 자동 검증 | Godot JSON 보고서의 `result=PASS`, `exitCode=0`, PASS 검사 1개 이상 및 존재하는 `evidence` 로그 파일 | 자동 통과는 사람 인수에 영향을 주지 않는다. |
-| 실제 Window | Window 보고서 `headless=false`, `windowTitle`, PASS 및 존재하는 `evidence` 파일 | 캡처 파일 자체는 화면·입력 수동 승인이 아니다. |
-| 물리 키보드 Num1~9 | 사람 보고서의 `physicalKeyboard`: `method=physical-keyboard`, 검사자, 시각, Num1~Num9 각 PASS 및 각 증거 파일 | 입력 주입·가상 키 이벤트·자동 Window 테스트는 통과가 아니다. |
-| 전체화면·3배 표시 | `display`: `method=human-observed`, 두 체크 `fullscreen`, `three-times-scale` PASS, 검사자/시각/파일 | 자동 해상도 수치나 캡처만으로 사람 확인을 통과시키지 않는다. |
-| 편집기 GUI 왕복 | `editorGuiRoundtrip`: `method=human-gui`, create/edit/save-close/reopen-verify/apply-to-game 모두 PASS 및 증거 | self-test, 자동 GUI 조작, 편집기 캡처만으로 게임 재적용 확인을 대체하지 않는다. |
-| 원화 승인·연속 프레임 | `artReview.method=human-visual-review`, 검사자/시각, 승인된 시퀀스의 연속 인덱스 2장 이상, 각 프레임 `humanApproved=true`와 실제 파일 | 후보 파일, 자동 비교, 프레임 캡처는 사람 승인 수로 세지 않는다. 승인 프레임이 0장이면 무조건 BLOCKED다. |
-| 보스전과 종료 | Window 플레이 보고서에서 `inputMode=gameplay-events`, 상태 직접 변경·내부 결과 함수 호출 false, boss encounter/defeated/player defeat/restart PASS | 이벤트 주입 플레이는 자동 게임플레이 증거일 뿐 물리 키보드 증거는 아니다. |
-| Git 위생 | 위생 검사기 종료 코드 0 및 정확한 PASS 마커 | 파일이 로컬에 없거나 작업 트리가 깨끗한 사실만으로는 baseline/index 위생을 통과하지 않는다. |
+| 원격 main SHA와 검사 HEAD | `git ls-remote`의 40~64자리 SHA가 현재 `git rev-parse HEAD`와 일치 | 오프라인, 조회 실패, SHA 불일치, 이전 보고서의 SHA |
+| Godot 자동 검증 | 현재 HEAD 대상·7일 이내 보고서, `result=PASS`, `exitCode=0`, 이름 있는 PASS 검사 1개 이상, 실제 파일 SHA-256 manifest | 누락된 필드, 오래된 보고서/파일, 빠진 파일, SHA 불일치 |
+| 실제 Window 플레이 | 현재 HEAD 대상·신선한 보고서, `headless=false`, 창 식별자, `inputMode=gameplay-events`, 상태 직접 변경/내부 결과 호출 false, 해시 일치 증거, 디코딩 가능한 1280×720 이상 PNG | `synthetic` 입력, 빈/손상/작은 PNG, 오래된 증거, 상태 주입, commit/hash 불일치 |
+| 물리 키보드 Num1~9 | 보고서의 `physicalKeyboard`: `method=physical-keyboard`, 검사자·최근 관찰 시각, 9개 키 각각 PASS, 해시가 일치하는 PNG 증거 | 가상 키/자동 Window 입력, 누락 키, 오래된 기록, 존재만 하는 파일 |
+| 전체화면·3배 표시 | `display`: `method=human-observed`, `fullscreen`·`three-times-scale` 각각 PASS와 사람 증거 | 자동 해상도 값이나 캡처만으로 사람 확인 주장 |
+| 편집기 GUI 왕복 | `editorGuiRoundtrip`: `method=human-gui`, create/edit/save-close/reopen-verify/apply-to-game 각각 PASS와 사람 증거 | self-test 또는 자동 GUI 성공, 누락 단계 |
+| 원화 승인·연속 프레임 | 현재 보고서에서 `newApproval=true`, 최근 사람 승인, 인덱스가 연속인 2장 이상, 각 `humanApproved=true`, 유효 이미지/해시 증거 | 기존 승인 재사용, 승인 0장, 합성/손상 이미지, 불연속 프레임, 자동 판정 |
+| 보스전과 종료 | Window 자동 보고서의 `boss-encounter`, `boss-defeated`, `player-defeat`, `restart` 각각 PASS 및 증거 | 네 결과 중 누락/중복, 해시 불일치, 유효하지 않은 Window 플레이 |
+| 필수 검수 서류 | 통합 인수, 플레이스루, 수동 입력, 편집기, 모션 후보 게이트 문서 모두 존재 | 목록의 문서 중 하나라도 없음 |
+| Git 위생 | `tools/check_repository_hygiene.ps1` 종료 코드 0 및 정확한 PASS 마커 | 위생 FAIL, baseline 확인 실패, 검사기 실행 실패 |
 
-M6D 업무의 6개 사용자 요구는 아래처럼 인수 항목에 대응한다. ① 표시/창: 실제 Window, 전체화면·3배, ② 조작: 물리 Num1~9, ③ 별도 편집기: GUI 왕복, ④ 원화: 사람 승인·연속 프레임, ⑤ 플레이: 보스전·승리/패배·재시작, ⑥ 배포/저장소: 원격 SHA·Godot 자동 검증·Git 위생. 이 대응은 인수표의 독립 열을 합치지 않는다.
-
-자동 증거 보고서는 UTF-8 JSON이다. Godot 보고서는 `{ "result":"PASS", "exitCode":0, "checks":[{"name":"...","status":"PASS"}], "evidence":[".qa_logs/m6d/godot.log"] }` 형식이다. Window 보고서는 `{ "result":"PASS", "headless":false, "windowTitle":"BeltScroll", "evidence":[".qa_logs/m6d/window.png"], "inputMode":"gameplay-events", "directStateMutation":false, "internalOutcomeCalls":false, "outcomes":[...] }` 형식이다. `outcomes`는 `boss-encounter`, `boss-defeated`, `player-defeat`, `restart` 각각의 `status=PASS`와 존재하는 `evidence` 파일을 요구한다. 이는 자동 실행 결과이며 물리 입력이나 사람의 화면/원화 승인 기록을 채우지 않는다.
+자동/수동 JSON은 `targetCommitSha`, `generatedAtUtc`, `evidence` 파일 배열, `evidenceHashes` 배열을 포함해야 한다. `evidenceHashes`의 각 항목은 evidence에 사용한 동일한 `path`와 파일의 실제 SHA-256 hex인 `sha256`을 포함한다. 파일은 존재하고 비어 있지 않아야 하며 최대 증거 수명보다 오래되어서는 안 된다. 이미지가 사람 또는 Window 캡처 증거로 쓰이면 실제로 디코딩되는 PNG여야 하고 최소 1280×720이어야 한다. 단순히 JSON에 `PASS`를 적거나 파일 경로를 나열하는 것으로는 통과할 수 없다.
 
 ## 수동 보고서 계약
 
-UTF-8 JSON으로 보관한다. 검사자가 직접 관찰한 경우에만 `status=PASS`를 쓴다. 각 체크의 `evidence`는 실제 파일 경로 배열이며, 모든 파일이 존재해야 해당 행을 PASS로 계산한다. 자동 입력은 `method=physical-keyboard`에 적합하지 않다.
+UTF-8 JSON으로 기록한다. 아래 구조에 공통 결속 필드와 해시 매니페스트를 추가한다. 각 checklist 항목은 실제 사람 관찰로 기록한다. 보고서의 작성자 자기 선언은 제품의 최종 사람 승인으로 간주하지 않는다.
 
 ```json
 {
+  "targetCommitSha": "현재 검사 HEAD의 전체 SHA",
+  "generatedAtUtc": "2026-10-10T14:30:00Z",
+  "evidence": [".qa_logs/manual/display.png"],
+  "evidenceHashes": [
+    { "path": ".qa_logs/manual/display.png", "sha256": "실제 파일의 64자리 SHA-256" }
+  ],
   "physicalKeyboard": {
     "status": "PASS", "method": "physical-keyboard",
     "reviewer": "검사자", "observedAt": "2026-10-10T14:30:00+09:00",
-    "checks": [ { "name": "Num1", "status": "PASS", "evidence": [".qa_logs/manual/num1.png"] } ]
+    "checks": [
+      { "name": "Num1", "status": "PASS", "evidence": [".qa_logs/manual/num1.png"] }
+    ]
   },
   "display": {
     "status": "PASS", "method": "human-observed", "reviewer": "검사자", "observedAt": "...",
@@ -62,22 +73,27 @@ UTF-8 JSON으로 보관한다. 검사자가 직접 관찰한 경우에만 `statu
   },
   "artReview": {
     "method": "human-visual-review", "reviewer": "검사자", "reviewedAt": "...",
-    "sequences": [ { "id": "attack1-new", "decision": "approved", "frames": [
-      { "index": 0, "humanApproved": true, "evidence": ["assets/art/review/frame0.png"] },
-      { "index": 1, "humanApproved": true, "evidence": ["assets/art/review/frame1.png"] }
-    ] } ]
+    "sequences": [{
+      "id": "attack1-new", "decision": "approved", "newApproval": true,
+      "approvedAt": "2026-10-10T14:30:00+09:00", "frames": [
+        { "index": 0, "humanApproved": true, "evidence": ["assets/art/review/frame0.png"] },
+        { "index": 1, "humanApproved": true, "evidence": ["assets/art/review/frame1.png"] }
+      ]
+    }]
   }
 }
 ```
 
-## 현재 판정
+## 최종 상태 의미
 
-2026-10-10 HIGH 재검수 보고서는 `.qa_logs/m6d_acceptance_high_recheck.json`에 저장했다. 최신 판정은 원격 main SHA `UNVERIFIED`(GitHub 연결 실패), Godot 자동 검증 `PASS`, 실제 Window `PASS_AUTOMATED_WINDOW`, 보스전·종료 `PASS_AUTOMATED_PLAYTHROUGH`, 물리 키보드·전체화면/3배·편집기 GUI·원화 사람 승인 `NOT_VERIFIED`, Git 위생 `FAIL`이다. 신규 사람 승인 원화는 0장이며 최종 결과는 `BLOCKED`다. Window 플레이스루 로그와 캡처는 자동 입력 이벤트 증거다. 수동 입력, GUI 왕복, 사람의 시각 승인 상태는 채우지 않았다. 기존 승인 프레임 manifest는 이번 요구의 신규 승인 수에 포함하지 않는다.
+`BLOCKED`는 독립 요구 중 하나라도 누락·실패·미검증이거나 신규 승인 원화가 0장인 상태다. 모든 요구가 충족되고 신규 원화 승인도 확인된 경우에만 `PENDING_HUMAN_APPROVAL`을 쓴다. 이 상태는 사람의 제품 인수 서명을 기다린다는 뜻이며 제품 `PASS`가 아니다. 보고서의 `FinalPassAllowed`는 항상 `false`다.
 
-보고서가 없으면 해당 행은 `NOT_VERIFIED` 또는 `UNVERIFIED`로 계산한다. Git 위생 결과는 프로젝트 상태에 따라 `FAIL`, `UNVERIFIED`, `PASS`를 독립 계산한다.
+현재 저장소의 이전 M6D 자동 보고서는 commit SHA, 생성 시각, 증거 해시 매니페스트가 없어 새 계약으로는 미검증이다. 신규 원화 사람 승인도 기록되지 않았으므로 이전의 자동 Window/Godot PASS만으로 통합 승인 대기 상태로 승격하지 않는다.
 
-스모크 검증:
+## 회귀 스모크
 
 ```powershell
 & .\tests\m6d_acceptance_audit_smoke.ps1
 ```
+
+스모크는 오래된 자동 보고서, 잘못된 이미지 바이트, 합성 Window 입력, 위조된 사람 체크리스트와 원화 승인 주장이 각각 차단되는지 확인한다. 현재 HEAD에 결속된 자동 PASS 보고서가 있어도 사람 전용 체크와 최종 제품 PASS를 만들 수 없는지 확인한다.

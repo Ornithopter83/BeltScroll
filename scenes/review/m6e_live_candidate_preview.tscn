@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/review/m6e_live_candidate_preview.gd" id="1_preview"]
+
+[node name="M6ELiveCandidatePreview" type="Window"]
+title = "M6E · v8 / 다크 판타지 후보 실시간 검수"
+position = Vector2i(80, 50)
+size = Vector2i(1920, 1080)
+min_size = Vector2i(1280, 720)
+mode = 0
+unresizable = true
+borderless = false
+script = ExtResource("1_preview")
