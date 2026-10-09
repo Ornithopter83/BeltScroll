@@ -33,6 +33,10 @@ if (-not (Test-Path -LiteralPath $reportPath)) { throw "GUI acceptance report mi
 $report = Get-Content -Encoding UTF8 -Raw -LiteralPath $reportPath | ConvertFrom-Json
 if ($process.ExitCode -ne 0 -or -not $report.passed) { throw "GUI acceptance failed. Artifacts: $work`n$($report.error)" }
 $expectedEvents = @(
+    'all schema v1 clip IDs',
+    'multiple run stride frames',
+    'clip-specific phase validation',
+    'real Stopwatch-driven playback',
     'frame reorder with duration identity',
     '35ms/50ms/105ms/200ms cumulative playback',
     'loop boundary',
@@ -67,6 +71,11 @@ if ($report.approvalDecisionCreated -or $report.gameAllowlistChanged -or $report
     throw "Automated playback smoke must preserve review-only state and approval blocking. Artifacts: $work"
 }
 $exportedDocument = Get-Content -Encoding UTF8 -Raw -LiteralPath $report.exportedPath | ConvertFrom-Json
+$expectedClips = @('idle','attack1','attack2','attack3','run','turn','jump_rise','jump_fall','hit','skill1','skill2')
+$actualClips = @($exportedDocument.clips | ForEach-Object { $_.id } | Sort-Object)
+if (($actualClips -join ',') -ne (($expectedClips | Sort-Object) -join ',')) { throw "JSON export did not preserve all supported clip IDs: $($actualClips -join ','). Artifacts: $work" }
+$runFrames = @($exportedDocument.clips | Where-Object { $_.id -eq 'run' } | ForEach-Object { $_.frames })
+if ($runFrames.Count -ne 3 -or @($runFrames | Where-Object { $_.phase -ne 'stride' -or $_.approval_state -ne 'review' }).Count -ne 0) { throw "Run stride frames did not roundtrip in review state. Artifacts: $work" }
 $frames = @($exportedDocument.clips | Where-Object { $_.id -eq 'attack1' } | ForEach-Object { $_.frames })
 $durations = @($frames | ForEach-Object { [Math]::Round([double]$_.duration, 3) })
 if (($durations -join ',') -ne '0.035,0.05,0.105,0.2') { throw "JSON roundtrip did not preserve frame sequence/durations: $($durations -join ','). Artifacts: $work" }

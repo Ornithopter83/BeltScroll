@@ -23,14 +23,19 @@ if (-not (Test-Path -LiteralPath $reportPath)) { throw "GUI acceptance report mi
 $report = Get-Content -Encoding UTF8 -Raw -LiteralPath $reportPath | ConvertFrom-Json
 if ($process.ExitCode -ne 0 -or -not $report.passed) { throw "Animation workspace GUI acceptance failed. Artifacts: $work`n$($report.error)" }
 if (-not (Test-Path -LiteralPath (Join-Path $work 'animation-gui.png')) -or -not (Test-Path -LiteralPath $report.exportedPath)) { throw "GUI capture or exported JSON is missing. Artifacts: $work" }
-if ($report.clipCount -ne 4 -or $report.frameCount -ne 4) { throw "GUI acceptance did not preserve all four clips and four attack phases. Artifacts: $work" }
+if ($report.clipCount -ne 11 -or $report.frameCount -ne 4) { throw "GUI acceptance did not preserve all eleven clips and four attack phases. Artifacts: $work" }
 $expectedEvents = @(
     'clip creation and selection',
-    'four phase selection',
+    'all schema v1 clip IDs',
+    'clip-specific phase validation',
+    'multiple run stride frames',
+    'new frame review default',
+    'skill startup/contact/recovery selection',
+    'four attack phase selection',
     'duration edit',
     'anchor pointer event',
-    'frame reorder',
-    '50ms inbetween playback',
+    'frame reorder with duration identity',
+    '35ms/50ms/105ms/200ms cumulative playback',
     '576px default review size',
     'side-by-side full-body and foot anchor',
     'overlay full-body and foot anchor',
@@ -52,6 +57,11 @@ foreach ($capture in @('comparison-side-by-side.png', 'comparison-overlay.png', 
 }
 if ($report.approvalDecisionCreated -or $report.gameAllowlistChanged -or $report.approvalState -ne 'review') { throw "Automated GUI acceptance must not create an approval decision or change the game allowlist. Artifacts: $work" }
 $exportedDocument = Get-Content -Encoding UTF8 -Raw -LiteralPath $report.exportedPath | ConvertFrom-Json
+$expectedClips = @('idle','attack1','attack2','attack3','run','turn','jump_rise','jump_fall','hit','skill1','skill2')
+$actualClips = @($exportedDocument.clips | ForEach-Object { $_.id } | Sort-Object)
+if (($actualClips -join ',') -ne (($expectedClips | Sort-Object) -join ',')) { throw "JSON export lost or added a schema v1 clip ID: $($actualClips -join ','). Artifacts: $work" }
+$runFrames = @($exportedDocument.clips | Where-Object { $_.id -eq 'run' } | ForEach-Object { $_.frames })
+if ($runFrames.Count -ne 3 -or @($runFrames | Where-Object { $_.phase -ne 'stride' -or $_.approval_state -ne 'review' }).Count -ne 0) { throw "Run stride frames did not roundtrip in review state. Artifacts: $work" }
 $frameStates = @($exportedDocument.clips | Where-Object { $_.id -eq 'attack1' } | ForEach-Object { $_.frames } | ForEach-Object { $_.approval_state } | Select-Object -Unique)
 if ($frameStates.Count -ne 1 -or $frameStates[0] -ne 'review') { throw "GUI smoke changed a frame approval state. Artifacts: $work" }
 $allowlistHashAfter = if (Test-Path -LiteralPath $allowlistPath) { (Get-FileHash -LiteralPath $allowlistPath -Algorithm SHA256).Hash } else { $null }

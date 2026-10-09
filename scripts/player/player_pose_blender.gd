@@ -9,6 +9,12 @@ const APPROVED_ATTACK_POSES := {
 	"attack3": "res://assets/art/player/elven_fighter_attack3_reference_v2_contour_candidate_1254x1254.png",
 }
 const PHASES := ["startup", "inbetween", "contact", "recovery"]
+const EXTENDED_POSES := {
+	"run": ["stride"], "turn": ["turn"], "jump_rise": ["rise"],
+	"jump_fall": ["fall"], "hit": ["reaction"],
+	"skill1": ["startup", "contact", "recovery"],
+	"skill2": ["startup", "contact", "recovery"],
+}
 
 @export var sprite_scale := Vector2(0.1489758, 0.1489758)
 ## Shared combat-space reference; support candidates are per registered drawing.
@@ -150,7 +156,7 @@ func set_pose(action: String, phase: String = "", transition_duration := -1.0) -
 
 ## Selects a registered drawing from the real combat phase clock. Unregistered
 ## phases remain on the safe idle fallback and are never presented as authored art.
-func set_timed_pose(action: String, phase: String, phase_elapsed: float, phase_duration: float, transition_duration := -1.0) -> bool:
+func set_timed_pose(action: String, phase: String, phase_elapsed: float, phase_duration: float, transition_duration := -1.0, loop := false) -> bool:
 	var key := _pose_key(action, phase)
 	if not _registered_frames.has(key):
 		set_pose(action, phase, transition_duration)
@@ -161,8 +167,7 @@ func set_timed_pose(action: String, phase: String, phase_elapsed: float, phase_d
 		total_duration += float(frame.get("duration", 0.0))
 	var time_cursor := 0.0
 	var frame_index := frames.size() - 1
-	var phase_progress := clampf(phase_elapsed / maxf(phase_duration, 0.001), 0.0, 1.0)
-	var phase_time := phase_progress * total_duration
+	var phase_time := fposmod(maxf(phase_elapsed, 0.0), total_duration) if loop and total_duration > 0.0 else clampf(phase_elapsed / maxf(phase_duration, 0.001), 0.0, 1.0) * total_duration
 	var frame_start := 0.0
 	for index in range(frames.size()):
 		time_cursor += float(frames[index].get("duration", 0.0))
@@ -173,7 +178,7 @@ func set_timed_pose(action: String, phase: String, phase_elapsed: float, phase_d
 	_clear_sequence()
 	_select_pose(action, phase, transition_duration, frame_index)
 	_current_registered_frame_elapsed = clampf(phase_time - frame_start, 0.0, get_current_registered_frame_duration())
-	_current_registered_frame_effective_duration = float(frames[frame_index].get("duration", 0.0)) * phase_duration / maxf(total_duration, 0.001)
+	_current_registered_frame_effective_duration = float(frames[frame_index].get("duration", 0.0)) * (1.0 if loop else phase_duration / maxf(total_duration, 0.001))
 	return true
 
 func get_registered_frame_count(action: String, phase: String) -> int:
@@ -186,7 +191,7 @@ func get_registered_frame_count(action: String, phase: String) -> int:
 ## Plays registered frames. Each item may be a phase string with a shared or
 ## per-item duration, or a dictionary with phase/frame/duration fields.
 func play_pose_sequence(action: String, phases: Array, frame_duration: Variant = -1.0, loop := false) -> bool:
-	if _ko or action not in ["attack1", "attack2", "attack3"] or phases.is_empty():
+	if _ko or not _is_supported_action(action) or phases.is_empty():
 		return false
 	var accepted_phases: Array[String] = []
 	var frame_indices: Array[int] = []
@@ -411,6 +416,12 @@ func _request_texture(key: String, texture: Texture2D, immediate := false, trans
 		source = 0 if _sprites[0].visible else 1
 	var target := 1 - source
 	if _sprites[source].texture == texture and not immediate:
+		if _transitioning:
+			_sprites[target].visible = false
+			_sprites[target].modulate.a = 0.0
+			_sprites[source].visible = true
+			_sprites[source].modulate.a = 1.0
+			_transitioning = false
 		_current_key = key
 		return
 	_sprites[target].texture = texture
@@ -433,9 +444,14 @@ func _request_texture(key: String, texture: Texture2D, immediate := false, trans
 		_transitioning = true
 
 func _pose_key(action: String, phase: String) -> String:
-	if not ["attack1", "attack2", "attack3"].has(action) or not PHASES.has(phase):
+	if not ["attack1", "attack2", "attack3"].has(action) and not (EXTENDED_POSES.has(action) and phase in EXTENDED_POSES[action]):
+		return ""
+	if ["attack1", "attack2", "attack3"].has(action) and not PHASES.has(phase):
 		return ""
 	return action + "_" + phase
+
+func _is_supported_action(action: String) -> bool:
+	return ["attack1", "attack2", "attack3"].has(action) or EXTENDED_POSES.has(action)
 
 func _load_safe_idle() -> Texture2D:
 	if not ResourceLoader.exists(SAFE_IDLE_PATH):

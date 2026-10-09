@@ -192,7 +192,7 @@ func _process(delta: float) -> void:
 	art.rotation = _pose_rotation
 	art.scale = _pose_scale
 	_keep_combat_anchor()
-	_update_approved_attack_pose()
+	_update_approved_animation_pose(turning)
 
 func get_animation_state() -> String:
 	return _animation_state
@@ -306,8 +306,18 @@ func get_art_frame_label() -> String:
 	return pose_blender.get_current_registered_frame_label() if pose_blender != null and pose_blender.visible else "temporary transform"
 
 func is_current_pose_temporary() -> bool:
+	if _approved_pose_is_displayed("turn", "turn"):
+		return false
 	if _animation_state.begins_with("skill"):
-		return true
+		return not _approved_pose_is_displayed("skill%d" % int(player.get("skill_id")), _normalized_phase(str(player.get("skill_phase"))))
+	if _animation_state == "walk":
+		return not _approved_pose_is_displayed("run", "stride")
+	if _animation_state == "jump_rise":
+		return not _approved_pose_is_displayed("jump_rise", "rise")
+	if _animation_state == "jump_fall":
+		return not _approved_pose_is_displayed("jump_fall", "fall")
+	if _animation_state == "hit":
+		return not _approved_pose_is_displayed("hit", "reaction")
 	if _animation_state.begins_with("attack") and pose_blender != null and pose_blender.visible:
 		var stage := int(player.get("attack_stage"))
 		var phase := "contact" if str(player.get("attack_phase")) == "active" else str(player.get("attack_phase"))
@@ -318,8 +328,16 @@ func is_current_pose_temporary() -> bool:
 	return true
 
 func get_pose_art_status() -> String:
+	if _approved_pose_is_displayed("turn", "turn"):
+		return pose_blender.get_pose_art_status()
 	if _animation_state.begins_with("skill"):
-		return "temporary procedural skill motion; approved skill animation art unavailable"
+		return _current_art_status("skill%d" % int(player.get("skill_id")), _normalized_phase(str(player.get("skill_phase"))), "temporary procedural skill motion; approved skill animation art unavailable")
+	if _animation_state == "walk":
+		return _current_art_status("run", "stride", "temporary procedural stride; approved run frames unavailable")
+	if _animation_state in ["jump_rise", "jump_fall", "hit"]:
+		var action := "jump_rise" if _animation_state == "jump_rise" else ("jump_fall" if _animation_state == "jump_fall" else "hit")
+		var phase := "rise" if _animation_state == "jump_rise" else ("fall" if _animation_state == "jump_fall" else "reaction")
+		return _current_art_status(action, phase, "temporary procedural %s; approved frames unavailable" % _animation_state)
 	if _animation_state.begins_with("attack") and _animation_state.ends_with("_contact"):
 		return "approved contact keypose; temporary transform motion"
 	if _animation_state.begins_with("attack"):
@@ -369,43 +387,85 @@ func _update_animation_clock(next_state: String, delta: float) -> void:
 		_state_elapsed = clampf(skill_duration - maxf(0.0, float(player.get("skill_phase_remaining"))), 0.0, skill_duration)
 	_state_frame = posmod(int(floor(_state_elapsed / maxf(duration / float(_state_frame_count), 0.001))), _state_frame_count)
 
-func _update_approved_attack_pose() -> void:
+func _update_approved_animation_pose(turning := false) -> void:
 	if pose_blender == null or player == null or art == null:
 		return
 	# The integrated blender is a child of VisualRoot, whose negative X scale
 	# already mirrors the pose. Keep its local sprite unflipped to avoid doubling it.
 	pose_blender.set_facing_left(false)
+	var action := ""
+	var pose_phase := ""
+	var phase_elapsed := 0.0
+	var phase_duration := 0.0
+	var fade_duration := 0.055
+	var looping := false
 	var stage := int(player.get("attack_stage"))
-	var phase := str(player.get("attack_phase"))
-	var special_attack: bool = player.get("is_ko") != true \
-		and float(player.get("hitstun_remaining")) <= 0.0 \
-		and str(player.get("skill_phase")) == "idle" \
-		and (stage >= 1 and stage <= 3) \
-		and ["startup", "active", "recovery"].has(phase)
-	if not special_attack:
+	var attack_phase := str(player.get("attack_phase"))
+	var skill_phase := str(player.get("skill_phase"))
+	if player.get("is_ko") != true and float(player.get("hitstun_remaining")) <= 0.0 and skill_phase == "idle" and stage in [1, 2, 3] and attack_phase in ["startup", "active", "recovery"]:
+		action = "attack%d" % stage
+		pose_phase = "contact" if attack_phase == "active" else attack_phase
+		if stage == 2 and attack_phase == "active" and _attack_phase_progress(stage - 1, attack_phase, float(player.get("attack_phase_remaining"))) < 0.42 and pose_blender.get_registered_frame_count(action, "inbetween") > 0:
+			pose_phase = "inbetween"
+		phase_duration = _attack_phase_duration(stage - 1, attack_phase)
+		phase_elapsed = maxf(0.0, phase_duration - float(player.get("attack_phase_remaining")))
+		if pose_phase == "startup":
+			fade_duration = [0.060, 0.105, 0.115][stage - 1]
+		elif pose_phase == "contact":
+			fade_duration = [0.060, 0.125, 0.105][stage - 1]
+		elif pose_phase == "recovery":
+			fade_duration = [0.075, 0.12, 0.135][stage - 1]
+	elif player.get("is_ko") != true and float(player.get("hitstun_remaining")) <= 0.0 and skill_phase in ["startup", "active", "recovery"]:
+		var skill_id := clampi(int(player.get("skill_id")), 1, 2)
+		action = "skill%d" % skill_id
+		pose_phase = _normalized_phase(skill_phase)
+		phase_duration = _skill_phase_duration(skill_id - 1, skill_phase)
+		phase_elapsed = maxf(0.0, phase_duration - float(player.get("skill_phase_remaining")))
+	elif player.get("is_ko") != true and (float(player.get("hit_flash_remaining")) > 0.0 or float(player.get("hitstun_remaining")) > 0.0):
+		action = "hit"
+		pose_phase = "reaction"
+		phase_duration = float(TEMPORARY_STATE_DURATIONS["hit"])
+		phase_elapsed = _state_elapsed
+	elif turning and _animation_state in ["idle", "walk"]:
+		action = "turn"
+		pose_phase = "turn"
+		phase_duration = TURN_DURATION
+		phase_elapsed = minf(_turn_elapsed, TURN_DURATION)
+	elif _animation_state == "walk":
+		action = "run"
+		pose_phase = "stride"
+		phase_duration = _animation_bank.get_phase_duration(action, pose_phase, 0.0) if _animation_bank != null else 0.0
+		phase_elapsed = _state_elapsed
+		looping = true
+	elif _animation_state == "jump_rise":
+		action = "jump_rise"
+		pose_phase = "rise"
+		phase_duration = float(TEMPORARY_STATE_DURATIONS["jump_rise"])
+		phase_elapsed = _state_elapsed
+	elif _animation_state == "jump_fall":
+		action = "jump_fall"
+		pose_phase = "fall"
+		phase_duration = float(TEMPORARY_STATE_DURATIONS["jump_fall"])
+		phase_elapsed = _state_elapsed
+	if action.is_empty() or pose_blender.get_registered_frame_count(action, pose_phase) == 0:
 		if pose_blender.visible:
 			pose_blender.interrupt_to_idle()
 		pose_blender.visible = false
 		art.visible = true
 		return
-	var action := "attack%d" % stage
-	var pose_phase := "contact" if phase == "active" else phase
-	if stage == 2 and phase == "active" and _attack_phase_progress(stage - 1, phase, float(player.get("attack_phase_remaining"))) < 0.42 \
-		and pose_blender.get_registered_frame_count(action, "inbetween") > 0:
-		pose_phase = "inbetween"
 	pose_blender.sync_from_art(art)
-	var fade_duration := 0.055
-	if pose_phase == "startup":
-		fade_duration = [0.060, 0.105, 0.115][stage - 1]
-	if pose_phase == "contact":
-		fade_duration = [0.060, 0.125, 0.105][stage - 1]
-	elif pose_phase == "recovery":
-		fade_duration = [0.075, 0.12, 0.135][stage - 1]
-	var phase_duration := _attack_phase_duration(stage - 1, phase)
-	var phase_elapsed := maxf(0.0, phase_duration - float(player.get("attack_phase_remaining")))
-	pose_blender.set_timed_pose(action, pose_phase, phase_elapsed, phase_duration, fade_duration)
+	pose_blender.set_timed_pose(action, pose_phase, phase_elapsed, maxf(phase_duration, 0.001), fade_duration, looping)
 	pose_blender.visible = true
 	art.visible = false
+
+func _approved_pose_is_displayed(action: String, phase: String) -> bool:
+	return pose_blender != null and pose_blender.visible and pose_blender.get_current_pose_key() == action + "_" + phase and pose_blender.get_current_frame_status().begins_with("approved")
+
+func _current_art_status(action: String, phase: String, fallback: String) -> String:
+	return pose_blender.get_pose_art_status() if _approved_pose_is_displayed(action, phase) else fallback
+
+func _normalized_phase(phase: String) -> String:
+	return "contact" if phase == "active" else phase
 
 var _attack_rotation := 0.0
 var _attack_scale := Vector2.ONE

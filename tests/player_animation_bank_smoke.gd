@@ -36,7 +36,38 @@ func _run() -> void:
 	_check(not bank.call("_is_reviewed_png_path", "res://assets/art/player/forged.jpg"), "non-PNG registry payloads are rejected")
 	_check(not bank.call("_is_reviewed_png_path", "res://assets/art/player/../../outside.png"), "registry texture path traversal is rejected")
 	_check(not bank.call("_is_review_record_path", "res://docs/review/records/../missing.md"), "manual review record path traversal is rejected")
+	_check(bank.call("_promotion_identity", "run", "stride", "res://assets/art/player/a.png") != bank.call("_promotion_identity", "run", "stride", "res://assets/art/player/b.png"), "same run phase keeps reviewed frames distinct by texture identity")
+	var forged_run := {"phase": "stride", "duration": 0.1, "texture": CONTACT_TEXTURES["attack1"], "foot_anchor": {"x": 0.5, "y": 0.9}, "approval_state": "approved"}
+	_check(not bank.call("_validate_frame", "run", forged_run, "res://data/art/animation_manifest.json"), "extended approved art without a reviewed-frame entry is rejected")
+	var duplicate_bank: RefCounted = BANK_SCRIPT.new()
+	var reviewed_run_path := "res://assets/art/player/elven_fighter_attack1_reference_v1_safe_1254x1254.png"
+	var reviewed_run_frame := {"phase": "stride", "duration": 0.1, "texture": reviewed_run_path, "foot_anchor": {"x": 0.5, "y": 0.9}, "approval_state": "approved"}
+	var reviewed_run_identity: String = duplicate_bank.call("_promotion_identity", "run", "stride", reviewed_run_path)
+	var reviewed_run_entry := {"clip": "run", "phase": "stride", "texture": reviewed_run_path, "sha256": duplicate_bank.call("_sha256_file", ProjectSettings.globalize_path(reviewed_run_path)), "manifest_sha256": duplicate_bank.call("_sha256_file", ProjectSettings.globalize_path("res://data/art/animation_manifest.json")), "duration": 0.1, "foot_anchor": {"x": 0.5, "y": 0.9}, "review_record": "res://docs/review/records/manual.md"}
+	duplicate_bank.set("_promotion_entries", {reviewed_run_identity: reviewed_run_entry})
+	_check(duplicate_bank.call("_promotion_frame_matches", "res://data/art/animation_manifest.json", "run", "stride", reviewed_run_frame), "reviewed texture and manifest hashes match the exact approved frame")
+	_check(not duplicate_bank.call("_promotion_frame_matches", "res://data/art/animation_manifest.json", "run", "stride", reviewed_run_frame), "a duplicate approved manifest frame cannot reuse one reviewed registry identity")
 	_check(blender.get_current_texture_path() == "res://assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png", "v8 remains the idle fallback texture")
+	var run_texture_a := "res://assets/art/player/elven_fighter_attack1_reference_v1_safe_1254x1254.png"
+	var run_texture_b := "res://assets/art/player/elven_fighter_attack2_reference_v1_safe_1254x1254.png"
+	var run_a: Texture2D = load(run_texture_a)
+	var run_b: Texture2D = load(run_texture_b)
+	_check(blender.register_pose_frame("run", "stride", run_a, 0.1, "approved manifest frame", "stride 1", Vector2(0.5, 0.9)), "PoseBlender accepts the first explicitly registered stride drawing")
+	_check(blender.register_pose_frame("run", "stride", run_b, 0.1, "approved manifest frame", "stride 2", Vector2(0.5, 0.9)), "PoseBlender accepts ordered frames for the same run phase")
+	_check(blender.get_registered_frame_count("run", "stride") == 2, "same-phase run frames remain separate texture registrations")
+	_check(blender.set_timed_pose("run", "stride", 0.0, 0.2, 0.0, true) and blender.get_current_texture_path() == run_texture_a, "run stride clock begins with the first registered texture")
+	_check(blender.set_timed_pose("run", "stride", 0.12, 0.2, 0.0, true) and blender.get_current_texture_path() == run_texture_b, "run stride clock advances to the second registered texture in order")
+	_check(blender.set_timed_pose("run", "stride", 0.21, 0.2, 0.0, true) and blender.get_current_texture_path() == run_texture_a, "run stride clock loops on its registered phase duration")
+	_check(blender.get_current_registered_frame_label() == "stride 1", "texture-specific frame labels survive same-phase registration")
+	var run_reject_blender: PlayerPoseBlender = BLENDER_SCRIPT.new()
+	root.add_child(run_reject_blender)
+	await process_frame
+	var run_reject_bank: RefCounted = BANK_SCRIPT.new()
+	var traversal_run := {"schema_version": 1, "clips": [{"id": "run", "frames": [{"phase": "stride", "duration": 0.1, "texture": "../outside.png", "foot_anchor": {"x": 0.5, "y": 0.9}, "approval_state": "review"}]}]}
+	var traversal_run_path := OS.get_temp_dir().path_join("BeltScrollRunTraversalSmoke.json")
+	_write_json(traversal_run_path, traversal_run)
+	_check(not run_reject_bank.call("load_and_register", run_reject_blender, traversal_run_path), "extended frame path traversal is rejected before registration")
+	_check(run_reject_blender.get_registered_frame_count("run", "stride") == 0, "rejected extended path cannot leave a partial runtime registration")
 	var controller_script: Script = load("res://scripts/player/player_controller.gd") as Script
 	var controller_constants: Dictionary = controller_script.get_script_constant_map()
 	var hitbox_active: Array = controller_constants["ACTIVE"]
@@ -92,6 +123,63 @@ func _run() -> void:
 		player.set("attack_phase_remaining", duration * 0.5)
 		animator.call("_process", 0.0)
 		_check(integrated_blender.visible and integrated_blender.get_current_texture_path() == CONTACT_TEXTURES["attack%d" % stage], "integrated attack %d displays its approved frame during the hitbox window" % stage)
+	var stride_a := "res://assets/art/player/elven_fighter_attack1_reference_v1_safe_1254x1254.png"
+	var stride_b := "res://assets/art/player/elven_fighter_attack2_reference_v1_safe_1254x1254.png"
+	integrated_blender.register_pose_frame("run", "stride", load(stride_a), 0.1, "approved manifest frame", "stride 1")
+	integrated_blender.register_pose_frame("run", "stride", load(stride_b), 0.1, "approved manifest frame", "stride 2")
+	player.set("attack_phase", "idle")
+	player.set("attack_stage", 0)
+	player.velocity = Vector2(280.0, 0.0)
+	animator.call("_process", 0.0)
+	animator.call("_process", 0.11)
+	_check(animator.get_animation_state() == "walk" and integrated_blender.visible and integrated_blender.get_current_texture_path() == stride_b, "integrated run art advances by the live movement state clock")
+	player.velocity = Vector2.ZERO
+	animator.call("_process", 0.0)
+	_check(not integrated_blender.visible and player.get_node("VisualRoot/PlayerArt").visible, "missing run art falls back to the existing procedural PlayerArt")
+	var skill_contact := "res://assets/art/player/elven_fighter_attack3_reference_v2_safe_1254x1254.png"
+	integrated_blender.register_pose_frame("skill1", "contact", load(skill_contact), 0.12, "approved manifest frame", "skill contact")
+	player.set("skill_id", 1)
+	player.set("skill_phase", "active")
+	player.set("skill_phase_remaining", 0.06)
+	animator.call("_process", 0.0)
+	_check(animator.get_animation_state() == "skill1_contact" and is_equal_approx(animator.get_state_elapsed(), 0.06), "integrated skill contact keeps the controller phase clock")
+	_check(integrated_blender.visible and integrated_blender.get_current_texture_path() == skill_contact, "integrated skill phase selects its reviewed contact texture")
+	player.set("skill_phase", "idle")
+	player.set("skill_id", 0)
+	animator.call("_process", 0.0)
+	_check(not integrated_blender.visible, "skill interruption returns to procedural art when the next phase has no frame")
+	var rise_texture := "res://assets/art/player/elven_fighter_jump_rise_v1_safe_candidate_1254x1254.png"
+	var fall_texture := "res://assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png"
+	integrated_blender.register_pose_frame("jump_rise", "rise", load(rise_texture), 0.16, "approved manifest frame", "jump rise")
+	integrated_blender.register_pose_frame("jump_fall", "fall", load(fall_texture), 0.16, "approved manifest frame", "jump fall")
+	player.set("is_jumping", true)
+	player.set("jump_vertical_velocity", -100.0)
+	animator.call("_process", 0.02)
+	_check(animator.get_animation_state() == "jump_rise" and integrated_blender.get_current_texture_path() == rise_texture, "integrated jump rise uses the vertical movement state")
+	player.set("jump_vertical_velocity", 100.0)
+	animator.call("_process", 0.02)
+	_check(animator.get_animation_state() == "jump_fall" and integrated_blender.get_current_pose_key() == "jump_fall_fall", "integrated jump fall uses the vertical movement state")
+	animator.call("_process", 0.06)
+	_check(integrated_blender.get_current_texture_path() == fall_texture, "jump fall transition resolves to its registered texture")
+	player.set("is_jumping", false)
+	player.set("jump_vertical_velocity", 0.0)
+	player.set("hitstun_remaining", 0.1)
+	player.set("hit_flash_remaining", 0.05)
+	var hit_texture := "res://assets/art/player/elven_fighter_reference_v7_safe_1254x1254.png"
+	integrated_blender.register_pose_frame("hit", "reaction", load(hit_texture), 0.12, "approved manifest frame", "hit reaction")
+	animator.call("_process", 0.02)
+	_check(animator.get_animation_state() == "hit" and integrated_blender.get_current_texture_path() == hit_texture, "integrated hit reaction interrupts jump art and selects its phase")
+	player.set("hitstun_remaining", 0.0)
+	player.set("hit_flash_remaining", 0.0)
+	for _frame in range(8):
+		animator.call("_process", 0.02)
+	player.set("facing_direction", Vector2.LEFT)
+	integrated_blender.register_pose_frame("turn", "turn", load(stride_a), 0.13, "approved manifest frame", "turn")
+	animator.call("_process", 0.02)
+	_check(animator.call("is_turning") and integrated_blender.get_current_pose_key() == "turn_turn", "integrated turn art follows the facing transition clock")
+	player.set("is_ko", true)
+	animator.call("_process", 0.02)
+	_check(animator.get_animation_state() == "ko" and not integrated_blender.visible, "KO interrupts extended registered art")
 	if failures.is_empty():
 		print("player_animation_bank_smoke: all checks passed")
 		quit(0)

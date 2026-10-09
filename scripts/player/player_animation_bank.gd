@@ -12,6 +12,12 @@ const APPROVED_CONTACT_TEXTURES := {
 }
 const APPROVED_CONTACT_DURATIONS := {"attack1": 0.105, "attack2": 0.12, "attack3": 0.14}
 const VALID_PHASES := ["startup", "inbetween", "contact", "recovery"]
+const EXTENDED_CLIPS := {
+	"run": ["stride"], "turn": ["turn"], "jump_rise": ["rise"],
+	"jump_fall": ["fall"], "hit": ["reaction"],
+	"skill1": ["startup", "contact", "recovery"],
+	"skill2": ["startup", "contact", "recovery"],
+}
 const VALID_APPROVALS := ["approved", "review", "unapproved", "temporary"]
 
 var last_errors: Array[String] = []
@@ -72,7 +78,8 @@ func load_and_register(pose_blender: PlayerPoseBlender, manifest_path := MANIFES
 			var approval: String = str(frame["approval_state"])
 			var duration: float = float(frame["duration"])
 			if approval in ["temporary", "approved"]:
-				_phase_durations[action + "_" + phase] = duration
+				var duration_key := action + "_" + phase
+				_phase_durations[duration_key] = float(_phase_durations.get(duration_key, 0.0)) + duration
 			if approval != "approved" or action == "idle":
 				continue
 			var texture_source: Texture2D
@@ -110,7 +117,9 @@ func _load_promotion_registry(registry_path: String) -> bool:
 		var clip: String = entry["clip"]
 		var phase: String = entry["phase"]
 		var key := clip + "_" + phase
-		if not ["attack1", "attack2", "attack3"].has(clip) or not VALID_PHASES.has(phase) or phase == "contact" or _promotion_entries.has(key):
+		var identity := _promotion_identity(clip, phase, str(entry["texture"]))
+		var extended_phase: bool = EXTENDED_CLIPS.has(clip) and phase in EXTENDED_CLIPS[clip]
+		if not ((["attack1", "attack2", "attack3"].has(clip) and VALID_PHASES.has(phase) and phase != "contact") or extended_phase) or _promotion_entries.has(identity):
 			return _fail("Reviewed-frame registry has an invalid or duplicate clip/phase: " + key)
 		if not _is_sha256(entry["sha256"]) or not _is_sha256(entry["manifest_sha256"]):
 			return _fail("Reviewed-frame registry hashes must be 64 lowercase hexadecimal characters")
@@ -123,16 +132,19 @@ func _load_promotion_registry(registry_path: String) -> bool:
 			return _fail("Reviewed-frame registry texture must be a project PNG under assets/art/player")
 		if not _review_record_exists(entry["review_record"]):
 			return _fail("Reviewed-frame registry needs an existing manual review record under docs/review/records")
-		_promotion_entries[key] = entry
+		_promotion_entries[identity] = entry
 	return true
 
 func _promotion_frame_matches(manifest_path: String, action: String, phase: String, frame: Dictionary) -> bool:
 	var key := action + "_" + phase
-	if not _promotion_entries.has(key):
+	var identity := _promotion_identity(action, phase, str(frame["texture"]))
+	if _used_promotion_entries.has(identity):
+		return _fail("Reviewed-frame registry entry was reused by a duplicate manifest frame: " + key)
+	if not _promotion_entries.has(identity):
 		return _fail("New approved frame is not present in the reviewed-frame registry: " + key)
 	if manifest_path != MANIFEST_PATH or ProjectSettings.globalize_path(manifest_path) != ProjectSettings.globalize_path(MANIFEST_PATH):
 		return _fail("Reviewed-frame promotion is accepted only from the checked-in animation manifest")
-	var entry: Dictionary = _promotion_entries[key]
+	var entry: Dictionary = _promotion_entries[identity]
 	if str(frame["texture"]) != str(entry["texture"]):
 		return _fail("Approved frame texture does not match the reviewed-frame registry: " + key)
 	var anchor: Dictionary = frame["foot_anchor"]
@@ -145,8 +157,11 @@ func _promotion_frame_matches(manifest_path: String, action: String, phase: Stri
 	var texture_file: String = ProjectSettings.globalize_path(str(frame["texture"]))
 	if not _sha256_matches_file(texture_file, str(entry["sha256"])):
 		return _fail("PNG SHA-256 does not match the reviewed-frame registry: " + key)
-	_used_promotion_entries[key] = true
+	_used_promotion_entries[identity] = true
 	return true
+
+func _promotion_identity(action: String, phase: String, texture: String) -> String:
+	return action + "|" + phase + "|" + texture
 
 func _load_approved_texture(manifest_path: String, texture_value: Variant) -> Texture2D:
 	var path := _resolve_texture_path(manifest_path, str(texture_value))
@@ -242,7 +257,7 @@ func _validate_frame(action: String, frame: Dictionary, manifest_path: String) -
 		return _fail("phase and approval_state must be strings")
 	var phase: String = frame["phase"]
 	var approval: String = frame["approval_state"]
-	var valid_phase := phase == "idle" if action == "idle" else VALID_PHASES.has(phase)
+	var valid_phase: bool = phase == "idle" if action == "idle" else (VALID_PHASES.has(phase) or (EXTENDED_CLIPS.has(action) and phase in EXTENDED_CLIPS[action]))
 	if not valid_phase:
 		return _fail("Invalid animation phase: " + phase)
 	if not VALID_APPROVALS.has(approval):

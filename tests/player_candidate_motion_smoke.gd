@@ -8,6 +8,7 @@ const REQUIRED_ART := [
 	"res://assets/art/player/elven_fighter_run_stride_v1_candidate_1254x1254.png",
 	"res://assets/art/player/elven_fighter_run_stride_v2_opposite_candidate_1254x1254.png",
 	"res://assets/art/player/elven_fighter_jump_rise_v1_candidate_1254x1254.png",
+	"res://assets/art/player/elven_fighter_jump_rise_v1_safe_candidate_1254x1254.png",
 	"res://assets/art/player/elven_fighter_attack1_startup_v1_candidate_1254x1254.png",
 	"res://assets/art/player/elven_fighter_attack3_startup_v1_candidate_1254x1254.png",
 	"res://assets/art/player/elven_fighter_attack1_reference_v1_contour_candidate_1254x1254.png",
@@ -27,9 +28,13 @@ func _run() -> void:
 	for path in REQUIRED_ART:
 		_check(FileAccess.file_exists(path), "필수 원화 확인: " + path.get_file())
 	var source := FileAccess.get_file_as_string(SCRIPT_PATH)
+	var capture_source := FileAccess.get_file_as_string("res://tools/capture_player_jump_motion_review.gd")
 	_check(source.contains("--review-capture") and source.contains("RenderingServer.frame_post_draw"), "실제 Window post-draw 캡처 경로 포함")
 	_check(source.contains("[원화 미확보]") and source.contains("NUM4_CANDIDATES"), "Num4 후보 미확보 상태를 표시")
 	_check(source.contains("duration_source") and source.contains("interpolation") and source.contains("ALPHA_THRESHOLD"), "duration 출처, 보간 설정, alpha 기준 구현")
+	_check(source.contains("elven_fighter_jump_rise_v1_safe_candidate_1254x1254.png") and source.contains("미구현"), "safe 상승 원화와 미구현 정점/하강 구간을 구분")
+	_check(capture_source.contains("_update_jump") and capture_source.contains("physics_frame") and capture_source.contains("frame_post_draw"), "격리 캡처가 실제 Player 점프 함수·물리 틱·Window post-draw를 동기화")
+	_check(capture_source.contains("APEX / PROCEDURAL") and capture_source.contains("FALL / PROCEDURAL") and capture_source.contains("SINGLE MIRROR"), "정점/하강 절차 표시와 좌향 단일 미러 캡처")
 	_check(source.contains("FRAME_SIZE := 192.0") and source.contains("DISPLAY_SCALE := 3.0"), "192px 게임 크기와 3배 표시 상수")
 	_check(source.contains("func stop_playback") and source.contains("func select_group") and source.contains("_step_clip"), "전환·재생 중단 제어 구현")
 	_check(source.contains("KEY_KP_4") and source.contains("Num4 돌진 접촉"), "Num4 keypad 입력과 돌진 후보 상태 처리")
@@ -38,6 +43,11 @@ func _run() -> void:
 	if FileAccess.file_exists(capture_path):
 		var capture := Image.new()
 		_check(capture.load(ProjectSettings.globalize_path(capture_path)) == OK and capture.get_size() == Vector2i(3840, 3240), "6개 Window 프레임으로 구성한 읽기 가능한 캡처 스트립")
+	var jump_capture_path := "res://assets/art/review/player_jump_motion_strip.png"
+	_check(FileAccess.file_exists(jump_capture_path), "Player 물리 시계와 동기화한 jump Window 스트립이 존재")
+	if FileAccess.file_exists(jump_capture_path):
+		var jump_capture := Image.new()
+		_check(jump_capture.load(ProjectSettings.globalize_path(jump_capture_path)) == OK and jump_capture.get_size() == Vector2i(1920, 2000), "도약 직전부터 착지까지 10개 post-draw 프레임 캡처")
 	var dash_art := "res://assets/art/player/elven_fighter_skill1_rush_contact_v1_candidate_1254x1254.png"
 	_check(FileAccess.file_exists(dash_art), "Num4 전방 돌진 접촉 후보 원화 확보")
 	var scene := load(SCENE_PATH) as PackedScene

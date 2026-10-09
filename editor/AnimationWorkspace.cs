@@ -159,11 +159,18 @@ public sealed class AnimationWorkspaceForm : Form
 
     private AnimationFrame? CurrentFrame => frameList.SelectedIndex is >= 0 and var i && i < Clip.Frames.Count ? Clip.Frames[i] : null;
 
-    private static readonly string[] ValidClipIds = ["idle", "attack1", "attack2", "attack3"];
+    private static readonly string[] ValidClipIds = ["idle", "attack1", "attack2", "attack3", "run", "turn", "jump_rise", "jump_fall", "hit", "skill1", "skill2"];
+    private static readonly IReadOnlyDictionary<string, string[]> ClipPhases = new Dictionary<string, string[]>(StringComparer.Ordinal)
+    {
+        ["idle"] = ["idle"], ["attack1"] = ["startup", "inbetween", "contact", "recovery"],
+        ["attack2"] = ["startup", "inbetween", "contact", "recovery"], ["attack3"] = ["startup", "inbetween", "contact", "recovery"],
+        ["run"] = ["stride"], ["turn"] = ["turn"], ["jump_rise"] = ["rise"], ["jump_fall"] = ["fall"],
+        ["hit"] = ["reaction"], ["skill1"] = ["startup", "contact", "recovery"], ["skill2"] = ["startup", "contact", "recovery"]
+    };
     private void AddClip()
     {
         string? id = ValidClipIds.FirstOrDefault(x => document.Clips.All(c => c.Id != x));
-        if (id is null) { SetStatus("idle, attack1~3 클립이 모두 있습니다."); return; }
+        if (id is null) { SetStatus("지원하는 schema v1 클립을 모두 만들었습니다."); return; }
         document.Clips.Add(new AnimationClip { Id = id }); RefreshClipSelector(id); SetStatus($"{id} 클립을 만들었습니다.");
     }
     private void RemoveClip()
@@ -175,7 +182,7 @@ public sealed class AnimationWorkspaceForm : Form
     {
         if (updating || clipSelect.SelectedIndex < 0) return;
         string id = clipId.Text.Trim();
-        if (!ValidClipIds.Contains(id) || document.Clips.Any(c => !ReferenceEquals(c, Clip) && c.Id == id)) { SetStatus("클립 ID는 idle, attack1, attack2, attack3 중 중복 없이 선택해야 합니다."); return; }
+        if (!ValidClipIds.Contains(id) || document.Clips.Any(c => !ReferenceEquals(c, Clip) && c.Id == id)) { SetStatus("지원되는 클립 ID 중 중복 없이 선택해야 합니다."); return; }
         Clip.Id = id; int index = clipSelect.SelectedIndex; updating = true; clipSelect.Items[index] = id; clipSelect.SelectedIndex = index; updating = false;
     }
     private void RefreshClipSelector(string selectedId)
@@ -185,8 +192,9 @@ public sealed class AnimationWorkspaceForm : Form
     }
     private void SetPhaseOptions()
     {
-        string[] options = Clip.Id == "idle" ? ["idle"] : ["startup", "inbetween", "contact", "recovery"];
+        string[] options = ClipPhases[Clip.Id];
         updating = true; phase.Items.Clear(); phase.Items.AddRange(options); updating = false;
+        if (CurrentFrame is { } frame && !options.Contains(frame.Phase)) { updating = true; phase.SelectedItem = options[0]; updating = false; }
     }
 
     private void ImportPngs()
@@ -205,7 +213,7 @@ public sealed class AnimationWorkspaceForm : Form
             if (check.Width <= 0 || check.Height <= 0) continue;
             string name = $"{Guid.NewGuid():N}.png"; string destination = Path.Combine(workspacePath, "textures", name);
             File.Copy(source, destination, true);
-            Clip.Frames.Add(new AnimationFrame { Texture = Path.Combine("textures", name).Replace('\\', '/'), Phase = Clip.Id == "idle" ? "idle" : "startup", Duration = 0.1, FootAnchor = new FootAnchor { X = 0.5, Y = 0.92 }, ApprovalState = "review" });
+            Clip.Frames.Add(new AnimationFrame { Texture = Path.Combine("textures", name).Replace('\\', '/'), Phase = ClipPhases[Clip.Id][0], Duration = 0.1, FootAnchor = new FootAnchor { X = 0.5, Y = 0.92 }, ApprovalState = "review" });
             count++;
         }
         RefreshFrames(Clip.Frames.Count - 1); SetStatus($"PNG {count}개를 가져왔습니다. 새 프레임은 모두 review 상태입니다.");
@@ -274,10 +282,10 @@ public sealed class AnimationWorkspaceForm : Form
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var clip in doc.Clips)
         {
-            if (clip.Id is null || !new[] { "idle", "attack1", "attack2", "attack3" }.Contains(clip.Id) || !ids.Add(clip.Id) || clip.Frames is null || clip.Frames.Count == 0) throw new InvalidDataException("클립 ID는 idle, attack1, attack2, attack3 중 중복 없이 지정하고 하나 이상의 프레임이 있어야 합니다.");
+            if (clip.Id is null || !ClipPhases.ContainsKey(clip.Id) || !ids.Add(clip.Id) || clip.Frames is null || clip.Frames.Count == 0) throw new InvalidDataException("지원되는 schema v1 클립 ID 중 하나를 중복 없이 지정하고 하나 이상의 프레임이 있어야 합니다.");
             foreach (var f in clip.Frames)
             {
-                if (f.Phase is not ("idle" or "startup" or "inbetween" or "contact" or "recovery") || (clip.Id == "idle" ? f.Phase != "idle" : f.Phase == "idle")) throw new InvalidDataException("클립 ID에 맞는 phase를 지정해야 합니다.");
+                if (!ClipPhases[clip.Id].Contains(f.Phase, StringComparer.Ordinal)) throw new InvalidDataException($"{clip.Id} 클립은 허용된 phase({string.Join(", ", ClipPhases[clip.Id])})만 사용할 수 있습니다.");
                 if (f.Texture is not null && !IsSafeRelativeTexture(f.Texture)) throw new InvalidDataException("texture는 작업 폴더 기준 상대 경로여야 합니다.");
                 if (double.IsNaN(f.Duration) || double.IsInfinity(f.Duration) || f.Duration <= 0 || f.Duration > 10) throw new InvalidDataException("duration은 0 초과 10초 이하여야 합니다.");
                 if (f.FootAnchor is null || double.IsNaN(f.FootAnchor.X) || double.IsNaN(f.FootAnchor.Y) || f.FootAnchor.X < 0 || f.FootAnchor.X > 1 || f.FootAnchor.Y < 0 || f.FootAnchor.Y > 1) throw new InvalidDataException("foot_anchor는 이미지 안의 0~1 좌표여야 합니다.");
@@ -296,6 +304,15 @@ public sealed class AnimationWorkspaceForm : Form
     {
         var valid = new AnimationDocument { Clips = [new AnimationClip { Id = "attack1", Frames = [new AnimationFrame { Texture = "textures/frame.png" }] }] };
         ValidateDocument(valid);
+        foreach (var (id, allowed) in ClipPhases)
+        {
+            var clip = new AnimationClip { Id = id, Frames = allowed.Select(p => new AnimationFrame { Texture = "textures/frame.png", Phase = p }).ToList() };
+            ValidateDocument(new AnimationDocument { Clips = [clip] });
+            bool wrongPhaseRejected = false;
+            try { ValidateDocument(new AnimationDocument { Clips = [new AnimationClip { Id = id, Frames = [new AnimationFrame { Texture = "textures/frame.png", Phase = "reaction" }] }] }); }
+            catch (InvalidDataException) { wrongPhaseRejected = true; }
+            if (!wrongPhaseRejected && !allowed.Contains("reaction")) throw new InvalidOperationException($"Clip {id} accepted an unsupported phase.");
+        }
         bool legacyAnchorRejected = false;
         try { JsonSerializer.Deserialize<AnimationDocument>("""{"schema_version":1,"clips":[{"id":"attack1","frames":[{"phase":"contact","duration":0.1,"texture":null,"foot_anchor":"alpha_bottom_center","approval_state":"review"}]}]}""", JsonOptions); }
         catch (JsonException) { legacyAnchorRejected = true; }
@@ -484,11 +501,25 @@ public sealed class AnimationWorkspaceForm : Form
             frameList.SelectedIndex = 2; ((Button)FindControl(this, "위로")).PerformClick();
             if (frameList.SelectedIndex != 1 || Clip.Frames[1].Phase != "contact" || !Clip.Frames.Select(f => f.Duration).SequenceEqual(new[] { .035, .105, .05, .2 })) throw new Exception("Frame reorder did not preserve each frame's duration and order.");
             ((Button)FindControl(this, "아래로")).PerformClick();
-            AddClip(); AddClip(); AddClip();
-            if (!document.Clips.Select(c => c.Id).OrderBy(x => x).SequenceEqual(new[] { "attack1", "attack2", "attack3", "idle" }.OrderBy(x => x))) throw new Exception("Creating all supported clip IDs failed.");
+            while (document.Clips.Count < ValidClipIds.Length) ((Button)FindControl(this, "새 클립")).PerformClick();
+            if (!document.Clips.Select(c => c.Id).OrderBy(x => x).SequenceEqual(ValidClipIds.OrderBy(x => x))) throw new Exception("Creating all schema v1 clip IDs failed.");
             foreach (string id in new[] { "attack2", "attack3" }) { clipSelect.SelectedIndex = document.Clips.FindIndex(c => c.Id == id); AddPngFiles([fixture]); }
             clipSelect.SelectedIndex = document.Clips.FindIndex(c => c.Id == "idle"); AddPngFiles([fixture]);
             if (Clip.Frames.Single().Phase != "idle" || Clip.Frames.Single().ApprovalState != "review") throw new Exception("Idle clip frame contract/default review state failed.");
+            foreach (string id in new[] { "run", "turn", "jump_rise", "jump_fall", "hit", "skill1", "skill2" })
+            {
+                clipSelect.SelectedIndex = document.Clips.FindIndex(c => c.Id == id);
+                foreach (string allowedPhase in ClipPhases[id])
+                {
+                    AddPngFiles([fixture]);
+                    phase.SelectedItem = allowedPhase;
+                    if (Clip.Frames[^1].Phase != allowedPhase || Clip.Frames[^1].ApprovalState != "review") throw new Exception($"{id}/{allowedPhase} phase selection or review default failed.");
+                }
+            }
+            clipSelect.SelectedIndex = document.Clips.FindIndex(c => c.Id == "run");
+            if (Clip.Frames.Count != 1 || Clip.Frames[0].Phase != "stride") throw new Exception("Run stride frame was not created with the correct phase.");
+            AddPngFiles([fixture]); AddPngFiles([fixture]);
+            if (Clip.Frames.Count != 3 || Clip.Frames.Any(f => f.Phase != "stride" || f.ApprovalState != "review")) throw new Exception("Multiple run stride frames were not supported.");
             clipSelect.SelectedIndex = document.Clips.FindIndex(c => c.Id == "attack1");
             intermediatePlayback.Checked = true;
             string comparisonFixture = Path.Combine(acceptancePath!, "comparison.png");
@@ -498,6 +529,12 @@ public sealed class AnimationWorkspaceForm : Form
             comparisonPanel.SetCurrentFrame(ResolveTexture(Clip.Frames[0].Texture!), new FootAnchor { X = 0.5, Y = 0.92 }, Clip.Frames[0].Duration, "attack1 · 검수 anchor 하단 위치");
             var comparisonEvents = comparisonPanel.ExerciseAcceptance(acceptancePath!);
             ((Button)FindControl(this, "재생")).PerformClick(); if (!playback.Enabled || playback.Interval != 10) throw new Exception("Playback did not start with the fixed 10ms UI refresh trigger.");
+            var realPlaybackTimeout = Stopwatch.StartNew();
+            while (playbackFrameIndex == 0 && realPlaybackTimeout.Elapsed < TimeSpan.FromSeconds(2)) { Application.DoEvents(); Thread.Sleep(2); }
+            if (playbackFrameIndex != 1) throw new Exception("Real Stopwatch-driven WinForms playback did not advance after the 35ms frame duration.");
+            ((Button)FindControl(this, "정지")).PerformClick();
+            frameList.SelectedIndex = 0;
+            ((Button)FindControl(this, "재생")).PerformClick(); if (!playback.Enabled) throw new Exception("Playback did not restart after the real-time Stopwatch check.");
             playbackFrameIndex = 0; playbackElapsed = 0;
             AdvancePlaybackBy(.034); if (playbackFrameIndex != 0) throw new Exception("The 35ms frame advanced before its cumulative duration elapsed.");
             AdvancePlaybackBy(.001); if (playbackFrameIndex != 1 || Math.Abs(playbackElapsed) > .000001) throw new Exception("The 35ms frame boundary was not measured accurately.");
@@ -515,16 +552,20 @@ public sealed class AnimationWorkspaceForm : Form
             ((Button)FindControl(this, "정지")).PerformClick(); if (playback.Enabled) throw new Exception("Playback did not stop.");
             string exported = Path.Combine(acceptancePath!, "workspace"); ExportTo(exported);
             var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(exported, "animation.json"), Encoding.UTF8)).RootElement;
-            if (json.GetProperty("schema_version").GetInt32() != 1 || json.GetProperty("clips").GetArrayLength() != 4) throw new Exception("Export contract mismatch.");
+            if (json.GetProperty("schema_version").GetInt32() != 1 || json.GetProperty("clips").GetArrayLength() != ValidClipIds.Length) throw new Exception("Export contract mismatch.");
             var savedPhases = json.GetProperty("clips").EnumerateArray().Single(c => c.GetProperty("id").GetString() == "attack1").GetProperty("frames").EnumerateArray().Select(f => f.GetProperty("phase").GetString()).ToArray();
             LoadJson(Path.Combine(exported, "animation.json"));
             var loadedAttack = document.Clips.Single(c => c.Id == "attack1");
             if (!loadedAttack.Frames.Select(f => f.Phase).SequenceEqual(savedPhases) || loadedAttack.Frames.Count != 4 || loadedAttack.Frames.Any(f => f.ApprovalState != "review") || Math.Abs(loadedAttack.Frames[3].Duration - .2) > .001 || Math.Abs(loadedAttack.Frames[0].FootAnchor.Y - .5) > .02) throw new Exception("JSON reload did not preserve frame order, duration, anchor or review-only state.");
-            if (!document.Clips.Select(c => c.Id).OrderBy(x => x).SequenceEqual(new[] { "idle", "attack1", "attack2", "attack3" }.OrderBy(x => x))) throw new Exception("JSON reload lost clip IDs.");
+            if (!document.Clips.Select(c => c.Id).OrderBy(x => x).SequenceEqual(ValidClipIds.OrderBy(x => x))) throw new Exception("JSON reload lost one or more schema v1 clip IDs.");
             if (document.Clips.Single(c => c.Id == "idle").Frames.Single().Phase != "idle") throw new Exception("JSON reload lost idle phase.");
+            var loadedRun = document.Clips.Single(c => c.Id == "run");
+            if (loadedRun.Frames.Count != 3 || loadedRun.Frames.Any(f => f.Phase != "stride" || f.ApprovalState != "review")) throw new Exception("JSON reload did not preserve multiple run stride frames.");
+            foreach (string id in new[] { "turn", "jump_rise", "jump_fall", "hit", "skill1", "skill2" })
+                if (!document.Clips.Single(c => c.Id == id).Frames.Select(f => f.Phase).SequenceEqual(ClipPhases[id])) throw new Exception($"JSON reload changed {id} phase order.");
             previewTabs.SelectedIndex = 1;
             using var capture = new Bitmap(Math.Max(1, Width), Math.Max(1, Height)); DrawToBitmap(capture, new Rectangle(Point.Empty, capture.Size)); capture.Save(Path.Combine(acceptancePath!, "animation-gui.png"), System.Drawing.Imaging.ImageFormat.Png);
-            var report = new { passed = true, guiMessageLoop = true, guiControlEvents = new[] { "PNG import", "clip creation and selection", "four phase selection", "duration edit", "anchor pointer event", "frame reorder with duration identity", "35ms/50ms/105ms/200ms cumulative playback", "loop boundary", "pause and resume position", "slow tick catch-up", "10ms UI refresh trigger", "measured WinForms timer precision", "play", "stop", "multi-clip JSON export", "JSON reload" }.Concat(comparisonEvents).ToArray(), timerPrecision, schemaVersion = 1, exportedPath = Path.Combine(exported, "animation.json"), clipCount = document.Clips.Count, frameCount = loadedAttack.Frames.Count, approvalState = "review", approvalDecisionCreated = false, gameAllowlistChanged = false, workspacePath = exported };
+            var report = new { passed = true, guiMessageLoop = true, guiControlEvents = new[] { "PNG import", "clip creation and selection", "all schema v1 clip IDs", "clip-specific phase validation", "multiple run stride frames", "new frame review default", "four attack phase selection", "skill startup/contact/recovery selection", "duration edit", "anchor pointer event", "frame reorder with duration identity", "35ms/50ms/105ms/200ms cumulative playback", "real Stopwatch-driven playback", "loop boundary", "pause and resume position", "slow tick catch-up", "10ms UI refresh trigger", "measured WinForms timer precision", "play", "stop", "multi-clip JSON export", "JSON reload" }.Concat(comparisonEvents).ToArray(), timerPrecision, schemaVersion = 1, exportedPath = Path.Combine(exported, "animation.json"), clipCount = document.Clips.Count, frameCount = loadedAttack.Frames.Count, approvalState = "review", approvalDecisionCreated = false, gameAllowlistChanged = false, workspacePath = exported };
             File.WriteAllText(Path.Combine(acceptancePath!, "animation-gui-acceptance.json"), JsonSerializer.Serialize(report, JsonOptions), new UTF8Encoding(false));
             ExitCode = 0; Close();
         }

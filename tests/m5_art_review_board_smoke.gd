@@ -58,9 +58,10 @@ func _run() -> void:
 		"elven_fighter_run_stride_v1_safe_candidate_1254x1254.png",
 		"elven_fighter_run_stride_v2_opposite_candidate_1254x1254.png",
 		"elven_fighter_run_stride_v2_safe_candidate_1254x1254.png",
+		"elven_fighter_run_stride_v3_left_lead_candidate_1254x1254.png",
 	]
 	_check(run_files == expected_run_files,
-		"all existing v1/v2 run source and safe candidates are discovered in stable order")
+		"all existing v1/v2 and v3 run candidates are discovered in stable order")
 	var board := _load_image(BOARD_PATH)
 	_check(board != null, "integrated board PNG decodes")
 	if board != null:
