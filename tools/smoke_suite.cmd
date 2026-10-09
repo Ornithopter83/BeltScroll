@@ -75,6 +75,7 @@ call :run_window_smoke player_attack_pose_integration_smoke
 call :run_window_smoke camera_boundary_window_smoke
 call :run_window_smoke gameplay_window_render_smoke
 call :run_window_smoke combat_live_session_window_smoke
+call :run_gameplay_endings_window_smoke
 
 call :probe_fixtures
 if errorlevel 1 (
@@ -142,6 +143,15 @@ if errorlevel 1 (
     type "%RUN_LOG%"
     call :save_failure %SMOKE_NAME%
 )
+exit /b 0
+
+:run_gameplay_endings_window_smoke
+set "SMOKE_OLD_APPDATA=%APPDATA%"
+set "APPDATA=%TEMP%\BeltScrollGodotSmokeUserData"
+if not exist "%APPDATA%" mkdir "%APPDATA%" >nul 2>nul
+call :run_window_smoke gameplay_endings_window_smoke
+if defined SMOKE_OLD_APPDATA (set "APPDATA=%SMOKE_OLD_APPDATA%") else set "APPDATA="
+set "SMOKE_OLD_APPDATA="
 exit /b 0
 
 :run_bounded
