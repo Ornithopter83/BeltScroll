@@ -9,6 +9,10 @@ const HELP_LAYER := 10
 const PANEL_VIEWPORT_MARGIN := 24.0
 const TITLE_SCENE := "res://scenes/ui/title_menu.tscn"
 const MAIN_SCENE := "res://scenes/game/main.tscn"
+const PLAYER_ID := "Player"
+const RAIDER_ID := "ForestRaider"
+const STAGE_ID := "ForestRuins"
+const DATA_LOADER := preload("res://scripts/game/editor_data_loader.gd")
 
 var result_state: ResultState = ResultState.PLAYING
 var result_overlay: CanvasLayer
@@ -19,6 +23,7 @@ var help_panel: PanelContainer
 var _paused := false
 var _transition_pending := false
 var _player: Node
+var _player_skill_cooldowns: Array = []
 var _raiders: Array[Node] = []
 var _pause_resume_button: Button
 var _pause_restart_button: Button
@@ -33,13 +38,89 @@ func _ready() -> void:
 	for child in get_children():
 		child.process_mode = Node.PROCESS_MODE_PAUSABLE
 	_player = get_node_or_null("YSortActors/Player")
+	if is_instance_valid(_player) and _player.has_signal("skill_started"):
+		_player.skill_started.connect(_on_player_skill_started)
 	_raiders.clear()
 	for raider in get_tree().get_nodes_in_group("forest_raiders"):
 		if raider is Node and raider.get_parent() == get_node_or_null("YSortActors"):
 			_raiders.append(raider)
+	_apply_editor_overrides()
 	_build_result_overlay()
 	_build_pause_overlay()
 	_build_help_overlay()
+
+func _apply_editor_overrides() -> void:
+	var data: Dictionary = DATA_LOADER.load_data()
+	var player_values := _find_override(data.get("characters", []), PLAYER_ID, "characters")
+	_player_skill_cooldowns = player_values.get("skill_cooldowns", [])
+	var raider_values := _find_override(data.get("enemies", []), RAIDER_ID, "enemies")
+	var stage_values := _find_override(data.get("stages", []), STAGE_ID, "stages")
+	if is_instance_valid(_player):
+		var previous_max := int(_player.get("max_health"))
+		DATA_LOADER.apply_properties(_player, player_values, ["max_health", "walk_speed"])
+		if player_values.has("max_health") and int(_player.get("max_health")) != previous_max:
+			_player.set("health", int(_player.get("max_health")))
+			_player.set_meta("editor_id", PLAYER_ID)
+	for raider in get_tree().get_nodes_in_group("forest_raiders"):
+		if not is_instance_valid(raider):
+			continue
+		DATA_LOADER.apply_properties(raider, raider_values, ["max_health", "walk_speed", "attack_damage", "attack_knockback", "attack_hit_stun", "attack_range", "recovery_duration", "windup_duration", "active_duration"])
+		if raider_values.has("max_health"):
+			raider.set("health", int(raider.get("max_health")))
+		if raider_values.has("ai"):
+			DATA_LOADER.apply_properties(raider, raider_values.ai, ["notice_range", "attack_depth_tolerance", "separation_radius", "separation_strength"])
+		if raider_values.has("attack_range"):
+			var attack_shape := raider.get_node_or_null("AttackArea/CollisionShape2D") as CollisionShape2D
+			if attack_shape != null and attack_shape.shape is RectangleShape2D:
+				var rect := attack_shape.shape.duplicate() as RectangleShape2D
+				rect.size.x = maxf(24.0, float(raider_values.attack_range) * 0.82)
+				attack_shape.shape = rect
+		if stage_values.has("left") or stage_values.has("top") or stage_values.has("right") or stage_values.has("bottom"):
+			var bounds: Rect2 = raider.get("arena_bounds")
+			var left := float(stage_values.get("left", bounds.position.x))
+			var top := float(stage_values.get("top", bounds.position.y))
+			var right := float(stage_values.get("right", bounds.end.x))
+			var bottom := float(stage_values.get("bottom", bounds.end.y))
+			raider.set("arena_bounds", Rect2(Vector2(left, top), Vector2(right - left, bottom - top)))
+	_apply_stage_to_player(stage_values)
+	_apply_spawns(stage_values)
+
+func _on_player_skill_started(skill_id: int) -> void:
+	var index := skill_id - 1
+	if not is_instance_valid(_player) or index < 0 or index >= _player_skill_cooldowns.size():
+		return
+	var cooldowns: Array = _player.get("skill_cooldowns")
+	if index >= cooldowns.size():
+		return
+	cooldowns[index] = float(_player_skill_cooldowns[index])
+	_player.set("skill_cooldowns", cooldowns)
+
+func _apply_stage_to_player(stage_values: Dictionary) -> void:
+	var player_bounds: Dictionary = stage_values.get("player_bounds", {})
+	if not is_instance_valid(_player) or player_bounds.is_empty():
+		return
+	var bounds: Rect2 = _player.get("arena_bounds")
+	var left := float(player_bounds.get("left", bounds.position.x))
+	var top := float(player_bounds.get("top", bounds.position.y))
+	var right := float(player_bounds.get("right", bounds.end.x))
+	var bottom := float(player_bounds.get("bottom", bounds.end.y))
+	_player.set("arena_bounds", Rect2(Vector2(left, top), Vector2(right - left, bottom - top)))
+
+func _apply_spawns(stage_values: Dictionary) -> void:
+	var actors := {PLAYER_ID: _player}
+	for index in range(_raiders.size()):
+		actors[RAIDER_ID if index == 0 else "%s%d" % [RAIDER_ID, index + 1]] = _raiders[index]
+	for spawn in stage_values.get("spawns", []):
+		var actor := actors.get(String(spawn.get("actor_id", ""))) as Node2D
+		if is_instance_valid(actor):
+			actor.global_position = Vector2(float(spawn.x), float(spawn.y))
+
+func _find_override(records: Array, id: String, kind: String) -> Dictionary:
+	for index in range(records.size()):
+		var record: Dictionary = DATA_LOADER.validate_record(records[index], kind, index)
+		if String(record.get("id", "")) == id:
+			return record
+	return {}
 
 func _process(_delta: float) -> void:
 	if result_state != ResultState.PLAYING or _paused or _transition_pending:

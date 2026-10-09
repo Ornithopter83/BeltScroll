@@ -24,6 +24,7 @@ tests/title_menu_smoke.gd        메뉴·버튼·전환 독립 smoke
 tests/gamepad_input_smoke.gd     합성 게임패드 입력·deadzone·결과 재시작 smoke
 tests/game_session_navigation_smoke.gd 일시정지·결과 메뉴 경로와 씬 전환 상태 복원 smoke
 tests/                            기능별 독립 smoke 테스트
+tests/editor_executable_smoke.ps1 독립 편집기 EXE 인수 검증
 docs/projecthub/initial-plan.md  기술 계약 및 프로젝트 계획
 ```
 
@@ -73,14 +74,28 @@ godot --headless --path . --script res://tests/gamepad_input_smoke.gd
 | 점프 | Space, 남쪽 버튼(A/Cross) |
 | 공격 | J, 왼쪽 마우스 버튼, 서쪽 버튼(X/Square) |
 | 방어 | 왼쪽 Shift, 동쪽 버튼(B/Circle) |
-| 스킬 슬롯 1~9 | Num1~Num9 (현재 스킬 미구현, 예약) |
+| 공격 | Num1 |
+| 점프 | Num2 |
+| 막기 | Num3 |
+| 스킬 슬롯 1~2 | Num4~Num5 (현재 스킬 미구현) |
+| 예약 입력 | Num6~Num9 |
 | 일시정지 / 재개 | Esc, Start |
 | 조작 도움말 열기 / 닫기 | H, Select/Back |
 | 일시정지 메뉴 선택 | 마우스, 방향키·스틱·십자키, Enter·남쪽 버튼 |
 | 승리·패배 화면에서 재시작 | R, 북쪽 버튼(Y/Triangle), 재도전 버튼 |
 | 타이틀로 돌아가기 | 일시정지·결과 메뉴의 타이틀 버튼 |
 
-WASD와 방향키는 상·하·좌·우 이동입니다. Num1~Num9는 스킬 슬롯 입력으로 등록되어 있지만 스킬 기능은 아직 구현되지 않아 예약 상태입니다. 스틱 이동 deadzone은 0.2입니다.
+WASD와 방향키는 상·하·좌·우 이동입니다. 숫자 키는 Num1 공격, Num2 점프, Num3 막기, Num4~Num5 스킬 슬롯, Num6~Num9 예약입니다. 스킬 기능은 아직 구현되지 않았습니다. 스틱 이동 deadzone은 0.2입니다.
+
+## 독립 편집기 EXE 인수 검증
+
+`dist/BeltScrollEditor.exe` 산출물의 존재·실행·`--self-test`, GUI 동작과 프로젝트 외부 경로 실행을 확인하려면 [편집기 EXE 인수 게이트](docs/review/editor_acceptance_gate.md)를 따릅니다.
+
+```powershell
+.\tests\editor_executable_smoke.ps1
+```
+
+인수 게이트를 통과하기 전에는 독립 편집기 EXE의 배포가 완료되었다고 간주하지 않습니다.
 
 ## 검수 상태
 

@@ -1,0 +1,57 @@
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+PASS: schema v1 data reloads from disk on each run
+PASS: Player ID resolves with its authored baseline values
+PASS: ForestRaider ID resolves with original attack and cooldown values
+PASS: stage boundaries and actor placements parse
+WARNING: [EditorData] enemies[0].attack_damage must be an integer; ignoring this field.
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] validate_record (res://scripts/game/editor_data_loader.gd:92)
+       [1] _run (res://tests/editor_runtime_apply_smoke.gd:24)
+WARNING: [EditorData] enemies[0].attack_range is outside [1.0, 1200.0]; ignoring this field.
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] validate_record (res://scripts/game/editor_data_loader.gd:89)
+       [1] _run (res://tests/editor_runtime_apply_smoke.gd:24)
+PASS: invalid fields are diagnosed and dropped individually
+WARNING: [EditorData] characters[0].skill_cooldowns must contain two values in [0, 60]; ignoring it.
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] validate_record (res://scripts/game/editor_data_loader.gd:103)
+       [1] _run (res://tests/editor_runtime_apply_smoke.gd:26)
+PASS: out-of-range Player cooldowns are ignored
+WARNING: [EditorData] stages[0] horizontal bounds are reversed; ignoring both.
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] _validate_bounds (res://scripts/game/editor_data_loader.gd:151)
+       [1] _validate_stage (res://scripts/game/editor_data_loader.gd:120)
+       [2] validate_record (res://scripts/game/editor_data_loader.gd:77)
+       [3] _run (res://tests/editor_runtime_apply_smoke.gd:28)
+WARNING: [EditorData] stages[0].spawns[0] invalid; ignoring it.
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] _validate_stage (res://scripts/game/editor_data_loader.gd:139)
+       [1] validate_record (res://scripts/game/editor_data_loader.gd:77)
+       [2] _run (res://tests/editor_runtime_apply_smoke.gd:28)
+PASS: reversed bounds and malformed placements are rejected
+WARNING: [EditorData] enemies[0] duplicates ID ' player ' from characters[0]; ignoring duplicate record.
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] _validate_unique_ids (res://scripts/game/editor_data_loader.gd:60)
+       [1] _run (res://tests/editor_runtime_apply_smoke.gd:31)
+PASS: duplicate IDs are ignored across arrays, case-insensitively
+PASS: runtime applies Player data by ID
+PASS: Player skill cooldown is applied when the skill starts
+PASS: second Player skill cooldown is applied independently
+PASS: runtime applies ForestRaider data by ID
+PASS: stage player boundary preserves the original HUD-safe movement bounds
+PASS: stage boundary overrides apply to ForestRaider
+PASS: stage placements override scene positions
+PASS: Player scene retains its original combat health and speed defaults
+PASS: original stage-one melee range geometry remains unchanged
+PASS: original stage-two melee range geometry remains unchanged
+PASS: original stage-three melee range geometry remains unchanged
+editor_runtime_apply_smoke: all checks passed

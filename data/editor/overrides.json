@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "characters": [
+    {
+      "id": "Player",
+      "max_health": 5,
+      "walk_speed": 280.0,
+      "skill_cooldowns": [1.35, 1.8]
+    }
+  ],
+  "enemies": [
+    {
+      "id": "ForestRaider",
+      "max_health": 3,
+      "walk_speed": 118.0,
+      "attack_damage": 1,
+      "attack_knockback": 230.0,
+      "attack_hit_stun": 0.22,
+      "attack_range": 96.0,
+      "windup_duration": 0.34,
+      "active_duration": 0.16,
+      "recovery_duration": 0.62,
+      "ai": {
+        "notice_range": 560.0,
+        "attack_depth_tolerance": 34.0,
+        "separation_radius": 108.0,
+        "separation_strength": 120.0
+      }
+    }
+  ],
+  "stages": [
+    {
+      "id": "ForestRuins",
+      "left": 160.0,
+      "top": 100.0,
+      "right": 1760.0,
+      "bottom": 980.0,
+      "player_bounds": {
+        "left": 237.0,
+        "top": 722.0,
+        "right": 1683.0,
+        "bottom": 980.0
+      },
+      "spawns": [
+        { "actor_id": "Player", "x": 960.0, "y": 780.0 },
+        { "actor_id": "ForestRaider", "x": 690.0, "y": 762.0 },
+        { "actor_id": "ForestRaider2", "x": 1270.0, "y": 900.0 },
+        { "actor_id": "ForestRaider3", "x": 1450.0, "y": 820.0 }
+      ]
+    }
+  ]
+}
