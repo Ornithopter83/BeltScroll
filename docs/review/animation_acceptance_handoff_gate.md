@@ -1,36 +1,36 @@
 # 오프라인 애니메이션 수용 갤러리 handoff
 
-## 열기
+## 열기와 재생성
 
-프로젝트 루트에서 `docs/review/animation_acceptance_gallery.html`을 파일 탐색기나 브라우저로 연다. 서버, 네트워크, 빌드가 필요 없다. 갤러리의 PNG와 Window 캡처, 근거 문서는 프로젝트 안의 상대경로를 사용한다.
+프로젝트 루트에서 `docs/review/animation_acceptance_gallery.html`을 파일 탐색기나 브라우저로 직접 연다. 서버나 네트워크 연결은 필요 없다. PNG, Window 캡처와 근거 문서는 프로젝트 상대경로를 사용한다.
 
-`tools/build_animation_acceptance_gallery.ps1`은 등록된 리뷰 항목을 읽고 파일 존재 여부를 확인해 HTML을 재생성한다. 새 항목의 경로와 판정 질문을 갱신한 뒤 Windows PowerShell 5.1에서 다음을 실행한다.
+`tools/build_animation_acceptance_gallery.ps1`은 후보 목록을 읽고 링크 대상을 확인해 HTML을 재생성한다. Windows PowerShell 5.1에서 실행한다.
 
 ```powershell
 .\tools\build_animation_acceptance_gallery.ps1
 ```
 
-출력 대상은 `docs/review/animation_acceptance_gallery.html`이다. 이미지 입력이나 근거 문서가 없으면 깨진 링크 대신 `누락 파일`을 표시한다. turn은 전용 원화가 없는 상태이므로 기존 Window turn strip과 실제 상태 캡처로 연결한다.
+누락된 입력은 깨진 이미지나 링크 대신 `후보 PNG 없음` 또는 `누락 파일` 상자로 표시한다. 전용 rear-mid turn 원본과 별도 safe 후보가 확보되어 있다. turn 절차 동작 카드와 원화 미승인 후보 카드를 나누어 표시한다. 원화는 키포즈 수용 보류이며 본편·manifest·allowlist에 등록하지 않았다.
 
-## 포함 범위
+## 카드와 증거
 
-- 기존 승인: v8 idle과 attack1/2/3 contact. 승인은 기존 manifest 및 프레임 레지스트리에서 읽은 상태이며 이 갤러리가 등록을 변경하지 않는다.
-- 수동 검수: run stride v1/v2/v4, turn 상태, jump rise/fall, hit, skill1 돌진, skill2 v1/v2 회전 포즈, attack1/3 startup.
-- 각 카드: 원본 PNG의 192×192 전체 캔버스 표시, 좌우 미러 비교, 선택 safe 파생본, 후보별 identity·접지/anchor·프레임 팝 점검 질문, 캡처/문서 링크.
-- 전역 참고: 실제 Window 애니메이션 상태 매트릭스와 QA gameplay Window 캡처.
+- 기존 17개 카드와 기존 v5·Window 비교 증거를 유지하고, run v3와 확보된 rear-mid turn 원화를 각각 미승인 카드로 추가했다. 총 19개 카드다. v3는 v1과 같은 다리 리드·팔 스윙으로 보여 반대 보폭 미입증 상태이며 본편에 연결되지 않았다.
+- turn 절차 동작 카드는 기존 0.13초 Window 자료를 유지한다. 별도 원화 후보 카드는 원본 및 safe PNG, 192px 비교판, 실제 Window 캡처와 원화·동작 검수 기록을 연결한다. 후방 3/4 identity는 읽히지만 달리기 자세로 보여 turn 키포즈 수용은 보류다. 좌우 대응·연속 지지발 anchor도 미검증이다.
+- hit, jump rise/fall, Num5 v1/v2에는 검수 게이트에 기록된 시각 관찰과 측정값, 미판정 한계를 각각 적었다. Num5 v1/v2는 회전 접촉을 입증하지 못해 미수용이며, hit/jump의 수정 요청 제안은 별도 사람 승인 기록이 아니다.
+- 각 원화는 전체 192×192 게임 캔버스로 표시한다. 좌향은 같은 이미지를 수평으로 한 번 미러한다. 3× 버튼은 nearest-neighbor 방식으로 576×576px 표시를 켜고 끈다.
 
-3× 버튼은 각 192px 표시를 nearest-neighbor 방식으로 576px로 바꾼다. 좌우 방향 이미지는 후보 하나를 수평으로 미러해 비교하므로 별도 원화나 별도 승인 포즈가 아니다.
+## 후보별 Markdown 기록 다운로드
 
-## 수동 판정과 승인 경계
+각 카드의 판정 제안, 근거, 검수자, 검수 일시, 실제 화면 조건을 입력한 뒤 해당 카드의 **이 후보 검수 기록 Markdown 다운로드** 버튼을 직접 누른다. 그 클릭 순간에만 REVIEW_TEMPLATE 호환 Markdown 파일을 브라우저 다운로드로 생성한다. 검수 일시는 비워 두면 클릭 시점의 시간대 포함 시각을 기록한다. 근거·검수자·화면 조건은 입력해야 내려받을 수 있다.
 
-textarea는 현재 페이지의 임시 메모이며 저장/내보내기하지 않는다. 페이지는 `data/art/reviewed_frame_allowlist.json`이나 manifest를 읽어 승인 판정을 재계산하지 않고, 어떤 레지스트리 파일에도 쓰지 않는다. 카드의 상태 문구는 작성 시점의 검수 문서와 manifest를 근거로 갱신해야 한다.
+페이지 입력은 새로고침 후 보존되지 않는다. 페이지는 자동으로 파일을 저장하지 않고, 네트워크 전송을 하지 않으며, allowlist나 manifest를 읽거나 쓰지 않는다. `수용 제안`은 검수 기록의 제안이며 승인, 본편 연결 또는 레지스트리 등록이 아니다. 별도 승인 절차를 수행해야 한다.
 
-검수자는 [수동 원화 검수 기록 양식](records/REVIEW_TEMPLATE.md)을 별도로 열어 후보별로 `수용 제안`, `수정 요청`, `반려` 중 하나와 근거를 직접 기록한다. 갤러리 생성이나 스모크 통과는 시각 승인 증거가 아니다. 승인 프레임 등록은 별도 승인 절차에서 수행한다.
+내려받은 Markdown은 후보별 기록 양식의 검수 정보·후보 판정·최종 정리 필드를 포함한다. 생성된 파일은 미승인 제안이며, 사용자가 내용을 다시 확인하고 필요하면 수정한다.
 
-## 링크 점검 스모크
+## 링크와 기능 검사
 
 ```powershell
 .\tests\animation_acceptance_gallery_smoke.ps1
 ```
 
-스모크는 HTML 생성, 필수 카드/문구, 모든 로컬 이미지·문서 링크, turn 원화 누락 표시, 레지스트리 쓰기/브라우저 저장 기능 부재를 점검한다. 이는 파일 wiring 확인이며 캐릭터 identity, 접지, 프레임 팝 또는 사람의 수용 판정을 확인하지 않는다.
+스모크는 기존 17개 카드와 v5/Window 증거 보존, run v3 상태, 실제 turn 파일 존재에 따른 미승인 원화 카드 및 safe 링크, hit·jump·Num5 시각 판정 표기, 모든 상대 링크의 실제 파일 존재, turn 미확보 시에만 누락 메시지, 192px/576px 양향 표시, REVIEW_TEMPLATE 필드 및 비승인 다운로드 표식을 확인한다. 자동 검사는 파일 연결과 인터랙션 계약 확인이며 사람의 시각 승인으로 취급하지 않는다.

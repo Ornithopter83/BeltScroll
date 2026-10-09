@@ -27,19 +27,39 @@ if ($report.RequiredProductAnimationCount -ne 10) { throw "Expected 10 required 
 if (@($report.RequiredProductActions).Count -ne 10 -or ($report.RequiredProductActions -join ',') -ne ($expectedActions -join ',')) { throw 'Required product action set/order is incorrect.' }
 if (@($report.RequiredAnimationClipReviewSlots).Count -ne 10) { throw "Expected 10 required animation review slots; got $(@($report.RequiredAnimationClipReviewSlots).Count)." }
 if ($report.EditorJsonClipCount -ne 11 -or @($report.EditorJsonClips).Count -ne 11) { throw 'Editor JSON must report 11 clips, including split jump rise/fall.' }
+if (($report.EditorJsonClips -join ',') -ne 'idle,run,turn,jump_rise,jump_fall,hit,attack1,attack2,attack3,skill1,skill2') { throw 'Editor JSON clip inventory is incorrect.' }
 if (@($report.RequiredAnimationClipReviewSlots[3].EditorClips).Count -ne 2 -or ($report.RequiredAnimationClipReviewSlots[3].EditorClips -join ',') -ne 'jump_rise,jump_fall') { throw 'Jump must map to the two editor JSON clips jump_rise and jump_fall.' }
 if ($report.Skill2Num5RotationAcceptance.Required -ne $true -or $report.Skill2Num5RotationAcceptance.CountsAsProductAnimation -ne $false) { throw 'Num5 rotation proof must be a separate skill2 acceptance condition.' }
+if ($report.AnimationAcceptanceFacts.RequiredProductActionsCount -ne 10 -or $report.AnimationAcceptanceFacts.EditorJsonClipCount -ne 11) { throw 'Product action count and editor JSON clip count must remain separate.' }
+if ($report.AnimationAcceptanceFacts.ExistingApprovedFramesCount -ne 4 -or @($report.AnimationAcceptanceFacts.ExistingApprovedFrames).Count -ne 4) { throw 'Expected exactly the existing v8 idle and three approved attack contact frames.' }
+$expectedApprovedFrames = @('idle:idle', 'attack1:contact', 'attack2:contact', 'attack3:contact')
+$actualApprovedFrames = @($report.AnimationAcceptanceFacts.ExistingApprovedFrames | ForEach-Object { '{0}:{1}' -f $_.Clip, $_.Phase })
+if (($actualApprovedFrames -join ',') -ne ($expectedApprovedFrames -join ',')) { throw 'Existing approved frame inventory must be v8 idle plus attack1-3 contact only.' }
+if ($report.AnimationAcceptanceFacts.NewHumanApprovedArtCount -ne 0 -or $report.ArtReadiness.NewHumanApprovedArtCount -ne 0) { throw 'The audit must not claim any newly approved art.' }
+if ($report.AnimationAcceptanceFacts.TurnProceduralDurationSeconds -ne 0.13 -or $report.ArtReadiness.TurnStatus -ne 'PROCEDURAL_IMPLEMENTED_DRAWING_UNAPPROVED') { throw 'Turn must be represented as a 0.13-second procedural action without approved dedicated art.' }
+if ($report.ArtReadiness.TurnCandidateArt.Status -ne 'SECURED_UNAPPROVED_KEYPOSE_DEFERRED' -or -not $report.ArtReadiness.TurnCandidateArt.OriginalPresent -or -not $report.ArtReadiness.TurnCandidateArt.SafeCandidatePresent) { throw 'The secured turn source and safe derivative must be reported as present but unapproved.' }
+if ($report.ArtReadiness.TurnCandidateArt.Approved -ne $false -or $report.ArtReadiness.TurnCandidateArt.PromotedToRuntime -ne $false) { throw 'Turn art audit must never promote an unapproved candidate.' }
+if ($report.ArtReadiness.TurnCandidateArt.OriginalSha256 -ne '43ae0c54ee26ece7121ec60a265d507877b2cfea8408026f8bccd0ff3779da72' -or $report.ArtReadiness.TurnCandidateArt.OriginalBytes -ne 1032791) { throw 'Turn original SHA-256 and byte count must be preserved in audit output.' }
+if ($report.ArtReadiness.RunV1ToV5SameStride.Status -ne 'SAME_STRIDE_NOT_ACCEPTED') { throw 'Run v1-v5 same-stride state must remain unaccepted.' }
+if ($report.AnimationAcceptanceFacts.RunV1ToV5SameStrideAccepted -ne $false) { throw 'The audit must keep the v1-v5 run set unaccepted.' }
+if ($report.ArtReadiness.JumpRiseFallAndHitArt.Status -ne 'CANDIDATES_UNAPPROVED' -or $report.AnimationAcceptanceFacts.JumpRiseFallArtApproved -ne $false -or $report.AnimationAcceptanceFacts.HitArtApproved -ne $false) { throw 'Jump rise/fall and hit candidates must remain explicitly unapproved.' }
+if (@($report.ArtReadiness.JumpRiseFallAndHitArt.CandidateFilesPresent).Count -lt 3) { throw 'Expected secured jump rise/fall and hit candidate files to be distinguished from approval.' }
+if ($report.ArtReadiness.Num4Num5DedicatedArt.Status -ne 'CANDIDATES_UNAPPROVED' -or $report.ArtReadiness.Num4Num5DedicatedArt.DedicatedArtApproved -ne $false -or $report.AnimationAcceptanceFacts.Num4Num5DedicatedArtApproved -ne $false) { throw 'Num4/Num5 dedicated skill art must remain explicitly unapproved.' }
 
 if ($report.LatestMain.Status -ne 'UNVERIFIED' -or $report.Actions.Status -ne 'UNVERIFIED') { throw 'SkipActionsQuery must leave current main and Actions independently unverified.' }
 if ($report.Actions.RunId) { throw 'Auditor must not inject an old default Actions run ID.' }
 if ($report.Artifact.Status -ne 'UNVERIFIED') { throw 'Artifact state must remain separate and unverified when Actions querying is skipped.' }
 if ($report.RemoteZipVerification.Status -eq 'PASS') { throw 'No verification report must never imply a remote ZIP PASS.' }
 if ($report.ArtReadiness.Skill2V2OriginalArt.Status -ne 'SECURED_UNAPPROVED') { throw 'Present Num5 skill2 v2 original art must be reported as secured but unapproved.' }
-if ($report.ArtReadiness.RunV1ToV4SameStride.Status -ne 'SAME_STRIDE_NOT_ACCEPTED') { throw 'Run v1-v4 same-stride state must be reported.' }
+if ($report.ArtReadiness.RunV1ToV5SameStride.Status -ne 'SAME_STRIDE_NOT_ACCEPTED') { throw 'Run v1-v5 same-stride state must be reported.' }
 if ($report.ArtReadiness.NewHumanApprovedArtCount -ne 0) { throw 'New human-approved art count must remain zero.' }
 if ($report.ManualGuiAcceptance.Status -ne 'NOT_VERIFIED' -or $report.PhysicalInputAcceptance.Status -ne 'NOT_VERIFIED') { throw 'Manual GUI and physical input must remain explicitly unverified.' }
+if (-not $report.GitHygieneAcceptance.Status -or -not $report.GitHygieneAcceptance.Evidence) { throw 'Git hygiene must have its own independent status and evidence field.' }
+foreach ($field in @('LatestMain','Actions','Artifact','RemoteZipVerification','GitHygieneAcceptance','PhysicalInputAcceptance','ManualGuiAcceptance')) {
+    if ($null -eq $report.$field.Status) { throw "Missing independent readiness blocker field: $field." }
+}
 
-foreach ($requiredText in @('동일 보폭', '신규 승인 원화 0건', '물리 키 입력', '수동 GUI', '원격 ZIP')) {
+foreach ($requiredText in @('동일 보폭', '신규 승인 원화 0건', 'jump rise/fall', 'Num4/Num5', '0.13초', '물리 키 입력', '수동 GUI', '원격 ZIP')) {
     if (-not ($report.Blockers -join "`n").Contains($requiredText)) { throw "Missing required blocker text: $requiredText" }
 }
 if (-not $report.GitChecks.GitEvidence -or ($report.GitChecks.GitEvidence -join ' ') -notmatch 'ls-files.*git status') {
