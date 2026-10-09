@@ -8,7 +8,7 @@ const APPROVED_ATTACK_POSES := {
 	"attack2": "res://assets/art/player/elven_fighter_attack2_reference_v4_ink_final_candidate_1254x1254.png",
 	"attack3": "res://assets/art/player/elven_fighter_attack3_reference_v2_contour_candidate_1254x1254.png",
 }
-const PHASES := ["startup", "contact", "recovery"]
+const PHASES := ["startup", "inbetween", "contact", "recovery"]
 
 @export var sprite_scale := Vector2(0.1489758, 0.1489758)
 @export var common_foot_anchor := Vector2.ZERO
@@ -17,7 +17,11 @@ const PHASES := ["startup", "contact", "recovery"]
 var _sprites: Array[Sprite2D] = []
 var _bounds_cache: Dictionary = {}
 var _approved_textures: Dictionary = {}
+var _registered_frames: Dictionary = {}
 var _current_key := "idle"
+var _current_registered_frame := 0
+var _current_registered_frame_elapsed := 0.0
+var _current_registered_frame_effective_duration := 0.0
 var _transition_from := 0
 var _transition_to := 0
 var _transition_elapsed := 0.0
@@ -27,7 +31,8 @@ var _facing_left := false
 var _ko := false
 var _sequence_action := ""
 var _sequence_phases: Array[String] = []
-var _sequence_frame_duration := 0.0
+var _sequence_indices: Array[int] = []
+var _sequence_durations: Array[float] = []
 var _sequence_elapsed := 0.0
 var _sequence_frame := 0
 var _sequence_loop := false
@@ -80,31 +85,110 @@ func approve_pose_texture(action: String, phase: String, texture_source: Variant
 	if not _texture_is_usable(texture):
 		return false
 	_approved_textures[key] = texture
+	_registered_frames[key] = [{"texture": texture, "duration": 0.1, "status": "approved keypose", "label": phase}]
 	return true
 
-## action is idle, attack1, attack2, or attack3. Attack phases are startup, contact,
-## and recovery. Unknown/unapproved/missing poses safely resolve to the approved v8 still.
+## Adds a reviewed frame to a phase. This is explicit registration: files in
+## candidate directories are never scanned or loaded automatically.
+func register_pose_frame(action: String, phase: String, texture_source: Variant, duration: float, art_status := "approved frame", label := "") -> bool:
+	var key := _pose_key(action, phase)
+	if key.is_empty() or duration <= 0.0 or art_status.begins_with("approved") == false:
+		return false
+	var texture: Texture2D
+	if texture_source is Texture2D:
+		texture = texture_source
+	elif texture_source is String and ResourceLoader.exists(texture_source):
+		texture = load(texture_source) as Texture2D
+	if not _texture_is_usable(texture):
+		return false
+	if not _registered_frames.has(key):
+		_registered_frames[key] = []
+	var frames: Array = _registered_frames[key]
+	frames.append({"texture": texture, "duration": duration, "status": art_status, "label": label if not label.is_empty() else phase})
+	_registered_frames[key] = frames
+	_approved_textures[key] = texture
+	return true
+
+## action is idle, attack1, attack2, or attack3. Attack phases are startup,
+## inbetween, contact, and recovery. Missing art safely resolves to the approved v8 still.
 func set_pose(action: String, phase: String = "", transition_duration := -1.0) -> void:
 	_clear_sequence()
 	_select_pose(action, phase, transition_duration)
 
-## Plays an explicitly approved sequence. Each item must already have been
-## approved through approve_pose_texture; unapproved in-between art is rejected.
-func play_pose_sequence(action: String, phases: Array, frame_duration: float, loop := false) -> bool:
-	if _ko or action not in ["attack1", "attack2", "attack3"] or phases.is_empty() or frame_duration <= 0.0:
+## Selects a registered drawing from the real combat phase clock. Unregistered
+## phases remain on the safe idle fallback and are never presented as authored art.
+func set_timed_pose(action: String, phase: String, phase_elapsed: float, phase_duration: float, transition_duration := -1.0) -> bool:
+	var key := _pose_key(action, phase)
+	if not _registered_frames.has(key):
+		set_pose(action, phase, transition_duration)
+		return false
+	var frames: Array = _registered_frames[key]
+	var total_duration := 0.0
+	for frame in frames:
+		total_duration += float(frame.get("duration", 0.0))
+	var time_cursor := 0.0
+	var frame_index := frames.size() - 1
+	var phase_progress := clampf(phase_elapsed / maxf(phase_duration, 0.001), 0.0, 1.0)
+	var phase_time := phase_progress * total_duration
+	var frame_start := 0.0
+	for index in range(frames.size()):
+		time_cursor += float(frames[index].get("duration", 0.0))
+		if phase_time < time_cursor:
+			frame_index = index
+			frame_start = time_cursor - float(frames[index].get("duration", 0.0))
+			break
+	_clear_sequence()
+	_select_pose(action, phase, transition_duration, frame_index)
+	_current_registered_frame_elapsed = clampf(phase_time - frame_start, 0.0, get_current_registered_frame_duration())
+	_current_registered_frame_effective_duration = float(frames[frame_index].get("duration", 0.0)) * phase_duration / maxf(total_duration, 0.001)
+	return true
+
+func get_registered_frame_count(action: String, phase: String) -> int:
+	var key := _pose_key(action, phase)
+	if not _registered_frames.has(key):
+		return 0
+	var frames: Array = _registered_frames[key]
+	return frames.size()
+
+## Plays registered frames. Each item may be a phase string with a shared or
+## per-item duration, or a dictionary with phase/frame/duration fields.
+func play_pose_sequence(action: String, phases: Array, frame_duration: Variant = -1.0, loop := false) -> bool:
+	if _ko or action not in ["attack1", "attack2", "attack3"] or phases.is_empty():
 		return false
 	var accepted_phases: Array[String] = []
+	var frame_indices: Array[int] = []
+	var durations: Array[float] = []
 	for phase in phases:
-		if not phase is String or not PHASES.has(phase) or not _approved_textures.has(_pose_key(action, phase)):
+		var phase_name := ""
+		var duration := 0.0
+		var registered_index := 0
+		if phase is Dictionary:
+			phase_name = str(phase.get("phase", ""))
+			duration = float(phase.get("duration", 0.0))
+			registered_index = int(phase.get("frame", 0))
+		else:
+			phase_name = str(phase)
+			if frame_duration is Array and accepted_phases.size() < frame_duration.size():
+				duration = float(frame_duration[accepted_phases.size()])
+			elif frame_duration is float or frame_duration is int:
+				duration = float(frame_duration)
+		var key := _pose_key(action, phase_name)
+		if not PHASES.has(phase_name) or not _registered_frames.has(key) or duration <= 0.0:
 			return false
-		accepted_phases.append(phase)
+		var registered: Array = _registered_frames[key]
+		if registered_index < 0 or registered_index >= registered.size():
+			return false
+		accepted_phases.append(phase_name)
+		frame_indices.append(registered_index)
+		durations.append(duration)
 	_sequence_action = action
 	_sequence_phases = accepted_phases
-	_sequence_frame_duration = frame_duration
+	_sequence_indices = frame_indices
+	_sequence_durations = durations
 	_sequence_elapsed = 0.0
 	_sequence_frame = 0
 	_sequence_loop = loop
-	_select_pose(action, _sequence_phases[0])
+	_select_pose(action, _sequence_phases[0], -1.0, _sequence_indices[0])
 	return true
 
 func get_sequence_frame() -> int:
@@ -116,14 +200,56 @@ func get_sequence_frame_count() -> int:
 func get_sequence_elapsed() -> float:
 	return _sequence_elapsed
 
-func _select_pose(action: String, phase: String = "", transition_duration := -1.0) -> void:
+func get_current_frame_duration() -> float:
+	return _sequence_durations[_sequence_frame] if _sequence_frame < _sequence_durations.size() else 0.0
+
+func get_current_registered_frame() -> int:
+	return _current_registered_frame
+
+func get_current_registered_frame_count() -> int:
+	var frames: Array = _registered_frames.get(_current_key, [])
+	return frames.size()
+
+func get_current_registered_frame_duration() -> float:
+	var frames: Array = _registered_frames.get(_current_key, [])
+	if _current_registered_frame < 0 or _current_registered_frame >= frames.size():
+		return 0.0
+	return _current_registered_frame_effective_duration if _current_registered_frame_effective_duration > 0.0 else float(frames[_current_registered_frame].get("duration", 0.0))
+
+func get_current_registered_frame_elapsed() -> float:
+	return _current_registered_frame_elapsed
+
+func get_current_registered_frame_label() -> String:
+	var frames: Array = _registered_frames.get(_current_key, [])
+	if _current_registered_frame < 0 or _current_registered_frame >= frames.size():
+		return "unregistered"
+	return str(frames[_current_registered_frame].get("label", "frame"))
+
+func get_current_frame_status() -> String:
+	if _current_key == "idle":
+		return "temporary fallback art; approved animation frame unavailable"
+	var frames: Array = _registered_frames.get(_current_key, [])
+	if _current_registered_frame >= 0 and _current_registered_frame < frames.size():
+		return str(frames[_current_registered_frame].get("status", "approved registered frame"))
+	return "approved registered frame"
+
+func get_current_texture_path() -> String:
+	var sprite := _sprites[_transitioning_index()]
+	return sprite.texture.resource_path if sprite.texture != null else ""
+
+func _select_pose(action: String, phase: String = "", transition_duration := -1.0, registered_frame := 0) -> void:
 	if _ko:
 		_request_texture("idle", _load_safe_idle())
 		return
 	var key := "idle" if action == "idle" else _pose_key(action, phase)
 	var texture: Texture2D = _load_safe_idle()
-	if not key.is_empty() and key != "idle" and _approved_textures.has(key):
-		var candidate := _approved_textures[key] as Texture2D
+	if not key.is_empty() and key != "idle" and _registered_frames.has(key):
+		var frames: Array = _registered_frames[key]
+		_current_registered_frame = clampi(registered_frame, 0, frames.size() - 1)
+		_current_registered_frame_elapsed = 0.0
+		var frame: Dictionary = frames[_current_registered_frame]
+		_current_registered_frame_effective_duration = float(frame.get("duration", 0.0))
+		var candidate := frame.get("texture") as Texture2D
 		if _texture_is_usable(candidate):
 			texture = candidate
 		else:
@@ -131,6 +257,9 @@ func _select_pose(action: String, phase: String = "", transition_duration := -1.
 			key = "idle"
 	else:
 		key = "idle"
+		_current_registered_frame = 0
+		_current_registered_frame_elapsed = 0.0
+		_current_registered_frame_effective_duration = 0.0
 	_request_texture(key, texture, false, transition_duration)
 
 func set_facing_left(facing_left: bool) -> void:
@@ -158,8 +287,9 @@ func get_current_pose_key() -> String:
 
 func get_pose_art_status() -> String:
 	if _current_key == "idle":
-		return "approved v8 still; temporary transform motion"
-	return "approved contact keypose; temporary transform motion"
+		return "approved v8 idle still; temporary transform motion; attack frame unavailable"
+	var phase_name := _current_key.substr(_current_key.find("_") + 1)
+	return "approved " + phase_name + " drawing; " + get_current_frame_status()
 
 func get_transition_progress() -> float:
 	if not _transitioning or _active_transition_duration <= 0.0:
@@ -188,24 +318,43 @@ func _process(delta: float) -> void:
 		_transitioning = false
 
 func _advance_sequence(delta: float) -> void:
-	if _sequence_phases.is_empty() or _sequence_frame_duration <= 0.0:
+	if _sequence_phases.is_empty() or _sequence_durations.is_empty():
 		return
 	_sequence_elapsed += maxf(delta, 0.0)
-	var next_frame := int(floor(_sequence_elapsed / _sequence_frame_duration))
+	var cursor := 0.0
+	var next_frame := _sequence_phases.size() - 1
+	for index in range(_sequence_durations.size()):
+		cursor += _sequence_durations[index]
+		if _sequence_elapsed < cursor:
+			next_frame = index
+			break
 	if _sequence_loop:
-		next_frame = posmod(next_frame, _sequence_phases.size())
-	else:
-		next_frame = mini(next_frame, _sequence_phases.size() - 1)
+		var total := 0.0
+		for duration in _sequence_durations:
+			total += duration
+		if total > 0.0 and _sequence_elapsed >= total:
+			_sequence_elapsed = fposmod(_sequence_elapsed, total)
+			_advance_sequence(0.0)
+			return
 	if next_frame != _sequence_frame:
 		_sequence_frame = next_frame
-		_select_pose(_sequence_action, _sequence_phases[_sequence_frame])
-	if not _sequence_loop and _sequence_elapsed >= _sequence_frame_duration * _sequence_phases.size():
+		_select_pose(_sequence_action, _sequence_phases[_sequence_frame], -1.0, _sequence_indices[_sequence_frame])
+	var current_start := 0.0
+	for index in range(_sequence_frame):
+		current_start += _sequence_durations[index]
+	_current_registered_frame_elapsed = clampf(_sequence_elapsed - current_start, 0.0, get_current_registered_frame_duration())
+	_current_registered_frame_effective_duration = _sequence_durations[_sequence_frame]
+	var total_duration := 0.0
+	for duration in _sequence_durations:
+		total_duration += duration
+	if not _sequence_loop and _sequence_elapsed >= total_duration:
 		_clear_sequence()
 
 func _clear_sequence() -> void:
 	_sequence_action = ""
 	_sequence_phases.clear()
-	_sequence_frame_duration = 0.0
+	_sequence_indices.clear()
+	_sequence_durations.clear()
 	_sequence_elapsed = 0.0
 	_sequence_frame = 0
 	_sequence_loop = false

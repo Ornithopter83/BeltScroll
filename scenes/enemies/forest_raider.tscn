@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://scripts/enemies/forest_raider.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/art/enemies/forest_raider_reference_v1_final_candidate_1254x1254.png" id="2_raider_art"]
 [ext_resource type="Script" path="res://scripts/enemies/raider_visual_animator.gd" id="3_visual_animator"]
+[ext_resource type="Script" path="res://scripts/enemies/raider_attack_pose_rig.gd" id="4_attack_pose_rig"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_raider"]
 radius = 18.0
@@ -38,6 +39,31 @@ texture = ExtResource("2_raider_art")
 
 [node name="VisualAnimator" type="Node" parent="."]
 script = ExtResource("3_visual_animator")
+
+[node name="AttackPoseRig" type="Node2D" parent="VisualRoot"]
+script = ExtResource("4_attack_pose_rig")
+
+[node name="PunchArmPivot" type="Node2D" parent="VisualRoot/AttackPoseRig"]
+position = Vector2(-113, -204)
+
+[node name="Forearm" type="Polygon2D" parent="VisualRoot/AttackPoseRig/PunchArmPivot"]
+polygon = PackedVector2Array(-4, -18, -33, -53, -90, -95, -112, -73, -66, -28, -24, 7)
+color = Color(0.24, 0.14, 0.095, 0.98)
+
+[node name="ForearmHighlight" type="Polygon2D" parent="VisualRoot/AttackPoseRig/PunchArmPivot"]
+position = Vector2(-2, -2)
+polygon = PackedVector2Array(-14, -24, -39, -55, -79, -82, -93, -69, -57, -39, -24, -4)
+color = Color(0.37, 0.235, 0.15, 0.94)
+
+[node name="Fist" type="Polygon2D" parent="VisualRoot/AttackPoseRig/PunchArmPivot"]
+position = Vector2(-105, -83)
+polygon = PackedVector2Array(-21, -8, -16, -31, 2, -43, 27, -34, 35, -12, 21, 10, -4, 15)
+color = Color(0.29, 0.17, 0.115, 1.0)
+
+[node name="FistHighlight" type="Polygon2D" parent="VisualRoot/AttackPoseRig/PunchArmPivot"]
+position = Vector2(-105, -83)
+polygon = PackedVector2Array(-13, -11, -10, -27, 3, -34, 20, -28, 26, -11, 14, 3, -2, 7)
+color = Color(0.43, 0.27, 0.18, 1.0)
 
 [node name="AttackFlash" type="Polygon2D" parent="VisualRoot"]
 visible = false

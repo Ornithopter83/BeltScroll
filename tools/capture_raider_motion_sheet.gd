@@ -1,5 +1,5 @@
 extends SceneTree
-"""Renders the existing Raider VisualAnimator into a labeled comparison sheet."""
+"""Renders the Raider attack pose rig into a labeled comparison sheet."""
 
 const RAIDER_SCENE := "res://scenes/enemies/forest_raider.tscn"
 const FOREST_TEXTURE := "res://assets/art/stage/forest_ruins_v1_1920x1080.png"
@@ -15,7 +15,7 @@ const STATES := [
 	{"key": "idle", "label": "대기 · 오른쪽", "facing": 1, "kind": "idle"},
 	{"key": "tracking", "label": "추적 · 왼쪽", "facing": -1, "kind": "tracking"},
 	{"key": "windup", "label": "공격 준비 · 오른쪽", "facing": 1, "kind": "windup"},
-	{"key": "active", "label": "공격 활성 · 왼쪽", "facing": -1, "kind": "active"},
+	{"key": "active", "label": "공격 접촉 · 왼쪽", "facing": -1, "kind": "active"},
 	{"key": "recovery", "label": "회복 · 오른쪽", "facing": 1, "kind": "recovery"},
 	{"key": "hit", "label": "피격 경직 · 왼쪽", "facing": -1, "kind": "hit"},
 	{"key": "ko", "label": "KO · 오른쪽", "facing": 1, "kind": "ko"},
@@ -65,7 +65,18 @@ func _capture() -> void:
 		_fail("Raider 원화에서 표시할 불투명 실루엣을 찾지 못했습니다.")
 		return
 	var authored_scale := _art.scale
+	var alpha_foot := Vector2(
+		float(alpha_bounds.position.x) + float(alpha_bounds.size.x) * 0.5,
+		float(alpha_bounds.end.y)
+	)
+	var visual_root := _raider.get_node("VisualRoot") as Node2D
+	var authored_foot_offset := (alpha_foot - Vector2(_art.texture.get_size()) * 0.5) * authored_scale
+	var authored_anchor_y := visual_root.position.y + _art.position.y + authored_foot_offset.y
 	_art.scale = Vector2.ONE * (DISPLAY_HEIGHT / float(alpha_bounds.size.y))
+	var foot_offset := (alpha_foot - Vector2(_art.texture.get_size()) * 0.5) * _art.scale
+	# Reframe only the review presentation so its resized sprite keeps the same
+	# world foot point and clears the title/HUD overlays in every comparison cell.
+	_art.position.y = authored_anchor_y - visual_root.position.y - foot_offset.y
 	_art.set_meta("capture_authored_scale", authored_scale)
 	_root_node.add_child(_raider)
 	for _frame in range(3):
@@ -79,7 +90,8 @@ func _capture() -> void:
 	for index in range(STATES.size()):
 		_apply_state(STATES[index])
 		var cell := _cell_rect(index)
-		_raider.position = Vector2(cell.position.x + cell.size.x * 0.5, cell.end.y - FOOT_MARGIN)
+		var anchor_y := visual_root.position.y + _art.position.y + foot_offset.y
+		_raider.position = Vector2(cell.position.x + cell.size.x * 0.5, cell.end.y - FOOT_MARGIN - anchor_y)
 		for _frame in range(24):
 			_animator.call("_process", 1.0 / 60.0)
 			await process_frame
@@ -127,8 +139,8 @@ func _build_board(forest: Texture2D) -> void:
 	board.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	board.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(board)
-	_label(board, "RAIDER VISUALANIMATOR · 상태별 실제 Window Viewport 캡처", Vector2(28, 12), 27, Color.WHITE)
-	_label(board, "합성된 상태 비교 시트 · 실제 연속 플레이 영상이 아닙니다", Vector2(32, 47), 18, Color("#ffe1a6"))
+	_label(board, "RAIDER 공격 포즈 리그 · 상태별 실제 Window Viewport 캡처", Vector2(28, 12), 27, Color.WHITE)
+	_label(board, "준비 · 접촉 · 회수는 분리 파츠 키프레임 리그 표현이며 정식 신규 프레임 원화가 아닙니다", Vector2(32, 47), 18, Color("#ffe1a6"))
 	for index in range(COLUMNS * ROWS):
 		var cell := _cell_rect(index)
 		var shade := ColorRect.new()
@@ -159,7 +171,7 @@ func _build_board(forest: Texture2D) -> void:
 			_label(board, "• 좌우 방향을 번갈아 배치", Vector2(cell.position.x + 18, cell.position.y + 190), 16, Color.WHITE)
 			_label(board, "• HUD 표식과 발 기준선으로 가림 확인", Vector2(cell.position.x + 18, cell.position.y + 225), 16, Color.WHITE)
 			_label(board, "• AI / 물리 업데이트 없이 시각 상태 재현", Vector2(cell.position.x + 18, cell.position.y + 260), 16, Color.WHITE)
-			_label(board, "합성 비교판 · 연속 플레이 영상 아님", Vector2(cell.position.x + 18, cell.position.y + 318), 16, Color("#ffe1a6"))
+			_label(board, "공격 실루엣: 분리 파츠 리그 애니메이션", Vector2(cell.position.x + 18, cell.position.y + 318), 16, Color("#ffe1a6"))
 		var border := ReferenceRect.new()
 		border.position = cell.position
 		border.size = cell.size

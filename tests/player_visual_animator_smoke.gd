@@ -89,6 +89,9 @@ func _run() -> void:
 		_check(animator.get_animation_state() == _expected_state(index), POSE_NAMES[index] + " resolves to a timed animation state")
 		_check(animator.get_state_frame_count() >= 1 and animator.get_state_frame() >= 0, POSE_NAMES[index] + " exposes its current frame in the state sequence")
 		_check(animator.is_current_pose_temporary() == (index not in [7, 8, 10]), POSE_NAMES[index] + " identifies temporary poses separately from approved attack contact art")
+		_check(animator.get_state_frame_duration() > 0.0 and not animator.get_displayed_texture_path().is_empty(), POSE_NAMES[index] + " exposes frame timing and the texture actually selected for display")
+		if index in [6, 9, 11]:
+			_check(animator.get_state_frame_status().contains("temporary"), POSE_NAMES[index] + " labels missing pose drawings as temporary transforms")
 
 	var idle := poses[0]
 	var idle_art := idle.get_node("VisualRoot/PlayerArt") as Sprite2D
@@ -117,6 +120,9 @@ func _run() -> void:
 	_check(animator_nodes[8].get_state_frame_count() == 5 and animator_nodes[8].get_pose_art_status().contains("approved contact"), "stage two contact exposes timed temporary transform motion while retaining approved art status")
 	var stage_two := poses[8]
 	var stage_two_animator := animator_nodes[8]
+	_set_attack(stage_two, 2, "active", 0.12)
+	stage_two_animator.call("_process", 1.0 / 60.0)
+	_check(stage_two_animator.get_state_frame_label() == "inbetween" and stage_two_animator.get_state_frame_status().contains("temporary inbetween"), "stage two labels its gradual turn as a temporary inbetween while keeping contact art provenance clear")
 	_set_attack(stage_two, 2, "active", 0.12)
 	stage_two_animator.call("_process", 1.0 / 60.0)
 	var early_turn := (stage_two.get_node("VisualRoot/PlayerArt") as Sprite2D).rotation

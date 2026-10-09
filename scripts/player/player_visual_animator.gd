@@ -40,12 +40,15 @@ const TEMPORARY_STATE_DURATIONS := {
 	"hit": 0.12,
 	"ko": 1.0,
 	"attack1_startup": 0.075,
+	"attack1_inbetween": 0.035,
 	"attack1_contact": 0.105,
 	"attack1_recovery": 0.20,
 	"attack2_startup": 0.085,
+	"attack2_inbetween": 0.050,
 	"attack2_contact": 0.12,
 	"attack2_recovery": 0.22,
 	"attack3_startup": 0.10,
+	"attack3_inbetween": 0.060,
 	"attack3_contact": 0.14,
 	"attack3_recovery": 0.28,
 }
@@ -151,8 +154,67 @@ func get_state_frame() -> int:
 func get_state_frame_count() -> int:
 	return _state_frame_count
 
+func get_state_frame_label() -> String:
+	if not _animation_state.begins_with("attack"):
+		return _animation_state
+	var phase := _animation_state.trim_prefix("attack%d_" % int(player.get("attack_stage")))
+	if phase == "contact" and int(player.get("attack_stage")) == 2 and get_state_phase_progress() < 0.42:
+		return "inbetween"
+	return phase
+
+func get_state_phase_progress() -> float:
+	if not _animation_state.begins_with("attack") or player == null:
+		return 0.0
+	var phase := str(player.get("attack_phase"))
+	var stage_index := clampi(int(player.get("attack_stage")) - 1, 0, 2)
+	return _attack_phase_progress(stage_index, phase, maxf(0.0, float(player.get("attack_phase_remaining"))))
+
+func get_state_frame_duration() -> float:
+	var phase_duration := float(TEMPORARY_STATE_DURATIONS.get(_animation_state, 0.16))
+	return phase_duration / float(maxi(_state_frame_count, 1))
+
+func get_state_frame_elapsed() -> float:
+	var frame_duration := get_state_frame_duration()
+	return clampf(_state_elapsed - float(_state_frame) * frame_duration, 0.0, frame_duration)
+
+func get_state_frame_status() -> String:
+	if is_current_pose_temporary():
+		return "temporary transform frame; approved animation frame unavailable"
+	if get_state_frame_label() == "inbetween":
+		if pose_blender != null and pose_blender.get_current_pose_key() == "attack2_inbetween":
+			return pose_blender.get_pose_art_status()
+		return "approved contact keypose; temporary inbetween transform"
+	return pose_blender.get_current_frame_status() if pose_blender != null else "approved contact keypose"
+
+func get_displayed_texture_path() -> String:
+	if pose_blender != null and pose_blender.visible:
+		return pose_blender.get_current_texture_path()
+	return art.texture.resource_path if art != null and art.texture != null else ""
+
+func get_art_frame_index() -> int:
+	return pose_blender.get_current_registered_frame() if pose_blender != null and pose_blender.visible else 0
+
+func get_art_frame_count() -> int:
+	return pose_blender.get_current_registered_frame_count() if pose_blender != null and pose_blender.visible else 1
+
+func get_art_frame_duration() -> float:
+	return pose_blender.get_current_registered_frame_duration() if pose_blender != null and pose_blender.visible else get_state_frame_duration()
+
+func get_art_frame_elapsed() -> float:
+	return pose_blender.get_current_registered_frame_elapsed() if pose_blender != null and pose_blender.visible else get_state_frame_elapsed()
+
+func get_art_frame_label() -> String:
+	return pose_blender.get_current_registered_frame_label() if pose_blender != null and pose_blender.visible else "temporary transform"
+
 func is_current_pose_temporary() -> bool:
-	return not _animation_state.begins_with("attack") or not _animation_state.ends_with("_contact")
+	if _animation_state.begins_with("attack") and pose_blender != null and pose_blender.visible:
+		var stage := int(player.get("attack_stage"))
+		var phase := "contact" if str(player.get("attack_phase")) == "active" else str(player.get("attack_phase"))
+		var expected_key := "attack%d_%s" % [stage, phase]
+		if pose_blender.get_current_pose_key() == expected_key and pose_blender.get_current_frame_status().begins_with("approved"):
+			return false
+		return true
+	return true
 
 func get_pose_art_status() -> String:
 	if _animation_state.begins_with("attack") and _animation_state.ends_with("_contact"):
@@ -196,6 +258,9 @@ func _update_animation_clock(next_state: String, delta: float) -> void:
 func _update_approved_attack_pose() -> void:
 	if pose_blender == null or player == null or art == null:
 		return
+	# The integrated blender is a child of VisualRoot, whose negative X scale
+	# already mirrors the pose. Keep its local sprite unflipped to avoid doubling it.
+	pose_blender.set_facing_left(false)
 	var stage := int(player.get("attack_stage"))
 	var phase := str(player.get("attack_phase"))
 	var special_attack: bool = player.get("is_ko") != true \
@@ -210,13 +275,20 @@ func _update_approved_attack_pose() -> void:
 		return
 	var action := "attack%d" % stage
 	var pose_phase := "contact" if phase == "active" else phase
+	if stage == 2 and phase == "active" and _attack_phase_progress(stage - 1, phase, float(player.get("attack_phase_remaining"))) < 0.42 \
+		and pose_blender.get_registered_frame_count(action, "inbetween") > 0:
+		pose_phase = "inbetween"
 	pose_blender.sync_from_art(art)
 	var fade_duration := 0.055
+	if pose_phase == "startup":
+		fade_duration = [0.060, 0.105, 0.115][stage - 1]
 	if pose_phase == "contact":
-		fade_duration = [0.060, 0.095, 0.075][stage - 1]
+		fade_duration = [0.060, 0.125, 0.105][stage - 1]
 	elif pose_phase == "recovery":
-		fade_duration = [0.075, 0.085, 0.10][stage - 1]
-	pose_blender.set_pose(action, pose_phase, fade_duration)
+		fade_duration = [0.075, 0.12, 0.135][stage - 1]
+	var phase_duration := _attack_phase_duration(stage - 1, phase)
+	var phase_elapsed := maxf(0.0, phase_duration - float(player.get("attack_phase_remaining")))
+	pose_blender.set_timed_pose(action, pose_phase, phase_elapsed, phase_duration, fade_duration)
 	pose_blender.visible = true
 	art.visible = false
 
@@ -243,16 +315,19 @@ func _apply_attack_pose(facing_sign: float) -> void:
 			rotation_offset = lerpf(facing_sign * [0.045, 0.075, 0.12][index], -facing_sign * [0.11, 0.19, 0.31][index], contact_blend)
 			scale_factor = Vector2.ONE.lerp(Vector2(1.0 + [0.04, 0.075, 0.12][index], 1.0 - [0.035, 0.065, 0.105][index]), contact_blend)
 		"recovery":
-			amount = _ease_out(clampf(remaining / ATTACK_RECOVERY[index], 0.0, 1.0))
-			var recovery_fraction: float = [0.34, 0.30, 0.26][index]
-			rotation_offset = -facing_sign * [0.11, 0.19, 0.31][index] * amount * recovery_fraction
-			scale_factor = Vector2.ONE.lerp(Vector2(1.0 + [0.04, 0.075, 0.12][index], 1.0 - [0.035, 0.065, 0.105][index]), amount * recovery_fraction)
+			var recovery_progress := 1.0 - clampf(remaining / ATTACK_RECOVERY[index], 0.0, 1.0)
+			var return_blend := _ease_in_out(recovery_progress)
+			rotation_offset = -facing_sign * [0.11, 0.19, 0.31][index] * (1.0 - return_blend)
+			scale_factor = Vector2(1.0 + [0.04, 0.075, 0.12][index], 1.0 - [0.035, 0.065, 0.105][index]).lerp(Vector2.ONE, return_blend)
 	_attack_rotation = _base_rotation + rotation_offset
 	_attack_scale = _base_scale * scale_factor
 
 func _attack_phase_progress(index: int, phase: String, remaining: float) -> float:
-	var duration: float = ATTACK_STARTUP[index] if phase == "startup" else (ATTACK_ACTIVE[index] if phase == "active" else ATTACK_RECOVERY[index])
+	var duration := _attack_phase_duration(index, phase)
 	return clampf((duration - remaining) / duration, 0.0, 1.0)
+
+func _attack_phase_duration(index: int, phase: String) -> float:
+	return ATTACK_STARTUP[index] if phase == "startup" else (ATTACK_ACTIVE[index] if phase == "active" else ATTACK_RECOVERY[index])
 
 func _ease_in_out(value: float) -> float:
 	var t := clampf(value, 0.0, 1.0)

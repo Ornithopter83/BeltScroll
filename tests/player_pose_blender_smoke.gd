@@ -53,6 +53,20 @@ func _run() -> void:
 	blender.set_pose("attack3", "contact")
 	_check(blender.get_sequence_frame_count() == 0, "direct pose requests interrupt an active sequence")
 	blender._process(FADE)
+	var contact_variant := _fixture(Vector2i(46, 52), Rect2i(9, 4, 21, 32), Color.CYAN)
+	_check(not blender.register_pose_frame("attack1", "inbetween", contact_variant, 0.04, "temporary transform frame"), "refuses to register temporary transform motion as completed approved art")
+	_check(blender.register_pose_frame("attack1", "contact", contact_variant, 0.04, "approved inbetween drawing", "contact variant"), "registers an explicitly reviewed additional frame with its own duration")
+	_check(blender.set_timed_pose("attack1", "contact", 0.11, 0.14, 0.0) and _visible_texture(blender) == contact_variant, "combat phase time selects the registered drawing whose duration contains that instant")
+	var registered_sequence: Array[Dictionary] = [
+		{"phase": "contact", "frame": 0, "duration": 0.025},
+		{"phase": "contact", "frame": 1, "duration": 0.065},
+	]
+	_check(blender.play_pose_sequence("attack1", registered_sequence), "plays per-frame registered drawings with individual durations")
+	blender._process(0.03)
+	_check(blender.get_sequence_frame() == 1 and blender.get_displayed_textures().has(contact_variant), "registered sequence starts displaying its actual second texture at the frame boundary")
+	_check(is_equal_approx(blender.get_current_frame_duration(), 0.065) and blender.get_current_frame_status() == "approved inbetween drawing", "frame metadata exposes its authored duration and review status")
+	blender.interrupt_to_idle()
+	blender._process(FADE)
 
 	# Mirror the anchor correction with an asymmetric-alpha procedural texture.
 	blender.set_pose("attack1", "contact")
@@ -77,7 +91,7 @@ func _run() -> void:
 	blender.set_pose("attack2", "contact", 0.10)
 	blender._process(0.025)
 	_check(blender.get_current_pose_key() == "attack2_contact" and is_equal_approx(blender.get_transition_progress(), 0.25), "stage two contact uses its longer timed blend from the approved v8 still")
-	_check(blender.get_pose_art_status().contains("approved contact"), "contact metadata identifies approved key art with temporary transforms")
+	_check(blender.get_pose_art_status().contains("approved contact"), "contact metadata identifies the approved contact key art")
 	blender._process(0.075)
 	_check(blender.get_transition_progress() == 1.0 and _visible_texture(blender) == fixtures["attack2_contact"], "stage two transition completes at its configured duration")
 

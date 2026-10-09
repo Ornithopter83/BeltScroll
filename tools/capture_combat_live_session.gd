@@ -390,6 +390,19 @@ func _capture_timeline(title: String, subtitle: String, warmup_frames := 2) -> v
 		raider.queue_redraw()
 		(raider.get_node("VisualRoot/RaiderArt") as Sprite2D).queue_redraw()
 	var image: Image
+	var animator_state := "unavailable"
+	var frame_index := -1
+	var frame_count := 0
+	var frame_label := "unavailable"
+	var frame_elapsed := 0.0
+	var frame_duration := 0.0
+	var frame_status := "unavailable"
+	var texture_path := ""
+	var art_frame := -1
+	var art_frame_count := 0
+	var art_frame_duration := 0.0
+	var art_frame_elapsed := 0.0
+	var art_frame_label := "unavailable"
 	if warmup_frames <= 0:
 		# Phase-specific keyposes must be sampled without waiting for more physics
 		# ticks; active windows are shorter than a slow Window readback cycle.
@@ -401,12 +414,28 @@ func _capture_timeline(title: String, subtitle: String, warmup_frames := 2) -> v
 		image = root.get_texture().get_image()
 	if is_instance_valid(_player):
 		var art := _player.get_node("VisualRoot/PlayerArt") as Sprite2D
+		var animator := _player.get_node("VisualAnimator")
+		var pose_blender := _player.get_node("VisualRoot/PoseBlender")
 		var camera := _player.get_node("Camera2D") as Camera2D
-		_trace.append("render %s: physics=%d stage=%d phase=%s remaining=%.4f player=%s canvas=%s art_visible=%s in_tree=%s scale=%s modulate=%s texture=%s camera=%s current=%s viewport=%s" % [title, Engine.get_physics_frames(), int(_player.get("attack_stage")), str(_player.get("attack_phase")), float(_player.get("attack_phase_remaining")), _player.global_position, art.get_global_transform_with_canvas().origin, art.visible, art.is_visible_in_tree(), art.global_scale, art.modulate, art.texture.get_size() if art.texture != null else Vector2.ZERO, camera.global_position, camera.is_current(), root.get_visible_rect().size])
+		animator_state = str(animator.get_animation_state())
+		frame_index = int(animator.get_state_frame())
+		frame_count = int(animator.get_state_frame_count())
+		frame_label = str(animator.get_state_frame_label())
+		frame_elapsed = float(animator.get_state_frame_elapsed())
+		frame_duration = float(animator.get_state_frame_duration())
+		frame_status = str(animator.get_state_frame_status())
+		texture_path = str(animator.get_displayed_texture_path())
+		art_frame = int(animator.get_art_frame_index())
+		art_frame_count = int(animator.get_art_frame_count())
+		art_frame_duration = float(animator.get_art_frame_duration())
+		art_frame_elapsed = float(animator.get_art_frame_elapsed())
+		art_frame_label = str(animator.get_art_frame_label())
+		_trace.append("render %s: physics=%d stage=%d combat_phase=%s remaining=%.4f visual_state=%s frame=%d/%d label=%s time=%.4f/%.4f art_frame=%d/%d art_label=%s art_time=%.4f/%.4f art_status=%s texture=%s player=%s canvas=%s art_visible=%s in_tree=%s scale=%s modulate=%s camera=%s current=%s viewport=%s" % [title, Engine.get_physics_frames(), int(_player.get("attack_stage")), str(_player.get("attack_phase")), float(_player.get("attack_phase_remaining")), animator_state, frame_index + 1, frame_count, frame_label, frame_elapsed, frame_duration, art_frame + 1, art_frame_count, art_frame_label, art_frame_elapsed, art_frame_duration, frame_status, texture_path.get_file(), _player.global_position, art.get_global_transform_with_canvas().origin, art.visible, art.is_visible_in_tree(), art.global_scale, art.modulate, camera.global_position, camera.is_current(), root.get_visible_rect().size])
+		subtitle += "\npose %d/%d %s %.3f/%.3fs · art %d/%d %s %.3f/%.3fs · %s · tex %s" % [frame_index + 1, frame_count, frame_label, frame_elapsed, frame_duration, art_frame + 1, art_frame_count, art_frame_label, art_frame_elapsed, art_frame_duration, frame_status, texture_path.get_file()]
 	_check(image != null and not image.is_empty() and image.get_size() == CAPTURE_SIZE, "'%s' is captured from the real 1920x1080 Window Viewport readback" % title)
 	if image != null and not image.is_empty() and image.get_size() == CAPTURE_SIZE:
 		_check(await _captured_characters_are_visible(image), "'%s' contains a rendered scene and visible combat actors in the Window capture" % title)
-		_timeline.append({"title": title, "subtitle": subtitle, "image": image})
+		_timeline.append({"title": title, "subtitle": subtitle, "image": image, "texture": texture_path, "visual_state": animator_state, "frame": frame_index, "frame_count": frame_count, "frame_label": frame_label, "elapsed": frame_elapsed, "duration": frame_duration, "art_frame": art_frame, "art_frame_count": art_frame_count, "art_frame_label": art_frame_label, "art_elapsed": art_frame_elapsed, "art_frame_duration": art_frame_duration, "art_status": frame_status})
 
 func _captured_characters_are_visible(captured: Image) -> bool:
 	# Validate the real Window readback without hiding actors or pausing the live
@@ -470,15 +499,15 @@ func _build_comparison_board() -> void:
 		var subtitle := Label.new()
 		subtitle.text = str(item["subtitle"])
 		subtitle.position = Vector2(x, y + 27)
-		subtitle.size = Vector2(cell_w, 24)
-		subtitle.add_theme_font_size_override("font_size", 12)
+		subtitle.size = Vector2(cell_w, 38)
+		subtitle.add_theme_font_size_override("font_size", 10)
 		subtitle.add_theme_color_override("font_color", Color("#bdd0ce"))
 		board.add_child(subtitle)
 		var frame := Sprite2D.new()
 		frame.texture = texture
 		frame.centered = false
-		frame.position = Vector2(x, y + 54)
-		frame.scale = Vector2(cell_w / float(CAPTURE_SIZE.x), cell_h / float(CAPTURE_SIZE.y))
+		frame.position = Vector2(x, y + 68)
+		frame.scale = Vector2(cell_w / float(CAPTURE_SIZE.x), (cell_h - 14.0) / float(CAPTURE_SIZE.y))
 		board.add_child(frame)
 	await process_frame
 	await process_frame

@@ -7,6 +7,7 @@ const HIT_FLASH_DURATION := 0.14
 
 @onready var raider: CharacterBody2D = get_parent() as CharacterBody2D
 @onready var art: Sprite2D = raider.get_node("VisualRoot/RaiderArt") as Sprite2D
+@onready var attack_rig: Node2D = raider.get_node("VisualRoot/AttackPoseRig") as Node2D
 
 var _base_position := Vector2.ZERO
 var _base_scale := Vector2.ONE
@@ -37,11 +38,13 @@ func _process(delta: float) -> void:
 	var target_rotation := _base_rotation
 	var target_scale := _base_scale
 	var health := int(raider.get("health"))
+	var attack_pose_phase := "idle"
 	if health <= 0:
 		# A single quiet defeated pose; no idle or stride oscillator after KO.
 		target_rotation += 0.075
 		target_scale *= Vector2(1.025, 0.94)
 	elif float(raider.get("hit_flash_remaining")) > 0.0:
+		# Attack overlays drop out on the first hit frame, even while recoil is visible.
 		var flash := clampf(float(raider.get("hit_flash_remaining")) / HIT_FLASH_DURATION, 0.0, 1.0)
 		var impulse: Vector2 = raider.get("hit_reaction_direction")
 		var strength := clampf(float(raider.get("hit_reaction_strength")), 0.65, 1.4)
@@ -60,6 +63,7 @@ func _process(delta: float) -> void:
 		target_scale *= Vector2(1.0 + 0.015 * strength, 0.965)
 	else:
 		var phase := str(raider.get("attack_phase"))
+		attack_pose_phase = phase
 		var speed := raider.velocity.length()
 		if phase == "windup":
 			var windup_duration := maxf(0.001, float(raider.get("windup_duration")))
@@ -67,13 +71,13 @@ func _process(delta: float) -> void:
 			var facing: Vector2 = raider.get("facing_direction")
 			var facing_sign := -1.0 if facing.x < 0.0 else 1.0
 			var anticipation := sin(progress * PI * 0.5)
-			target_rotation += facing_sign * (0.035 + 0.12 * anticipation)
-			target_scale *= Vector2(1.0 - 0.06 * anticipation, 1.0 - 0.12 * anticipation)
+			target_rotation += facing_sign * (0.045 + 0.105 * anticipation)
+			target_scale *= Vector2(1.0 - 0.045 * anticipation, 1.0 - 0.135 * anticipation)
 		elif phase == "active":
 			var facing: Vector2 = raider.get("facing_direction")
 			var facing_sign := -1.0 if facing.x < 0.0 else 1.0
-			target_rotation += -facing_sign * 0.18
-			target_scale *= Vector2(1.12, 0.86)
+			target_rotation += -facing_sign * 0.2
+			target_scale *= Vector2(1.1, 0.88)
 		elif phase == "recovery":
 			var recovery_duration := maxf(0.001, float(raider.get("recovery_duration")))
 			var recovery := clampf(float(raider.get("attack_phase_remaining")) / recovery_duration, 0.0, 1.0)
@@ -104,3 +108,15 @@ func _process(delta: float) -> void:
 		_alpha_foot_from_center.y * (_pose_scale.y / _base_scale.y)
 	)
 	art.position = _foot_anchor - scaled_foot.rotated(_pose_rotation - _base_rotation)
+	if attack_rig != null and is_instance_valid(attack_rig):
+		if health <= 0 or float(raider.get("hit_flash_remaining")) > 0.0 or float(raider.get("hitstun_remaining")) > 0.0:
+			attack_rig.call("reset_pose")
+		else:
+			attack_rig.call(
+				"apply_attack_pose",
+				attack_pose_phase,
+				float(raider.get("attack_phase_remaining")),
+				float(raider.get("windup_duration")),
+				float(raider.get("active_duration")),
+				float(raider.get("recovery_duration"))
+			)
