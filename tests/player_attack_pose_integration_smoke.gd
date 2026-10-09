@@ -3,6 +3,7 @@ extends SceneTree
 const PLAYER_SCENE := "res://scenes/player/player.tscn"
 const SAFE_PATH := "res://assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png"
 const ATTACK1_PATH := "res://assets/art/player/elven_fighter_attack1_reference_v1_contour_candidate_1254x1254.png"
+const ATTACK2_PATH := "res://assets/art/player/elven_fighter_attack2_reference_v4_ink_final_candidate_1254x1254.png"
 const ATTACK3_PATH := "res://assets/art/player/elven_fighter_attack3_reference_v2_contour_candidate_1254x1254.png"
 const CAPTURE_PATH := "res://assets/art/review/player_attack_pose_ingame_capture.png"
 const CAPTURE_SIZE := Vector2i(1920, 1080)
@@ -38,9 +39,9 @@ func _run() -> void:
 	backdrop.polygon = PackedVector2Array([Vector2.ZERO, Vector2(CAPTURE_SIZE.x, 0), Vector2(CAPTURE_SIZE), Vector2(0, CAPTURE_SIZE.y)])
 	backdrop.color = Color("#18232a")
 	canvas.add_child(backdrop)
-	var title := _label("APPROVED CONTOUR CONTACT POSES  |  V8 CLEAN FALLBACK", Vector2(310, 150), 28)
+	var title := _label("APPROVED CONTACT KEYPOSES  |  SHARED STARTUP / ACTIVE / RECOVERY CROSSFADE", Vector2(180, 150), 24)
 	canvas.add_child(title)
-	var names := ["ATTACK 1  ·  APPROVED CONTOUR", "ATTACK 2  ·  V8 CLEAN + ANIMATOR", "ATTACK 3  ·  APPROVED CONTOUR"]
+	var names := ["ATTACK 1  ·  APPROVED CONTOUR", "ATTACK 2  ·  V4 INK FINAL", "ATTACK 3  ·  APPROVED CONTOUR"]
 	for index in range(3):
 		var player := packed.instantiate() as CharacterBody2D
 		canvas.add_child(player)
@@ -65,10 +66,11 @@ func _run() -> void:
 	var third_blender := _blender(players[2])
 	_check(first_blender.visible and _texture_for(first_blender, "attack1_contact") == load(ATTACK1_PATH), "stage one active selects only its approved contour texture")
 	_check(players[0].get_node("VisualRoot/PlayerArt").visible == false, "PlayerArt is hidden while the contour blender renders")
-	_check(not second_blender.visible and players[1].get_node("VisualRoot/PlayerArt").visible, "unapproved stage two keeps the original PlayerArt and animator path")
+	_check(second_blender.visible and _texture_for(second_blender, "attack2_contact") == load(ATTACK2_PATH), "stage two active selects only its approved v4 ink final texture")
+	_check(players[1].get_node("VisualRoot/PlayerArt").visible == false, "PlayerArt is hidden while the approved stage two blender renders")
 	_check(third_blender.visible and _texture_for(third_blender, "attack3_contact") == load(ATTACK3_PATH), "stage three active selects only its approved contour texture")
-	_check(first_blender.get_displayed_textures().size() <= 2 and third_blender.get_displayed_textures().size() <= 2, "integrated pose transitions render at most two blender layers")
-	_check(_approved_pose_bounds(first_blender) and _approved_pose_bounds(third_blender), "approved poses retain the common foot anchor and approximately 192 screen-pixel height")
+	_check(first_blender.get_displayed_textures().size() <= 2 and second_blender.get_displayed_textures().size() <= 2 and third_blender.get_displayed_textures().size() <= 2, "integrated pose transitions render at most two blender layers")
+	_check(_approved_pose_bounds(first_blender) and _approved_pose_bounds(second_blender) and _approved_pose_bounds(third_blender), "approved poses retain the common foot anchor and approximately 192 screen-pixel height")
 
 	# Phase selection: startup and recovery resolve to v8; contact resolves to the approved contour.
 	_configure_attack(players[0], 1, "startup")
@@ -83,6 +85,12 @@ func _run() -> void:
 	_configure_attack(players[2], 3, "recovery")
 	animators[2].call("_process", 1.0 / 60.0)
 	_check(_texture_for(third_blender, "idle") == load(SAFE_PATH), "stage three recovery returns to the v8 clean still")
+	_configure_attack(players[1], 2, "startup")
+	animators[1].call("_process", 1.0 / 60.0)
+	_check(_texture_for(second_blender, "idle") == load(SAFE_PATH), "stage two startup uses the v8 clean still through the shared transition")
+	_configure_attack(players[1], 2, "recovery")
+	animators[1].call("_process", 1.0 / 60.0)
+	_check(_texture_for(second_blender, "idle") == load(SAFE_PATH), "stage two recovery returns to the v8 clean still through the shared transition")
 
 	# Verify a halfway fade is interrupted cleanly, then settles to the newest request.
 	first_blender.set_pose("attack1", "contact")
@@ -149,6 +157,8 @@ func _texture_for(blender: PlayerPoseBlender, key: String) -> Texture2D:
 	var expected_path := SAFE_PATH
 	if key == "attack1_contact":
 		expected_path = ATTACK1_PATH
+	elif key == "attack2_contact":
+		expected_path = ATTACK2_PATH
 	elif key == "attack3_contact":
 		expected_path = ATTACK3_PATH
 	for child in blender.get_children():

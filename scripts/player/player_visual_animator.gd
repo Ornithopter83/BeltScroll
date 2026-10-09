@@ -112,7 +112,7 @@ func _update_approved_attack_pose() -> void:
 	var phase := str(player.get("attack_phase"))
 	var special_attack := not bool(player.get("is_ko")) \
 		and float(player.get("hitstun_remaining")) <= 0.0 \
-		and (stage == 1 or stage == 3) \
+		and (stage >= 1 and stage <= 3) \
 		and ["startup", "active", "recovery"].has(phase)
 	if not special_attack:
 		if pose_blender.visible:

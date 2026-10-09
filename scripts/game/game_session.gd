@@ -6,6 +6,8 @@ enum ResultState { PLAYING, DEFEAT, VICTORY }
 const EXPECTED_RAIDER_COUNT := 3
 const OVERLAY_LAYER := 20
 const HELP_LAYER := 10
+const RESULT_SAFE_TOP := 150.0
+const RESULT_SAFE_BOTTOM := 510.0
 const TITLE_SCENE := "res://scenes/ui/title_menu.tscn"
 const MAIN_SCENE := "res://scenes/game/main.tscn"
 
@@ -290,56 +292,68 @@ func _build_result_overlay() -> void:
 	var backdrop := ColorRect.new()
 	backdrop.name = "ResultDimmer"
 	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	backdrop.color = Color(0.015, 0.025, 0.02, 0.76)
+	backdrop.color = Color(0.015, 0.025, 0.02, 0.18)
 	backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
 	result_overlay.add_child(backdrop)
 
 	var center := CenterContainer.new()
 	center.name = "Center"
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# Keep the outcome controls in the clear band below the top HUD and above
+	# the lower combat area where the Player and Raiders are staged.
+	center.offset_top = RESULT_SAFE_TOP
+	center.offset_bottom = RESULT_SAFE_BOTTOM - 1080.0
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	result_overlay.add_child(center)
 
 	var panel := PanelContainer.new()
 	panel.name = "ResultPanel"
-	panel.custom_minimum_size = Vector2(560.0, 330.0)
+	panel.custom_minimum_size = Vector2(500.0, 270.0)
 	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = Color(0.035, 0.075, 0.065, 0.97)
-	panel_style.border_color = Color(0.78, 0.72, 0.42, 0.9)
+	panel_style.bg_color = Color(0.035, 0.075, 0.065, 0.88)
+	panel_style.border_color = Color(0.78, 0.72, 0.42, 0.82)
 	panel_style.set_border_width_all(2)
-	panel_style.set_corner_radius_all(16)
-	panel_style.content_margin_left = 32.0
-	panel_style.content_margin_right = 32.0
-	panel_style.content_margin_top = 24.0
-	panel_style.content_margin_bottom = 24.0
+	panel_style.set_corner_radius_all(14)
+	panel_style.content_margin_left = 24.0
+	panel_style.content_margin_right = 24.0
+	panel_style.content_margin_top = 16.0
+	panel_style.content_margin_bottom = 16.0
 	panel.add_theme_stylebox_override("panel", panel_style)
 	center.add_child(panel)
 
 	var layout := VBoxContainer.new()
 	layout.alignment = BoxContainer.ALIGNMENT_CENTER
-	layout.add_theme_constant_override("separation", 12)
+	layout.add_theme_constant_override("separation", 7)
 	panel.add_child(layout)
 
 	result_label = Label.new()
 	result_label.name = "ResultLabel"
 	result_label.text = ""
 	result_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	result_label.add_theme_font_size_override("font_size", 48)
+	result_label.add_theme_font_size_override("font_size", 40)
 	result_label.add_theme_color_override("font_color", Color(0.94, 0.93, 0.84, 1.0))
 	layout.add_child(result_label)
 
 	restart_label = Label.new()
 	restart_label.name = "RestartLabel"
-	restart_label.text = "R 키 / 북쪽 버튼으로 재시작할 수 있습니다"
+	restart_label.text = "R 키 / 북쪽 버튼으로 재시작"
 	restart_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	restart_label.add_theme_font_size_override("font_size", 20)
+	restart_label.add_theme_font_size_override("font_size", 16)
 	restart_label.add_theme_color_override("font_color", Color(0.78, 0.72, 0.42, 1.0))
 	layout.add_child(restart_label)
-	_result_restart_button = _make_menu_button("재도전")
+	_result_restart_button = _make_result_button("재도전")
 	_result_restart_button.name = "RetryButton"
 	_result_restart_button.pressed.connect(_restart_session)
 	layout.add_child(_result_restart_button)
-	_result_title_button = _make_menu_button("타이틀로 돌아가기")
+	_result_title_button = _make_result_button("타이틀로 돌아가기")
 	_result_title_button.name = "TitleButton"
 	_result_title_button.pressed.connect(_return_to_title)
 	layout.add_child(_result_title_button)
+	_result_restart_button.focus_neighbor_bottom = _result_restart_button.get_path_to(_result_title_button)
+	_result_title_button.focus_neighbor_top = _result_title_button.get_path_to(_result_restart_button)
+
+func _make_result_button(caption: String) -> Button:
+	var button := _make_menu_button(caption)
+	button.custom_minimum_size = Vector2(340.0, 44.0)
+	button.add_theme_font_size_override("font_size", 18)
+	return button

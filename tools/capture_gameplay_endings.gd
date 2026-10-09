@@ -7,7 +7,7 @@ const OUTPUT_PATH := "res://assets/art/review/gameplay_endings_window.png"
 const FRAME_SIZE := Vector2i(1920, 1080)
 const HALF_SIZE := Vector2i(960, 540)
 const HIT := {"damage": 999, "direction": Vector2.LEFT, "knockback": 0.0, "hit_stun": 0.0, "attack_stage": 1}
-const STATE_LABELS := ["VICTORY · receive_hit contract outcome", "DEFEAT · receive_hit outcome", "PAUSE · live main scene", "TITLE · returned from pause"]
+const STATE_LABELS := ["VICTORY · receive_hit contract outcome (not live play)", "DEFEAT · receive_hit contract outcome", "PAUSE · live main scene", "TITLE · returned from pause"]
 
 var _failures: Array[String] = []
 var _frames: Array[Image] = []
@@ -44,6 +44,8 @@ func capture(tree: SceneTree) -> Dictionary:
 	if not await _capture_frame(tree, "VICTORY", game, [retry, title_button]):
 		return _failure("GEW-007", "Victory frame or its Player/Raider artwork failed Window validation.")
 	# Verify keyboard navigation to the title action before exercising retry.
+	retry.grab_focus()
+	await tree.process_frame
 	_send_key(tree, KEY_DOWN)
 	await tree.process_frame
 	_release_key(KEY_DOWN)
@@ -207,6 +209,9 @@ func _capture_frame(tree: SceneTree, state: String, game: Node, buttons: Array) 
 	if game != null:
 		if not await _hud_is_rendered(tree, image, game, state):
 			return false
+		if state == "VICTORY" or state == "DEFEAT":
+			if not await _result_panel_is_rendered(tree, image, game, state):
+				return false
 		if not await _all_actor_art_reaches_viewport(tree, image, game, state):
 			return false
 	_frames.append(image)
@@ -255,6 +260,30 @@ func _hud_is_rendered(tree: SceneTree, captured: Image, game: Node, state: Strin
 			return false
 	return true
 
+func _result_panel_is_rendered(tree: SceneTree, captured: Image, game: Node, state: String) -> bool:
+	var panel := game.get_node_or_null("SessionResult/Center/ResultPanel") as Control
+	var hud := game.get_node_or_null("CombatHUD/Overlay") as Control
+	if panel == null or not panel.is_visible_in_tree() or hud == null:
+		_failures.append("%s result panel or HUD bounds are missing." % state)
+		return false
+	var panel_bounds := panel.get_global_rect().abs()
+	var combo := hud.get_node_or_null("ComboPanel") as Control
+	if combo == null or panel_bounds.position.y < combo.get_global_rect().end.y + 12.0 or panel_bounds.end.y > 540.0:
+		_failures.append("%s result panel is outside the safe band below the HUD." % state)
+		return false
+	var was_visible := panel.visible
+	panel.visible = false
+	await tree.process_frame
+	await RenderingServer.frame_post_draw
+	var without_panel := tree.root.get_texture().get_image()
+	panel.visible = was_visible
+	await tree.process_frame
+	await RenderingServer.frame_post_draw
+	if _changed_pixels(captured, without_panel, panel_bounds) < 100:
+		_failures.append("%s result panel has no visible rendered pixels." % state)
+		return false
+	return true
+
 func _all_actor_art_reaches_viewport(tree: SceneTree, captured: Image, game: Node, state: String) -> bool:
 	var sprites: Array[Sprite2D] = [game.get_node("YSortActors/Player/VisualRoot/PlayerArt")]
 	for raider in game.get("_raiders"):
@@ -264,6 +293,14 @@ func _all_actor_art_reaches_viewport(tree: SceneTree, captured: Image, game: Nod
 		if not _in_viewport(bounds) or not sprite.is_visible_in_tree():
 			_failures.append("%s contains offscreen or hidden actor art at %s." % [state, bounds])
 			return false
+		if state == "VICTORY" or state == "DEFEAT":
+			var panel := game.get_node("SessionResult/Center/ResultPanel") as Control
+			var intersection := bounds.intersection(panel.get_global_rect().abs())
+			var actor_area: float = maxf(1.0, bounds.get_area())
+			var covered_fraction: float = intersection.get_area() / actor_area
+			if covered_fraction > 0.02:
+				_failures.append("%s result panel geometrically covers %.1f%% of %s actor art." % [state, covered_fraction * 100.0, sprite.get_path()])
+				return false
 		var was_visible := sprite.visible
 		sprite.visible = false
 		await tree.process_frame
@@ -275,6 +312,8 @@ func _all_actor_art_reaches_viewport(tree: SceneTree, captured: Image, game: Nod
 		if _changed_pixels(captured, without_sprite, bounds) < 24:
 			_failures.append("%s Player/Raider texture is blank or obscured: %s." % [state, sprite.get_path()])
 			return false
+	if state == "VICTORY" or state == "DEFEAT":
+		print("gameplay-endings-window-gate: %s result panel/actor bounds overlap is below 2%% for Player and all Raiders" % state)
 	return true
 
 func _changed_pixels(first: Image, second: Image, bounds: Rect2) -> int:

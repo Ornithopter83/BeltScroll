@@ -5,8 +5,8 @@ const OUTPUT_PATH := "res://assets/art/review/combat_live_session_window.png"
 const CAPTURE_SIZE := Vector2i(1920, 1080)
 const MAX_DURATION_MSEC := 30000
 const APPROVED_ATTACK1 := "res://assets/art/player/elven_fighter_attack1_reference_v1_contour_candidate_1254x1254.png"
+const APPROVED_ATTACK2 := "res://assets/art/player/elven_fighter_attack2_reference_v4_ink_final_candidate_1254x1254.png"
 const APPROVED_ATTACK3 := "res://assets/art/player/elven_fighter_attack3_reference_v2_contour_candidate_1254x1254.png"
-const V8_FALLBACK := "res://assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png"
 
 var _started_msec := 0
 var _player: CharacterBody2D
@@ -127,16 +127,15 @@ func _run_live_combo() -> bool:
 		var overlap_count := _sample_stage_hitbox.get_overlapping_bodies().size()
 		_trace.append("stage %d active: physics=%d phase=%s hitbox=%s overlaps=%d health=%d time_scale=%.3f" % [stage, Engine.get_physics_frames(), _player.attack_phase, hitbox_active, overlap_count, int(target.get("health")), Engine.time_scale])
 		_check(hitbox_active, "attack %d active phase enables its actual Area2D hitbox" % stage)
-		if stage == 1 or stage == 3:
-			var blender := _player.get_node("VisualRoot/PoseBlender")
-			var expected_key := "attack%d_contact" % stage
-			var expected_path := APPROVED_ATTACK1 if stage == 1 else APPROVED_ATTACK3
-			var pose_ready := await _wait_for_approved_pose(blender, expected_key, expected_path)
-			_check(pose_ready, "attack %d displays its approved contact keypose" % stage)
-		else:
-			var blender := _player.get_node("VisualRoot/PoseBlender")
-			var fallback_art := _player.get_node("VisualRoot/PlayerArt") as Sprite2D
-			_check(not bool(blender.visible) and fallback_art.visible and fallback_art.texture.resource_path == V8_FALLBACK, "attack 2 retains the existing v8 PlayerArt fallback")
+		var blender := _player.get_node("VisualRoot/PoseBlender")
+		var expected_key := "attack%d_contact" % stage
+		var expected_path := APPROVED_ATTACK1
+		if stage == 2:
+			expected_path = APPROVED_ATTACK2
+		elif stage == 3:
+			expected_path = APPROVED_ATTACK3
+		var pose_ready := await _wait_for_approved_pose(blender, expected_key, expected_path)
+		_check(pose_ready, "attack %d displays its approved contact keypose" % stage)
 		await _capture_timeline("0%d · ATTACK %d ACTIVE" % [stage + 3, stage], "physics=%d · hitbox monitoring=%s" % [Engine.get_physics_frames(), hitbox_active])
 		var hit_seen := await _wait_for_hit(stage)
 		_check(hit_seen, "attack %d emits its actual hit signal" % stage)
