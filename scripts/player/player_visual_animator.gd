@@ -3,6 +3,7 @@ extends Node
 
 const ANIMATION_BANK_SCRIPT := preload("res://scripts/player/player_animation_bank.gd")
 const SKILL1_DASH_VISUAL_SCRIPT := preload("res://scripts/effects/player_skill1_dash_visual.gd")
+const SKILL2_SPIN_VISUAL_SCRIPT := preload("res://scripts/effects/player_skill2_spin_visual.gd")
 
 const FOLLOW_SPEED := 16.0
 const WALK_SPEED_REFERENCE := 280.0
@@ -44,6 +45,7 @@ var _turn_target_sign := 1.0
 var _turn_elapsed := TURN_DURATION
 var _turn_flip_applied := false
 var _skill1_dash_visual: Node2D
+var _skill2_spin_visual: Node2D
 
 ## These timing tables drive temporary transform poses only. They do not claim
 ## that missing walk/jump/hit/landing art has been approved as sprite frames.
@@ -81,6 +83,15 @@ func _ready() -> void:
 	player.add_child.call_deferred(_skill1_dash_visual)
 	if player.has_signal("skill_hit"):
 		player.skill_hit.connect(_skill1_dash_visual.on_skill_hit)
+	_skill2_spin_visual = SKILL2_SPIN_VISUAL_SCRIPT.new()
+	_skill2_spin_visual.name = "Skill2SpinVisual"
+	player.add_child.call_deferred(_skill2_spin_visual)
+	if player.has_signal("skill_hit"):
+		player.skill_hit.connect(_skill2_spin_visual.on_skill_hit)
+	if player.has_signal("player_hit"):
+		player.player_hit.connect(_skill2_spin_visual.clear_effects)
+	if player.has_signal("player_ko"):
+		player.player_ko.connect(_skill2_spin_visual.clear_effects)
 	_animation_bank = ANIMATION_BANK_SCRIPT.new()
 	_animation_bank.load_and_register(pose_blender)
 	# Approved contact drawings use pose-specific support candidates. These
@@ -110,6 +121,13 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if player == null or art == null or not is_instance_valid(player) or art.texture == null:
 		return
+	if _skill2_spin_visual != null and (
+		player.get("is_ko") == true
+		or float(player.get("hitstun_remaining")) > 0.0
+		or str(player.get("skill_phase")) == "idle"
+		or int(player.get("skill_id")) != 2
+	):
+		_skill2_spin_visual.clear_effects()
 	var target_rotation := _base_rotation
 	var target_scale := _base_scale
 	var jumping: bool = player.get("is_jumping") == true

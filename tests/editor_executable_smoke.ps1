@@ -1,6 +1,7 @@
 ﻿param(
     [string]$EditorPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'dist\BeltScrollEditor.exe'),
-    [int]$SelfTestTimeoutSeconds = 120
+    [int]$SelfTestTimeoutSeconds = 120,
+    [switch]$AutomatedOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -8,12 +9,14 @@ $ProgressPreference = 'SilentlyContinue'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $script:Results = New-Object System.Collections.Generic.List[object]
 $script:ManualAcceptanceBlocked = $false
+$script:ManualAcceptanceSkipped = $false
 
 function Add-Result([string]$Name, [bool]$Passed, [string]$Details) {
     $script:Results.Add([pscustomobject]@{
         check = $Name
         passed = $Passed
         details = $Details
+        category = if ($Name -in @('--self-test 완료', '--gui-acceptance 완료', 'EXE 존재', '스크립트 실행')) { 'automated' } else { 'manual' }
         checkedAt = (Get-Date).ToString('o')
     })
     $state = if ($Passed) { 'PASS' } else { 'FAIL' }
@@ -105,13 +108,36 @@ try {
         $capture = Join-Path $testRoot 'gui-capture.png'
         $acceptancePassed = $acceptanceExit -eq 0 -and (Test-Path -LiteralPath $acceptanceReport) -and (Test-Path -LiteralPath $capture)
         $acceptanceDetails = "exit={0}; report={1}; capture={2}" -f $acceptanceExit, (Test-Path -LiteralPath $acceptanceReport), (Test-Path -LiteralPath $capture)
-        if (Test-Path -LiteralPath $acceptanceReport) { $acceptanceDetails += '; ' + (Get-Content -Encoding UTF8 -Raw -LiteralPath $acceptanceReport).Trim() }
+        if (Test-Path -LiteralPath $acceptanceReport) {
+            $guiReport = Get-Content -Encoding UTF8 -Raw -LiteralPath $acceptanceReport | ConvertFrom-Json
+            $savedJson = Join-Path $testRoot 'overrides.json'
+            $backupJson = $savedJson + '.bak'
+            $acceptancePassed = $acceptancePassed -and $guiReport.passed -and ($guiReport.actualOsMouseInput -eq $false) -and
+                (Test-Path -LiteralPath $savedJson -PathType Leaf) -and (Test-Path -LiteralPath $backupJson -PathType Leaf)
+            if (Test-Path -LiteralPath $savedJson) {
+                $savedDocument = Get-Content -Encoding UTF8 -Raw -LiteralPath $savedJson | ConvertFrom-Json
+                $savedPlayer = @($savedDocument.characters | Where-Object { $_.id -eq 'Player' })[0]
+                $acceptancePassed = $acceptancePassed -and ($null -ne $savedPlayer) -and ([int]$savedPlayer.max_health -eq 6)
+            } else { $acceptancePassed = $false }
+            $acceptanceDetails += '; output=' + $guiReport.output + '; actualOsMouseInput=' + $guiReport.actualOsMouseInput
+            $acceptanceDetails += '; ' + (Get-Content -Encoding UTF8 -Raw -LiteralPath $acceptanceReport).Trim()
+        }
         Add-Result '--gui-acceptance 완료' $acceptancePassed $acceptanceDetails
     }
 
     Write-Output ''
     Write-Output ('잘못된 JSON 시험 파일: {0}' -f $badJsonPath)
-    if ([Console]::IsInputRedirected) {
+    if ($AutomatedOnly) {
+        $script:ManualAcceptanceSkipped = $true
+        $blocked = '미검증: AutomatedOnly 모드에서는 사용자 GUI 조작과 Y/N 수동 확인을 수행하지 않음.'
+        Add-Result 'GUI 실행 및 프로젝트 외부 경로 실행' $false $blocked
+        Add-Result '비정상 JSON 거부' $false $blocked
+        Add-Result '생성·복제·수정·저장' $false $blocked
+        Add-Result '재열기 및 저장값 유지' $false $blocked
+        Add-Result '게임 데이터 재적용' $false $blocked
+        Add-Result 'GUI 정상 종료' $false $blocked
+        Write-Output 'editor_executable_smoke: automated checks only; manual_status=blocked_unverified'
+    } elseif ([Console]::IsInputRedirected) {
         $script:ManualAcceptanceBlocked = $true
         $blocked = '차단됨: Y/N 수동 인수 확인은 대화형 입력이 필요합니다. 콘솔에서 다시 실행하세요.'
         Add-Result 'GUI 실행 및 프로젝트 외부 경로 실행' $false $blocked
@@ -139,7 +165,11 @@ try {
             '저장한 복제본을 닫았다가 다시 열어 수정한 값이 유지되는지 확인합니다.'
         Confirm-Gate '게임 데이터 재적용' `
             '편집기에서 게임 데이터를 다시 적용하거나 동기화하고, 생성·수정한 항목이 게임 데이터에 반영되며 재적용 후에도 유지되는지 확인합니다.'
-        Confirm-Gate 'GUI 정상 종료' '인수 검증 후 편집기를 정상 종료합니다. 종료가 완료되었으면 Y를 입력하세요.'
+        Confirm-Gate 'GUI 정상 종료' '인수 검증을 마치고 실제 편집기 창을 정상 종료합니다. 창이 닫힌 것을 확인한 뒤 Y를 입력하세요.'
+        $guiProcess.Refresh()
+        $closeDetails = if ($guiProcess.HasExited) { '실제 편집기 프로세스가 종료됨' } else { '수동 종료 확인 뒤에도 편집기 프로세스가 실행 중임' }
+        Add-Result 'GUI 프로세스 종료 확인' ([bool]$guiProcess.HasExited) `
+            $closeDetails
     } else {
         Add-Result '비정상 JSON 거부' $false 'GUI 시작 실패로 미검증'
         Add-Result '생성·복제·수정·저장' $false 'GUI 시작 실패로 미검증'
@@ -160,8 +190,11 @@ try {
         editorPath = $resolvedEditor
         externalWorkingDirectory = $testRoot
         invalidJsonFixture = $badJsonPath
-        status = if ($script:ManualAcceptanceBlocked) { 'blocked' } elseif ($failedCount -gt 0) { 'failed' } else { 'passed' }
-        passed = ($failedCount -eq 0)
+        automated_status = if (@($resultsArray | Where-Object { $_.category -eq 'automated' -and -not $_.passed }).Count -eq 0) { 'passed' } else { 'failed' }
+        manual_status = if ($script:ManualAcceptanceSkipped -or $script:ManualAcceptanceBlocked) { 'blocked_unverified' } elseif (@($resultsArray | Where-Object { $_.category -eq 'manual' -and -not $_.passed }).Count -gt 0) { 'failed' } else { 'passed' }
+        mode = if ($AutomatedOnly) { 'AutomatedOnly' } else { 'ManualAcceptance' }
+        status = if ($script:ManualAcceptanceBlocked -or $script:ManualAcceptanceSkipped) { 'blocked_unverified' } elseif ($failedCount -gt 0) { 'failed' } else { 'passed' }
+        passed = if ($AutomatedOnly) { @($resultsArray | Where-Object { $_.category -eq 'automated' -and -not $_.passed }).Count -eq 0 } else { ($failedCount -eq 0) }
         results = $resultsArray
     } | ConvertTo-Json -Depth 6
     [IO.File]::WriteAllText($reportPath, $report, (New-Object System.Text.UTF8Encoding($false)))
@@ -172,6 +205,16 @@ try {
 
 $failedCount = 0
 foreach ($result in $script:Results) { if (-not $result.passed) { $failedCount++ } }
+if ($script:ManualAcceptanceBlocked) {
+    Write-Output 'editor_executable_smoke: manual acceptance blocked (exit 2; no approval recorded)'
+    exit 2
+}
+if ($AutomatedOnly) {
+    $automatedFailures = @($script:Results | Where-Object { $_.category -eq 'automated' -and -not $_.passed })
+    if ($automatedFailures.Count -gt 0) { exit 1 }
+    Write-Output 'editor_executable_smoke: automated checks passed; manual_status=blocked_unverified'
+    exit 0
+}
 if ($failedCount -gt 0) {
     exit 1
 }
