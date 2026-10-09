@@ -21,4 +21,9 @@ if (-not (Test-Path -LiteralPath $reportPath)) { throw "GUI acceptance report mi
 $report = Get-Content -Encoding UTF8 -Raw -LiteralPath $reportPath | ConvertFrom-Json
 if ($process.ExitCode -ne 0 -or -not $report.passed) { throw "Animation workspace GUI acceptance failed. Artifacts: $work`n$($report.error)" }
 if (-not (Test-Path -LiteralPath (Join-Path $work 'animation-gui.png')) -or -not (Test-Path -LiteralPath $report.exportedPath)) { throw "GUI capture or exported JSON is missing. Artifacts: $work" }
+if ($report.clipCount -ne 4 -or $report.frameCount -ne 4) { throw "GUI acceptance did not preserve all four clips and four attack phases. Artifacts: $work" }
+$expectedEvents = @('clip creation and selection', 'four phase selection', 'duration edit', 'approval state selection', 'anchor pointer event', 'frame reorder', 'multi-clip JSON export', 'JSON reload')
+foreach ($event in $expectedEvents) {
+    if ($report.guiControlEvents -notcontains $event) { throw "GUI event verification missing '$event'. Artifacts: $work" }
+}
 Write-Host "Animation workspace GUI smoke passed. Artifacts: $work"

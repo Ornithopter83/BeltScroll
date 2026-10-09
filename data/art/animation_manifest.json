@@ -1,28 +1,28 @@
 {
   "schema_version": 1,
   "clips": [
-    { "action": "idle", "frames": [
-      { "phase": "idle", "texture": "res://assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png", "duration": 0.8, "foot_anchor": "alpha_bottom_center", "approval_state": "approved", "label": "v8 idle still" }
+    { "id": "idle", "frames": [
+      { "phase": "idle", "texture": "res://assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png", "duration": 0.8, "foot_anchor": { "x": 0.5, "y": 0.92822966507177 }, "approval_state": "approved", "label": "v8 idle still" }
     ] },
-    { "action": "attack1", "frames": [
-      { "phase": "startup", "texture": null, "duration": 0.075, "foot_anchor": "alpha_bottom_center", "approval_state": "temporary", "label": "temporary startup transform" },
-      { "phase": "inbetween", "texture": null, "duration": 0.035, "foot_anchor": "alpha_bottom_center", "approval_state": "temporary", "label": "temporary inbetween transform" },
-      { "phase": "contact", "texture": "res://assets/art/player/elven_fighter_attack1_reference_v1_contour_candidate_1254x1254.png", "duration": 0.105, "foot_anchor": "alpha_bottom_center", "approval_state": "approved", "label": "attack 1 contact" },
-      { "phase": "recovery", "texture": null, "duration": 0.2, "foot_anchor": "alpha_bottom_center", "approval_state": "temporary", "label": "temporary recovery transform" }
+    { "id": "attack1", "frames": [
+      { "phase": "startup", "texture": null, "duration": 0.075, "foot_anchor": { "x": 0.5, "y": 0.927432216905901 }, "approval_state": "temporary", "label": "temporary startup transform" },
+      { "phase": "inbetween", "texture": null, "duration": 0.035, "foot_anchor": { "x": 0.5, "y": 0.927432216905901 }, "approval_state": "temporary", "label": "temporary inbetween transform" },
+      { "phase": "contact", "texture": "res://assets/art/player/elven_fighter_attack1_reference_v1_contour_candidate_1254x1254.png", "duration": 0.105, "foot_anchor": { "x": 0.5, "y": 0.927432216905901 }, "approval_state": "approved", "label": "attack 1 contact" },
+      { "phase": "recovery", "texture": null, "duration": 0.2, "foot_anchor": { "x": 0.5, "y": 0.927432216905901 }, "approval_state": "temporary", "label": "temporary recovery transform" }
     ] },
-    { "action": "attack2", "frames": [
-      { "phase": "startup", "texture": null, "duration": 0.085, "foot_anchor": "alpha_bottom_center", "approval_state": "temporary", "label": "temporary startup transform" },
-      { "phase": "inbetween", "texture": "res://assets/art/player/elven_fighter_attack2_inbetween_v1_safe_candidate_1254x1254.png", "duration": 0.05, "foot_anchor": "alpha_bottom_center", "approval_state": "unapproved", "label": "unapproved inbetween candidate" },
-      { "phase": "contact", "texture": "res://assets/art/player/elven_fighter_attack2_reference_v4_ink_final_candidate_1254x1254.png", "duration": 0.12, "foot_anchor": "alpha_bottom_center", "approval_state": "approved", "label": "attack 2 contact" },
-      { "phase": "recovery", "texture": null, "duration": 0.22, "foot_anchor": "alpha_bottom_center", "approval_state": "temporary", "label": "temporary recovery transform" },
-      { "phase": "contact", "texture": "res://assets/art/player/elven_fighter_attack2_contact_v5_identity_candidate_1254x1254.png", "duration": 0.12, "foot_anchor": "alpha_bottom_center", "approval_state": "unapproved", "label": "v5 review candidate" },
-      { "phase": "contact", "texture": "res://assets/art/player/elven_fighter_reference_v6_clean_1254x1254.png", "duration": 0.12, "foot_anchor": "alpha_bottom_center", "approval_state": "unapproved", "label": "v6 review candidate" }
+    { "id": "attack2", "frames": [
+      { "phase": "startup", "texture": null, "duration": 0.085, "foot_anchor": { "x": 0.499601275917065, "y": 0.92822966507177 }, "approval_state": "temporary", "label": "temporary startup transform" },
+      { "phase": "inbetween", "texture": "res://assets/art/player/elven_fighter_attack2_inbetween_v1_safe_candidate_1254x1254.png", "duration": 0.05, "foot_anchor": { "x": 0.499601275917065, "y": 0.92822966507177 }, "approval_state": "unapproved", "label": "unapproved inbetween candidate" },
+      { "phase": "contact", "texture": "res://assets/art/player/elven_fighter_attack2_reference_v4_ink_final_candidate_1254x1254.png", "duration": 0.12, "foot_anchor": { "x": 0.499601275917065, "y": 0.92822966507177 }, "approval_state": "approved", "label": "attack 2 contact" },
+      { "phase": "recovery", "texture": null, "duration": 0.22, "foot_anchor": { "x": 0.499601275917065, "y": 0.92822966507177 }, "approval_state": "temporary", "label": "temporary recovery transform" },
+      { "phase": "contact", "texture": "res://assets/art/player/elven_fighter_attack2_contact_v5_identity_candidate_1254x1254.png", "duration": 0.12, "foot_anchor": { "x": 0.499601275917065, "y": 0.92822966507177 }, "approval_state": "unapproved", "label": "v5 review candidate" },
+      { "phase": "contact", "texture": "res://assets/art/player/elven_fighter_attack2_contact_v6_candidate_1254x1254.png", "duration": 0.12, "foot_anchor": { "x": 0.499601275917065, "y": 0.92822966507177 }, "approval_state": "unapproved", "label": "v6 review candidate" }
     ] },
-    { "action": "attack3", "frames": [
-      { "phase": "startup", "texture": null, "duration": 0.1, "foot_anchor": "alpha_bottom_center", "approval_state": "temporary", "label": "temporary startup transform" },
-      { "phase": "inbetween", "texture": null, "duration": 0.06, "foot_anchor": "alpha_bottom_center", "approval_state": "temporary", "label": "temporary inbetween transform" },
-      { "phase": "contact", "texture": "res://assets/art/player/elven_fighter_attack3_reference_v2_contour_candidate_1254x1254.png", "duration": 0.14, "foot_anchor": "alpha_bottom_center", "approval_state": "approved", "label": "attack 3 contact" },
-      { "phase": "recovery", "texture": null, "duration": 0.28, "foot_anchor": "alpha_bottom_center", "approval_state": "temporary", "label": "temporary recovery transform" }
+    { "id": "attack3", "frames": [
+      { "phase": "startup", "texture": null, "duration": 0.1, "foot_anchor": { "x": 0.5, "y": 0.92822966507177 }, "approval_state": "temporary", "label": "temporary startup transform" },
+      { "phase": "inbetween", "texture": null, "duration": 0.06, "foot_anchor": { "x": 0.5, "y": 0.92822966507177 }, "approval_state": "temporary", "label": "temporary inbetween transform" },
+      { "phase": "contact", "texture": "res://assets/art/player/elven_fighter_attack3_reference_v2_contour_candidate_1254x1254.png", "duration": 0.14, "foot_anchor": { "x": 0.5, "y": 0.92822966507177 }, "approval_state": "approved", "label": "attack 3 contact" },
+      { "phase": "recovery", "texture": null, "duration": 0.28, "foot_anchor": { "x": 0.5, "y": 0.92822966507177 }, "approval_state": "temporary", "label": "temporary recovery transform" }
     ] }
   ]
 }

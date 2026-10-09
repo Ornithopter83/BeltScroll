@@ -81,6 +81,21 @@ call :run_window_smoke combat_live_session_window_smoke
 call :run_window_smoke raider_healthbar_window_smoke
 call :run_gameplay_endings_window_smoke
 
+rem New mechanical regression coverage is appended to preserve the established order.
+call :run_smoke player_animation_bank_smoke
+call :run_smoke player_attack2_inbetween_safe_smoke
+call :run_smoke player_attack2_contact_v5_smoke
+call :run_smoke player_attack2_contact_v6_smoke
+call :run_smoke combat_vfx_visual_smoke
+call :run_smoke raider_attack_pose_window_smoke
+call :run_smoke player_attack2_contact_v6_safe_smoke
+
+call :run_suite_coverage
+if errorlevel 1 (
+    set "SUITE_FAILED=1"
+    call :save_failure suite_coverage
+)
+
 call :probe_fixtures
 if errorlevel 1 (
     set "SUITE_FAILED=1"
@@ -110,6 +125,14 @@ echo [smoke] Running %SMOKE_NAME%
 set "SMOKE_ARGS=--headless --path ""%PROJECT_DIR%"" --script ""res://tests/%SMOKE_NAME%.gd"""
 set "SMOKE_TIMEOUT=120"
 if /I "%SMOKE_NAME%"=="raider_spacing_stress_smoke" set "SMOKE_TIMEOUT=300"
+if /I "%SMOKE_NAME%"=="player_animation_bank_smoke" set "SMOKE_TIMEOUT=120"
+if /I "%SMOKE_NAME%"=="player_attack2_inbetween_safe_smoke" set "SMOKE_TIMEOUT=120"
+if /I "%SMOKE_NAME%"=="player_attack2_contact_v5_smoke" set "SMOKE_TIMEOUT=180"
+if /I "%SMOKE_NAME%"=="player_attack2_contact_v6_smoke" set "SMOKE_TIMEOUT=180"
+if /I "%SMOKE_NAME%"=="combat_vfx_visual_smoke" set "SMOKE_TIMEOUT=120"
+if /I "%SMOKE_NAME%"=="raider_attack_pose_window_smoke" set "SMOKE_TIMEOUT=120"
+if /I "%SMOKE_NAME%"=="player_attack2_contact_v6_safe_smoke" set "SMOKE_TIMEOUT=180"
+echo [smoke] Type=headless timeout=%SMOKE_TIMEOUT%s log=%RUN_LOG%
 call :run_bounded %SMOKE_TIMEOUT%
 set "ALLOW_MODE="
 set "SUCCESS_MARKER=%SMOKE_NAME%: all checks passed"
@@ -127,6 +150,10 @@ if /I "%SMOKE_NAME%"=="player_attack1_final_matte_smoke" set "ALLOW_MODE=png-neg
 if /I "%SMOKE_NAME%"=="player_v6_art_smoke" set "SUCCESS_MARKER=player_v6_art_smoke: all checks passed; visual approval pending."
 if /I "%SMOKE_NAME%"=="player_v7_ink_smoke" set "SUCCESS_MARKER=player_v7_ink_smoke: all checks passed; visual approval pending."
 if /I "%SMOKE_NAME%"=="player_keypose_relayout_smoke" set "SUCCESS_MARKER=player_keypose_relayout_smoke: all checks passed; source-edge clipping remains a visual review issue"
+if /I "%SMOKE_NAME%"=="player_attack2_inbetween_safe_smoke" set "SUCCESS_MARKER=player_attack2_inbetween_safe_smoke: all checks passed; visual approval pending"
+if /I "%SMOKE_NAME%"=="player_attack2_contact_v5_smoke" set "SUCCESS_MARKER=player_attack2_contact_v5_smoke: all mechanical checks passed; visual approval remains human review"
+if /I "%SMOKE_NAME%"=="player_attack2_contact_v6_smoke" set "SUCCESS_MARKER=player_attack2_contact_v6_smoke: mechanical checks passed; no image approval is implied"
+if /I "%SMOKE_NAME%"=="player_attack2_contact_v6_safe_smoke" set "SUCCESS_MARKER=player_attack2_contact_v6_safe_smoke: mechanical checks passed; visual approval remains pending"
 call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SUCCESS_MARKER%" "%ALLOW_MODE%"
 if errorlevel 1 (
     set "SUITE_FAILED=1"
@@ -140,6 +167,7 @@ exit /b 0
 set "SMOKE_NAME=%~1"
 echo [smoke] Running %SMOKE_NAME% with the window renderer
 set "SMOKE_ARGS=--path ""%PROJECT_DIR%"" --script ""res://tests/%SMOKE_NAME%.gd"""
+echo [smoke] Type=window timeout=240s log=%RUN_LOG%
 call :run_bounded 240
 if /I "%SMOKE_NAME%"=="camera_boundary_window_smoke" call :report_camera_run
 call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SMOKE_NAME%: all checks passed"
@@ -168,8 +196,24 @@ set "RUN_EXIT=%ERRORLEVEL%"
 exit /b 0
 
 :save_failure
-if not defined FAILED_LOG set "FAILED_LOG=%TEMP%\beltscroll_smoke_failure_%~1_%RANDOM%.log"
-copy /y "%RUN_LOG%" "%FAILED_LOG%" >nul
+set "FAILED_LOG_CURRENT=%TEMP%\beltscroll_smoke_failure_%~1_%RANDOM%.log"
+if not defined FAILED_LOG set "FAILED_LOG=%FAILED_LOG_CURRENT%"
+copy /y "%RUN_LOG%" "%FAILED_LOG_CURRENT%" >nul
+echo [smoke] Diagnostic log for %~1: %FAILED_LOG_CURRENT%
+exit /b 0
+
+:run_suite_coverage
+echo [smoke] Verifying suite inventory, order, routing, timeouts, and success markers
+set "SMOKE_ARGS=-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""%PROJECT_DIR%\tests\smoke_suite_coverage_smoke.ps1"""
+set "BOUNDED_EXECUTABLE=powershell.exe"
+call :run_bounded 45
+set "BOUNDED_EXECUTABLE="
+call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "smoke_suite_coverage_smoke: all checks passed"
+if errorlevel 1 (
+    echo [smoke] FAILED: suite coverage inventory
+    type "%RUN_LOG%"
+    exit /b 1
+)
 exit /b 0
 
 :probe_fixtures

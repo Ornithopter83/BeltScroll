@@ -17,6 +17,11 @@ func _initialize() -> void:
 	call_deferred("_run")
 
 func _run() -> void:
+	var user_args := OS.get_cmdline_user_args()
+	var export_arg_index := user_args.find("--exported-manifest")
+	if export_arg_index >= 0:
+		await _load_actual_editor_export(user_args, export_arg_index)
+		return
 	var blender: PlayerPoseBlender = BLENDER_SCRIPT.new()
 	root.add_child(blender)
 	await process_frame
@@ -80,7 +85,7 @@ func _check_editor_export_contract() -> void:
 	var approved_file := absolute_root.path_join("textures/approved-contact.png")
 	var review_file := absolute_root.path_join("textures/review-v6.png")
 	_check(DirAccess.copy_absolute(ProjectSettings.globalize_path(approved_source), approved_file) == OK, "editor contract fixture copies existing approved art")
-	_check(DirAccess.copy_absolute(ProjectSettings.globalize_path("res://assets/art/player/elven_fighter_reference_v6_clean_1254x1254.png"), review_file) == OK, "editor contract fixture includes v6 review art")
+	_check(DirAccess.copy_absolute(ProjectSettings.globalize_path("res://assets/art/player/elven_fighter_attack2_contact_v6_candidate_1254x1254.png"), review_file) == OK, "editor contract fixture includes the real v6 contact review art")
 	var document := {
 		"schema_version": 1,
 		"clips": [{"id": "attack2", "frames": [
@@ -118,6 +123,48 @@ func _check_editor_export_contract() -> void:
 	var bad_bank: RefCounted = BANK_SCRIPT.new()
 	_check(not bad_bank.call("load_and_register", bad_blender, bad_path), "editor approval cannot bypass pixel allowlist for v6 candidate")
 	_check(bad_blender.get_registered_frame_count("attack2", "contact") == 1 and bad_bank.last_registered.is_empty(), "rejected v6 cannot replace built-in approved contact registration")
+	var traversal_path := absolute_root.path_join("traversal.json")
+	var traversal_doc := {"schema_version": 1, "clips": [{"id": "attack2", "frames": [{"texture": "../outside.png", "phase": "contact", "duration": 0.12, "foot_anchor": {"x": 0.5, "y": 0.9}, "approval_state": "review"}]}]}
+	_write_json(traversal_path, traversal_doc)
+	var traversal_bank: RefCounted = BANK_SCRIPT.new()
+	_check(not traversal_bank.call("load_and_register", bad_blender, traversal_path), "relative path traversal is rejected even for review frames")
+	var malformed_path := absolute_root.path_join("malformed.json")
+	var malformed_doc := {"schema_version": 1, "clips": [{"id": "attack2", "frames": [{"texture": null, "phase": "contact", "duration": "0.12", "foot_anchor": "alpha_bottom_center", "approval_state": "approved"}]}]}
+	_write_json(malformed_path, malformed_doc)
+	var malformed_bank: RefCounted = BANK_SCRIPT.new()
+	_check(not malformed_bank.call("load_and_register", bad_blender, malformed_path), "string duration and legacy string anchor are rejected by schema v1")
+	var alias_path := absolute_root.path_join("legacy-alias.json")
+	_write_json(alias_path, {"schema_version": 1, "clips": [{"action": "attack2", "frames": []}]})
+	var alias_bank: RefCounted = BANK_SCRIPT.new()
+	_check(not alias_bank.call("load_and_register", bad_blender, alias_path), "legacy action alias is rejected; clip id is required")
+
+func _load_actual_editor_export(user_args: PackedStringArray, argument_index: int) -> void:
+	if argument_index + 1 >= user_args.size():
+		push_error("player_animation_bank_smoke: missing --exported-manifest path")
+		quit(1)
+		return
+	var manifest_path: String = user_args[argument_index + 1]
+	var blender: PlayerPoseBlender = BLENDER_SCRIPT.new()
+	root.add_child(blender)
+	await process_frame
+	var bank: RefCounted = BANK_SCRIPT.new()
+	var loaded: bool = bank.call("load_and_register", blender, manifest_path)
+	# The editor acceptance export deliberately marks a generated test contact image
+	# approved. Parsing/schema validation must succeed, then the runtime pixel allowlist
+	# must reject it without registering any exported art.
+	var errors: Array = bank.get("last_errors")
+	var passed := not loaded and not errors.is_empty() and blender.get_registered_frame_count("attack1", "contact") == 1
+	if passed:
+		print("player_animation_bank_smoke: actual editor export parsed and unsafe approval rejected")
+		quit(0)
+	else:
+		push_error("player_animation_bank_smoke: actual editor export did not fail closed: " + str(errors))
+		quit(1)
+
+func _write_json(path: String, value: Dictionary) -> void:
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	file.store_string(JSON.stringify(value))
+	file.close()
 
 func _visible_sprite(blender: Node) -> Sprite2D:
 	for child in blender.get_children():

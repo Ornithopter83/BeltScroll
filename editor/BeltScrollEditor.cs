@@ -102,6 +102,7 @@ internal static class Program
         var contract = JsonDocument.Parse(JsonSerializer.Serialize(doc, JsonOptions)).RootElement;
         if (!contract.TryGetProperty("characters", out _) || !contract.GetProperty("characters")[0].TryGetProperty("max_health", out _) || contract.GetProperty("characters")[0].TryGetProperty("health", out _))
             throw new InvalidOperationException("Serialized model does not match runtime schema v1 field names.");
+        AnimationWorkspaceForm.ContractSelfTest();
     }
 
     internal static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
