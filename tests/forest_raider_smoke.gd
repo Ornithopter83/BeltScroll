@@ -41,6 +41,7 @@ func _run() -> void:
 	_check(raider.global_position.x > 500.0, "raider pursues the player on the x axis")
 	_check(raider.collision_layer == 2 and raider.get_node("AttackArea").collision_mask == 1, "enemy body and attack mask match player combat layers")
 	_check(raider.is_in_group("hit_receivers"), "raider registers in hit_receivers")
+	_check(float(raider.get("windup_duration")) > 0.34 and float(raider.get("windup_duration")) <= 0.5, "default attack windup gives a short defensive tell")
 	var player_scene := (load(PLAYER_SCENE) as PackedScene).instantiate()
 	_check(player_scene.get_node("Hitboxes/Hitbox1").collision_mask == 2, "player attack hitbox targets enemy layer 2")
 	player_scene.free()
@@ -81,6 +82,17 @@ func _run() -> void:
 	await _frames(1)
 	_check(raider.get("attack_phase") == "idle" and not raider.get_node("AttackArea").monitoring, "depth exit cancels windup and disables the attack area")
 	_check(player.hits.is_empty(), "canceled attack does not deliver a hit")
+	raider.set("attack_phase", "active")
+	raider.get_node("AttackArea").monitoring = true
+	raider.receive_hit({"damage": 0, "direction": Vector2.LEFT, "knockback": 360.0, "hit_stun": 0.22, "attack_stage": 1})
+	_check(raider.get("attack_phase") == "idle" and not raider.get_node("AttackArea").monitoring, "incoming hit cancels an active attack immediately")
+	_check((raider.get("hit_reaction_direction") as Vector2).is_equal_approx(Vector2.LEFT) and is_equal_approx(float(raider.get("hit_reaction_strength")), 0.72), "regular hit retains directional, lighter reaction data")
+	var impact_speed := raider.velocity.length()
+	await _frames(3)
+	_check(raider.velocity.length() < impact_speed, "knockback velocity decays during hitstun")
+	raider.receive_hit({"damage": 0, "direction": Vector2.RIGHT, "knockback": 520.0, "hit_stun": 0.3, "attack_stage": 3})
+	_check(is_equal_approx(float(raider.get("hit_reaction_strength")), 1.32) and (raider.get("hit_reaction_direction") as Vector2).is_equal_approx(Vector2.RIGHT), "skill hit has a stronger directional reaction than a regular hit")
+	await _frames(20)
 
 	# Raiders starting at the exact same point separate, keep room, then continue pursuit.
 	var second := packed.instantiate() as CharacterBody2D
@@ -118,6 +130,11 @@ func _run() -> void:
 		max_gap = maxf(max_gap, current_gap)
 	_check(min_gap > 300.0, "point-blank combat does not collapse back into Raider overlap")
 	_check(max_gap - min_gap < 24.0, "Raider spacing stays stable without visible oscillation")
+	player.global_position.y = raider.global_position.y
+	for _frame in range(90):
+		if raider.get("attack_phase") != "idle" or second.get("attack_phase") != "idle":
+			break
+		await physics_frame
 	_check(raider.get("attack_phase") != "idle" or second.get("attack_phase") != "idle", "Raider attacks resume after they have made room")
 	_check(int(second.get("health")) > 0, "live Raiders remain distinct from the defeated Raider")
 	second.queue_free()

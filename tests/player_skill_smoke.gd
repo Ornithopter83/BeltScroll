@@ -22,6 +22,7 @@ class SkillReceiver:
 var failures: Array[String] = []
 var player: CharacterBody2D
 var targets: Array[SkillReceiver] = []
+var skill_recoil_observations: Dictionary = {}
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -29,6 +30,7 @@ func _initialize() -> void:
 func _run() -> void:
 	player = (load(PLAYER_SCENE) as PackedScene).instantiate() as CharacterBody2D
 	root.add_child(player)
+	player.skill_hit.connect(_on_player_skill_hit)
 	player.global_position = Vector2(400.0, 800.0)
 	player.set("facing_direction", Vector2.RIGHT)
 	player.get_node("VisualRoot").scale.x = 1.0
@@ -49,6 +51,7 @@ func _run() -> void:
 	await _wait_for_skill_phase("active", 1)
 	await _wait_for_skill_phase("recovery", 1)
 	_check(dash_target.received_hits.size() == 1, "forward dash area hits its target exactly once")
+	_check(skill_recoil_observations.get(1, false), "skill 1 hit briefly recoils the attacker opposite its lunge")
 	_check(dash_decoy.received_hits.is_empty(), "forward dash lane rejects targets outside its depth")
 	_check(dash_far_decoy.received_hits.is_empty(), "forward dash rejects targets beyond its reach")
 	if not dash_target.received_hits.is_empty():
@@ -71,6 +74,7 @@ func _run() -> void:
 	await _wait_for_skill_phase("active", 2)
 	await _wait_for_skill_phase("recovery", 2)
 	_check(spin_target.received_hits.size() == 1 and spin_edge.received_hits.size() == 1, "spin area reaches targets inside its radius")
+	_check(skill_recoil_observations.get(2, false), "skill 2 hit briefly recoils the attacker")
 	_check(spin_decoy.received_hits.is_empty(), "spin area rejects targets outside its radius")
 	_check(spin_far_decoy.received_hits.is_empty(), "spin area rejects targets beyond its radius")
 	if not spin_target.received_hits.is_empty():
@@ -91,8 +95,11 @@ func _run() -> void:
 	player.set("skill_cooldowns", [0.0, 0.0])
 	player.call("_request_skill", 1)
 	await _wait_for_skill_phase("active", 1)
+	player.set("attack_recoil_remaining", 0.06)
+	player.set("attack_recoil_velocity", Vector2.LEFT * 100.0)
 	player.receive_hit({"damage": 1, "direction": Vector2.LEFT, "knockback": 180.0, "hit_stun": 0.08, "attack_stage": 1})
 	_check(player.get("skill_phase") == "idle" and not player.get_node("Hitboxes/Skill1Hitbox").monitoring, "incoming hit interrupts skill and disables its area")
+	_check(is_zero_approx(float(player.get("attack_recoil_remaining"))) and player.get("attack_recoil_velocity") == Vector2.ZERO, "incoming hit stun cancels any pending attack recoil")
 	_check(player.get("hitstun_remaining") > 0.0, "interruption follows the existing receive_hit hit stun contract")
 	await _frames(12)
 	var x_before_move: float = player.global_position.x
@@ -164,3 +171,7 @@ func _check(condition: bool, description: String) -> void:
 		print("PASS: " + description)
 	else:
 		failures.append(description)
+
+func _on_player_skill_hit(skill: int) -> void:
+	var recoil_velocity: Vector2 = player.get("attack_recoil_velocity")
+	skill_recoil_observations[skill] = float(player.get("attack_recoil_remaining")) > 0.0 and recoil_velocity.length() > 0.0

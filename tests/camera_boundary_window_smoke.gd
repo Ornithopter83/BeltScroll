@@ -93,11 +93,12 @@ func _check_player_silhouette_at_arena_edges(player: CharacterBody2D) -> void:
 	player.set("jump_height_offset", float(player.get("jump_height")))
 	player.set("jump_vertical_velocity", 0.0)
 	visual_root.position.y = -18.0 - float(player.get("jump_height"))
+	_check(float(player.get("jump_height")) >= 110.0 and float(player.get("jump_height")) <= 130.0, "upper-edge silhouette check uses the tuned 110 to 130 pixel jump")
 	var top_screen: Vector2 = player_art.get_global_transform_with_canvas() * alpha_top_local
 	var bottom_screen: Vector2 = player_art.get_global_transform_with_canvas() * alpha_bottom_local
 	var top_screen_y := top_screen.y
 	var bottom_screen_y := bottom_screen.y
-	_check(top_screen_y >= 256.0, "real player alpha head at the upper jump boundary clears the full HUD safe area")
+	_check(top_screen_y >= 256.0, "real player alpha head at the full jump apex clears the HUD without cropping")
 	_check(bottom_screen_y <= EXPECTED_SIZE.y, "real player alpha feet remain visible at the upper jump boundary")
 	await _check_attack_pose_silhouette(player)
 	player.global_position.x = 250.0

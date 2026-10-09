@@ -75,29 +75,42 @@ func _run() -> void:
 	animator.call("_process", 0.2)
 	var windup_rotation := art.rotation
 	var windup_scale := art.scale
-	_check(not is_equal_approx(windup_rotation, art_rotation) or not windup_scale.is_equal_approx(art_scale), "windup creates a preparatory pose")
+	var windup_position := art.position
+	_check(not is_equal_approx(windup_rotation, art_rotation) or not windup_scale.is_equal_approx(art_scale) or not windup_position.is_equal_approx(art_position), "windup creates a preparatory pose")
 	_check(raider.position == root_position and raider.velocity == Vector2.ZERO, "attack poses leave the physics root and velocity untouched")
 	raider.set("attack_phase", "active")
 	animator.call("_process", 0.2)
-	_check(absf(art.rotation - windup_rotation) > 0.005 or art.scale.distance_to(windup_scale) > 0.005, "active phase changes to a distinct strike pose")
+	_check(absf(art.rotation - windup_rotation) > 0.005 or art.scale.distance_to(windup_scale) > 0.005 or art.position.distance_to(windup_position) > 0.005, "active phase changes to a distinct strike pose")
 	var active_rotation := art.rotation
 	var active_scale := art.scale
+	var active_position := art.position
 	_check(_foot_point(art).distance_to(baseline_foot) <= FLOOR_TOLERANCE, "attack poses preserve the foot anchor")
 	raider.set("attack_phase", "recovery")
 	raider.set("attack_phase_remaining", 0.0)
 	for _frame in range(45):
 		animator.call("_process", 1.0 / 60.0)
 	_check(absf(art.rotation - art_rotation) < 0.01 and art.scale.distance_to(art_scale) < 0.004, "recovery smoothly returns to the neutral transform")
-	_check(absf(active_rotation - art_rotation) > 0.02 or active_scale.distance_to(art_scale) > 0.02, "active strike has a readable transform from neutral")
+	_check(absf(active_rotation - art_rotation) > 0.02 or active_scale.distance_to(art_scale) > 0.02 or active_position.distance_to(art_position) > 0.02, "active strike has a readable transform from neutral")
 
 	raider.set("attack_phase", "idle")
 	raider.velocity = Vector2(80.0, 0.0)
 	raider.set("hit_flash_remaining", 0.14)
 	raider.set("hitstun_remaining", 0.2)
+	raider.set("hit_reaction_direction", Vector2.LEFT)
+	raider.set("hit_reaction_strength", 0.72)
 	animator.call("_process", 1.0 / 60.0)
 	_check(absf(art.rotation - art_rotation) > 0.02 or art.scale.distance_to(art_scale) > 0.02, "hit flash and hitstun produce a recoil pose")
 	_check(_foot_point(art).distance_to(baseline_foot) <= FLOOR_TOLERANCE, "hit recoil preserves the foot anchor")
 	_check(raider.position == root_position and raider.velocity == Vector2(80.0, 0.0), "hit recoil leaves physical knockback velocity to the Raider controller")
+	var regular_hit_pose := Vector3(art.rotation, art.scale.x, art.scale.y)
+	raider.set("hit_flash_remaining", 0.16)
+	raider.set("hitstun_remaining", 0.34)
+	raider.set("hit_reaction_strength", 1.32)
+	for _frame in range(8):
+		animator.call("_process", 1.0 / 60.0)
+	var skill_hit_pose := Vector3(art.rotation, art.scale.x, art.scale.y)
+	_check(skill_hit_pose.distance_to(regular_hit_pose) > 0.01, "strong skill hit produces a larger visual reaction than a regular hit")
+	_check(raider.position == root_position and raider.velocity == Vector2(80.0, 0.0), "stronger hit pose remains visual-only")
 
 	raider.set("health", 0)
 	raider.velocity = Vector2.ZERO

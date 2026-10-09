@@ -38,6 +38,7 @@ var failures: Array[String] = []
 var player: CharacterBody2D
 var receivers: Array[HitReceiver] = []
 var depth_decoys: Array[HitReceiver] = []
+var recoil_by_stage: Dictionary = {}
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -46,6 +47,7 @@ func _run() -> void:
 	var packed: PackedScene = load(PLAYER_SCENE) as PackedScene
 	player = packed.instantiate() as CharacterBody2D
 	root.add_child(player)
+	player.attack_hit.connect(_on_player_attack_hit)
 	player.global_position = Vector2(400.0, 800.0)
 	player.set("facing_direction", Vector2.RIGHT)
 	player.get_node("VisualRoot").scale.x = 1.0
@@ -107,7 +109,14 @@ func _run() -> void:
 	_check(not duplicate_impacts, "a receiver never gets duplicate impacts from one hit callback")
 	_check(receivers.all(func(receiver: HitReceiver) -> bool: return not receiver.impact_position_mismatch), "impact effects align to the receiver depth and torso position")
 	_check(damage_by_stage[1] < damage_by_stage[2] and damage_by_stage[2] < damage_by_stage[3], "combo damage scales upward")
+	_check(damage_by_stage[1] == 1.0 and damage_by_stage[2] == 2.0 and damage_by_stage[3] == 3.0, "default Player attack damage preserves the authored 1/2/3 combo values")
+	player.set("attack_damage", 5)
+	_check(player.call("_basic_attack_damage", 1) == 5 and player.call("_basic_attack_damage", 2) == 6 and player.call("_basic_attack_damage", 3) == 7, "edited Player attack damage feeds all combo stages while preserving stage scaling")
+	_check(player.call("_skill_damage", 1) == 7 and player.call("_skill_damage", 2) == 6, "edited Player attack damage feeds skill damage while preserving skill differences")
+	player.set("attack_damage", 1)
 	_check(knockback_by_stage[1] < knockback_by_stage[2] and knockback_by_stage[2] < knockback_by_stage[3], "combo knockback scales upward")
+	_check(recoil_by_stage.size() == 3, "all three combo hits trigger attacker recoil")
+	_check(recoil_by_stage.get(1, false) and recoil_by_stage.get(2, false) and recoil_by_stage.get(3, false), "combo recoil pushes opposite the hit direction and briefly interrupts the attack")
 	_check(player.get("attack_phase") == "idle", "combo returns control after recovery")
 	_check(player.get("attack_progress") == 0.0, "attack progress resets after combo completion")
 
@@ -242,3 +251,7 @@ func _check(condition: bool, description: String) -> void:
 		print("PASS: " + description)
 	else:
 		failures.append(description)
+
+func _on_player_attack_hit(stage: int) -> void:
+	var recoil_velocity: Vector2 = player.get("attack_recoil_velocity")
+	recoil_by_stage[stage] = float(player.get("attack_recoil_remaining")) > 0.0 and recoil_velocity.x < 0.0

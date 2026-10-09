@@ -20,12 +20,15 @@ var _attack_hits := {1: 0, 2: 0, 3: 0}
 var _raider_hits := {1: 0, 2: 0, 3: 0}
 var _hitstop_seen := {1: false, 2: false, 3: false}
 var _hit_targets: Dictionary = {}
+var _hitstun_at_contact: Dictionary = {}
 var _live_pressed: Array[StringName] = []
 var _sample_stage := 0
 var _sample_stage_hitbox: Area2D
 var _combat_monitor_active := false
 var _last_observed_phase := ""
 var _last_observed_hitstop := false
+var _phase_frame_counts: Dictionary = {}
+var _phase_hitbox_mismatches: Dictionary = {}
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -95,9 +98,12 @@ func _run() -> void:
 	await _physics_frames(2)
 	var combat_ok := await _run_live_combo()
 	if combat_ok:
+		for stage in range(1, 4):
+			_check(int(_phase_frame_counts.get("%d:active" % stage, 0)) > 0, "attack %d active phase is sampled across real physics frames" % stage)
+			_check(int(_phase_hitbox_mismatches.get(stage, 0)) == 0, "attack %d hitbox is enabled exactly while its active phase is sampled" % stage)
 		_check(_attack_hits[1] > 0 and _attack_hits[2] > 0 and _attack_hits[3] > 0, "all three attack_hit signals came from live active hitboxes")
 		_check(_hitstop_seen[1] and _hitstop_seen[2] and _hitstop_seen[3], "hit-stop was observed during all three real hit events")
-		await _capture_timeline("07 · COMBO COMPLETE", "Three live attack phases · confirmed health and hit events")
+		await _capture_timeline("09 · COMBO COMPLETE", "Three live attack phases · confirmed health and hit events")
 	if _trace.size() > 0:
 		print("combat-live-session trace:\n" + "\n".join(_trace))
 	if _failures.is_empty():
@@ -142,6 +148,9 @@ func _run_live_combo() -> bool:
 		var overlap_count := _sample_stage_hitbox.get_overlapping_bodies().size()
 		_trace.append("stage %d active: physics=%d phase=%s hitbox=%s overlaps=%d health=%d time_scale=%.3f" % [stage, Engine.get_physics_frames(), _player.attack_phase, hitbox_active, overlap_count, int(target.get("health")), Engine.time_scale])
 		_check(hitbox_active, "attack %d active phase enables its actual Area2D hitbox" % stage)
+		# Read the live Window immediately on the first observed active physics
+		# frame. Waiting for a pose-blend update first can outlast this short phase.
+		await _capture_timeline("0%d · ATTACK %d ACTIVE" % [stage * 2 + 2, stage], "physics=%d · hitbox monitoring=%s" % [Engine.get_physics_frames(), hitbox_active], 0)
 		var blender := _player.get_node("VisualRoot/PoseBlender")
 		var expected_key := "attack%d_contact" % stage
 		var expected_path := APPROVED_ATTACK1
@@ -153,12 +162,11 @@ func _run_live_combo() -> bool:
 		_check(pose_ready, "attack %d displays its approved contact keypose" % stage)
 		# Capture runs independently; its render/readback waits must not delay the
 		# physical-frame event observer or the next recovery input.
-		call_deferred("_capture_timeline", "0%d · ATTACK %d ACTIVE" % [stage + 3, stage], "physics=%d · hitbox monitoring=%s" % [Engine.get_physics_frames(), hitbox_active])
 		var hit_seen := await _wait_for_hit(stage)
 		_check(hit_seen, "attack %d emits its actual hit signal" % stage)
 		_check(_raider_hits[target_index + 1] > int(start_receives[target_index + 1]), "attack %d target emits raider_hit" % stage)
 		_check(int(target.get("health")) < int(start_health[target_index + 1]), "attack %d reduces real Raider health" % stage)
-		_check(float(target.get("hitstun_remaining")) > 0.0, "attack %d applies real Raider hit-stun" % stage)
+		_check(float(_hitstun_at_contact.get(stage, 0.0)) > 0.0, "attack %d applies real Raider hit-stun at its contact event" % stage)
 		_check(_attack_hits[stage] > int(start_attacks[stage]), "attack %d hit signal corresponds to a live hitbox overlap" % stage)
 		_check(hitbox_active and overlap_count > 0, "attack %d is recorded with its enabled live hitbox overlapping a body" % stage)
 		# Move the completed receiver away to make each strike's health and signal
@@ -178,6 +186,8 @@ func _run_live_combo() -> bool:
 			_check(recovery_seen, "attack %d reaches recovery before its combo input buffer press" % stage)
 			if not recovery_seen:
 				return false
+			if stage == 2:
+				await _capture_timeline("07 · ATTACK 2 RECOVERY", "stage 2 return motion · temporary transforms · physics=%d" % Engine.get_physics_frames(), 0)
 			var next_target_distance := 58.0 if stage == 1 else 100.0
 			_raiders[target_index + 1].global_position = _player.global_position + _player.facing_direction * next_target_distance
 			_reset_raider_for_live_combo(_raiders[target_index + 1])
@@ -187,6 +197,8 @@ func _run_live_combo() -> bool:
 			_check(next_started, "combo buffer advances from attack %d to attack %d" % [stage, stage + 1])
 			if not next_started:
 				return false
+			if stage + 1 == 2:
+				await _capture_timeline("05 · ATTACK 2 STARTUP", "stage 2 v8 alignment · temporary turn motion · physics=%d" % Engine.get_physics_frames(), 0)
 	var final_recovery_seen := await _wait_for_stage_phase(3, "recovery")
 	_check(final_recovery_seen, "attack 3 reaches its real recovery phase after contact and hit-stop")
 	if not final_recovery_seen:
@@ -269,8 +281,14 @@ func _monitor_combat_physics() -> void:
 		var stage := int(_player.get("attack_stage"))
 		var phase := str(_player.get("attack_phase"))
 		var phase_key := "%d:%s" % [stage, phase]
+		if stage >= 1 and stage <= 3 and phase in ["startup", "active", "recovery"]:
+			_phase_frame_counts[phase_key] = int(_phase_frame_counts.get(phase_key, 0)) + 1
+			var active_expected := phase == "active"
+			var stage_hitbox := _player.get_node("Hitboxes/Hitbox%d" % stage) as Area2D
+			if stage_hitbox.monitoring != active_expected:
+				_phase_hitbox_mismatches[stage] = int(_phase_hitbox_mismatches.get(stage, 0)) + 1
 		if phase_key != _last_observed_phase:
-			_trace.append("combat phase physics=%d stage=%d phase=%s remaining=%.4f buffer=%.4f" % [physics_frame_number, stage, phase, float(_player.get("attack_phase_remaining")), float(_player.get("attack_buffer_remaining"))])
+			_trace.append("combat phase physics=%d stage=%d phase=%s remaining=%.4f hitbox_active_frames=%d mismatches=%d buffer=%.4f" % [physics_frame_number, stage, phase, float(_player.get("attack_phase_remaining")), int(_phase_frame_counts.get(phase_key, 0)), int(_phase_hitbox_mismatches.get(stage, 0)), float(_player.get("attack_buffer_remaining"))])
 			_last_observed_phase = phase_key
 		var hitstop_active := Engine.time_scale < 0.99
 		if hitstop_active:
@@ -287,6 +305,8 @@ func _monitor_combat_physics() -> void:
 func _on_attack_hit(stage: int) -> void:
 	_attack_hits[stage] = int(_attack_hits.get(stage, 0)) + 1
 	_hit_targets[stage] = true
+	if stage >= 1 and stage <= _raiders.size():
+		_hitstun_at_contact[stage] = float(_raiders[stage - 1].get("hitstun_remaining"))
 	call_deferred("_observe_hitstop", stage)
 	call_deferred("_retain_latest_real_impact")
 
@@ -352,25 +372,38 @@ func _physics_frames(count: int) -> void:
 		await physics_frame
 		_sample_physics()
 
-func _capture_timeline(title: String, subtitle: String) -> void:
+func _capture_timeline(title: String, subtitle: String, warmup_frames := 2) -> void:
 	if _expired():
 		_check(false, "capture completes before the overall time limit")
 		return
+	if title.contains("ATTACK 2 STARTUP"):
+		_check(int(_player.get("attack_stage")) == 2 and str(_player.get("attack_phase")) == "startup", "stage two startup Window frame is captured inside the real startup phase")
+	if title.contains("ATTACK 1 ACTIVE") or title.contains("ATTACK 2 ACTIVE") or title.contains("ATTACK 3 ACTIVE"):
+		var expected_stage := 1 if title.contains("ATTACK 1 ACTIVE") else (2 if title.contains("ATTACK 2 ACTIVE") else 3)
+		_check(int(_player.get("attack_stage")) == expected_stage and str(_player.get("attack_phase")) == "active", "stage %d active Window frame is captured inside the real active phase" % expected_stage)
+	elif title.contains("ATTACK 2 RECOVERY"):
+		_check(int(_player.get("attack_stage")) == 2 and str(_player.get("attack_phase")) == "recovery", "stage two recovery Window frame is captured inside the real recovery phase")
 	_player.queue_redraw()
 	(_player.get_node("VisualRoot/PlayerArt") as Sprite2D).queue_redraw()
 	(_player.get_node("VisualRoot/PoseBlender") as Node2D).queue_redraw()
 	for raider in _raiders:
 		raider.queue_redraw()
 		(raider.get_node("VisualRoot/RaiderArt") as Sprite2D).queue_redraw()
-	for _frame in range(4):
-		await process_frame
-		await RenderingServer.frame_post_draw
+	var image: Image
+	if warmup_frames <= 0:
+		# Phase-specific keyposes must be sampled without waiting for more physics
+		# ticks; active windows are shorter than a slow Window readback cycle.
+		image = root.get_texture().get_image()
+	else:
+		for _frame in range(warmup_frames):
+			await process_frame
+			await RenderingServer.frame_post_draw
+		image = root.get_texture().get_image()
 	if is_instance_valid(_player):
 		var art := _player.get_node("VisualRoot/PlayerArt") as Sprite2D
 		var camera := _player.get_node("Camera2D") as Camera2D
-		_trace.append("render %s: player=%s canvas=%s art_visible=%s in_tree=%s scale=%s modulate=%s texture=%s camera=%s current=%s viewport=%s" % [title, _player.global_position, art.get_global_transform_with_canvas().origin, art.visible, art.is_visible_in_tree(), art.global_scale, art.modulate, art.texture.get_size() if art.texture != null else Vector2.ZERO, camera.global_position, camera.is_current(), root.get_visible_rect().size])
-	var image := root.get_texture().get_image()
-	_check(image != null and not image.is_empty() and image.get_size() == CAPTURE_SIZE, "'%s' is captured from the real 1920x1080 Window Viewport after frame_post_draw" % title)
+		_trace.append("render %s: physics=%d stage=%d phase=%s remaining=%.4f player=%s canvas=%s art_visible=%s in_tree=%s scale=%s modulate=%s texture=%s camera=%s current=%s viewport=%s" % [title, Engine.get_physics_frames(), int(_player.get("attack_stage")), str(_player.get("attack_phase")), float(_player.get("attack_phase_remaining")), _player.global_position, art.get_global_transform_with_canvas().origin, art.visible, art.is_visible_in_tree(), art.global_scale, art.modulate, art.texture.get_size() if art.texture != null else Vector2.ZERO, camera.global_position, camera.is_current(), root.get_visible_rect().size])
+	_check(image != null and not image.is_empty() and image.get_size() == CAPTURE_SIZE, "'%s' is captured from the real 1920x1080 Window Viewport readback" % title)
 	if image != null and not image.is_empty() and image.get_size() == CAPTURE_SIZE:
 		_check(await _captured_characters_are_visible(image), "'%s' contains a rendered scene and visible combat actors in the Window capture" % title)
 		_timeline.append({"title": title, "subtitle": subtitle, "image": image})
@@ -414,16 +447,19 @@ func _build_comparison_board() -> void:
 	header.add_theme_font_size_override("font_size", 27)
 	header.add_theme_color_override("font_color", Color("#f1e8cd"))
 	board.add_child(header)
-	var cell_w := 456.0
-	var cell_h := 256.5
-	var start_y := 84.0
+	# Nine chronological frames fit in a 3x3 board, including the final combo
+	# completion frame. The previous 4-column layout clipped row three below the
+	# 1080px viewport and hid that final result.
+	var cell_w := 480.0
+	var cell_h := 270.0
+	var start_y := 76.0
 	for index in range(_timeline.size()):
 		var item: Dictionary = _timeline[index]
 		var texture := ImageTexture.create_from_image(item["image"] as Image)
-		var col := index % 4
-		var row := index / 4
-		var x := 24.0 + float(col) * 472.0
-		var y := start_y + float(row) * 492.0
+		var col := index % 3
+		var row := index / 3
+		var x := 112.0 + float(col) * 608.0
+		var y := start_y + float(row) * 328.0
 		var title := Label.new()
 		title.text = str(item["title"])
 		title.position = Vector2(x, y)

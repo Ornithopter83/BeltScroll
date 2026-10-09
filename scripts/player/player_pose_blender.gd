@@ -21,6 +21,7 @@ var _current_key := "idle"
 var _transition_from := 0
 var _transition_to := 0
 var _transition_elapsed := 0.0
+var _active_transition_duration := 0.0
 var _transitioning := false
 var _facing_left := false
 var _ko := false
@@ -83,9 +84,9 @@ func approve_pose_texture(action: String, phase: String, texture_source: Variant
 
 ## action is idle, attack1, attack2, or attack3. Attack phases are startup, contact,
 ## and recovery. Unknown/unapproved/missing poses safely resolve to the approved v8 still.
-func set_pose(action: String, phase: String = "") -> void:
+func set_pose(action: String, phase: String = "", transition_duration := -1.0) -> void:
 	_clear_sequence()
-	_select_pose(action, phase)
+	_select_pose(action, phase, transition_duration)
 
 ## Plays an explicitly approved sequence. Each item must already have been
 ## approved through approve_pose_texture; unapproved in-between art is rejected.
@@ -115,7 +116,7 @@ func get_sequence_frame_count() -> int:
 func get_sequence_elapsed() -> float:
 	return _sequence_elapsed
 
-func _select_pose(action: String, phase: String = "") -> void:
+func _select_pose(action: String, phase: String = "", transition_duration := -1.0) -> void:
 	if _ko:
 		_request_texture("idle", _load_safe_idle())
 		return
@@ -130,7 +131,7 @@ func _select_pose(action: String, phase: String = "") -> void:
 			key = "idle"
 	else:
 		key = "idle"
-	_request_texture(key, texture)
+	_request_texture(key, texture, false, transition_duration)
 
 func set_facing_left(facing_left: bool) -> void:
 	_facing_left = facing_left
@@ -155,6 +156,16 @@ func interrupt_to_idle() -> void:
 func get_current_pose_key() -> String:
 	return _current_key
 
+func get_pose_art_status() -> String:
+	if _current_key == "idle":
+		return "approved v8 still; temporary transform motion"
+	return "approved contact keypose; temporary transform motion"
+
+func get_transition_progress() -> float:
+	if not _transitioning or _active_transition_duration <= 0.0:
+		return 1.0
+	return clampf(_transition_elapsed / _active_transition_duration, 0.0, 1.0)
+
 func get_displayed_textures() -> Array[Texture2D]:
 	var result: Array[Texture2D] = []
 	for sprite in _sprites:
@@ -166,8 +177,8 @@ func _process(delta: float) -> void:
 	_advance_sequence(delta)
 	if not _transitioning:
 		return
-	_transition_elapsed = minf(_transition_elapsed + maxf(delta, 0.0), crossfade_duration)
-	var blend := 1.0 if crossfade_duration <= 0.0 else clampf(_transition_elapsed / crossfade_duration, 0.0, 1.0)
+	_transition_elapsed = minf(_transition_elapsed + maxf(delta, 0.0), _active_transition_duration)
+	var blend := 1.0 if _active_transition_duration <= 0.0 else clampf(_transition_elapsed / _active_transition_duration, 0.0, 1.0)
 	_sprites[_transition_from].modulate.a = 1.0 - blend
 	_sprites[_transition_to].modulate.a = blend
 	if blend >= 1.0:
@@ -199,7 +210,7 @@ func _clear_sequence() -> void:
 	_sequence_frame = 0
 	_sequence_loop = false
 
-func _request_texture(key: String, texture: Texture2D, immediate := false) -> void:
+func _request_texture(key: String, texture: Texture2D, immediate := false, transition_duration := -1.0) -> void:
 	if not _texture_is_usable(texture):
 		key = "idle"
 		texture = _load_safe_idle()
@@ -228,8 +239,9 @@ func _request_texture(key: String, texture: Texture2D, immediate := false) -> vo
 	_transition_from = source
 	_transition_to = target
 	_transition_elapsed = 0.0
+	_active_transition_duration = crossfade_duration if transition_duration < 0.0 else maxf(transition_duration, 0.0)
 	_current_key = key
-	if immediate or not _sprites[source].visible or crossfade_duration <= 0.0:
+	if immediate or not _sprites[source].visible or _active_transition_duration <= 0.0:
 		_sprites[source].visible = false
 		_sprites[source].modulate.a = 0.0
 		_sprites[target].modulate.a = 1.0

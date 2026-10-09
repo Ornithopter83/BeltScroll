@@ -114,6 +114,19 @@ func _run() -> void:
 	_check(absf(third_active.rotation) > absf(second_active.rotation) + 0.04 and third_active.scale.y / authored_scale.y < second_active.scale.y / authored_scale.y - 0.025, "third combo active pose has clearly stronger rotation and compression than stage two")
 	_check(absf(second_active.rotation) > absf(stage_one_active.rotation) + 0.04 and second_active.scale.x > stage_one_active.scale.x, "second combo strike reads stronger than the first")
 	_check(third_start.scale.y > third_active.scale.y and absf(third_active.rotation) > absf(third_start.rotation), "third combo startup and active poses are distinct")
+	_check(animator_nodes[8].get_state_frame_count() == 5 and animator_nodes[8].get_pose_art_status().contains("approved contact"), "stage two contact exposes timed temporary transform motion while retaining approved art status")
+	var stage_two := poses[8]
+	var stage_two_animator := animator_nodes[8]
+	_set_attack(stage_two, 2, "active", 0.12)
+	stage_two_animator.call("_process", 1.0 / 60.0)
+	var early_turn := (stage_two.get_node("VisualRoot/PlayerArt") as Sprite2D).rotation
+	_set_attack(stage_two, 2, "active", 0.06)
+	for _frame in range(3):
+		stage_two_animator.call("_process", 1.0 / 60.0)
+	var late_turn := (stage_two.get_node("VisualRoot/PlayerArt") as Sprite2D).rotation
+	_check(absf(early_turn - late_turn) > 0.025, "stage two turns progressively from the v8-ready alignment toward the approved contact")
+	_check(_foot_point(stage_two).distance_to(_baseline_foot(stage_two)) <= FLOOR_TOLERANCE, "stage two turn keeps its alpha-foot anchor fixed")
+	_check(stage_two_animator.get_state_elapsed() > 0.05 and stage_two_animator.get_state_elapsed() < 0.07, "stage two phase clock follows real attack_phase_remaining")
 	var left_player := poses[10]
 	var left_animator := animator_nodes[10]
 	var right_player := packed.instantiate() as CharacterBody2D
@@ -149,10 +162,12 @@ func _run() -> void:
 	left_player.set("is_ko", true)
 	left_player.set("attack_phase", "startup")
 	left_player.set("attack_stage", 1)
+	left_player.set("attack_phase_remaining", 0.075)
 	left_animator.call("_process", 1.0 / 60.0)
 	_check(left_animator.get_animation_state() == "ko", "KO preempts an in-flight attack state")
 	left_player.set("is_ko", false)
 	left_player.set("attack_phase", "startup")
+	left_player.set("attack_phase_remaining", 0.075)
 	left_animator.call("_process", 1.0 / 60.0)
 	_check(left_animator.get_animation_state() == "attack1_startup" and left_animator.get_state_elapsed() == 0.0, "rapid state changes reset the active state clock")
 

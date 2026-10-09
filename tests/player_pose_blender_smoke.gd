@@ -72,6 +72,14 @@ func _run() -> void:
 	_check(blender.get_displayed_textures().size() == 2, "interrupted transition is reduced to a two-sprite handoff")
 	blender._process(FADE)
 	_check(_visible_texture(blender) == fixtures["attack3_contact"], "interrupted transition settles on the latest requested pose")
+	blender.set_pose("attack2", "startup")
+	blender._process(FADE)
+	blender.set_pose("attack2", "contact", 0.10)
+	blender._process(0.025)
+	_check(blender.get_current_pose_key() == "attack2_contact" and is_equal_approx(blender.get_transition_progress(), 0.25), "stage two contact uses its longer timed blend from the approved v8 still")
+	_check(blender.get_pose_art_status().contains("approved contact"), "contact metadata identifies approved key art with temporary transforms")
+	blender._process(0.075)
+	_check(blender.get_transition_progress() == 1.0 and _visible_texture(blender) == fixtures["attack2_contact"], "stage two transition completes at its configured duration")
 
 	# A pause inherited from the SceneTree must freeze the in-flight fade.
 	blender.set_pose("attack1", "recovery")

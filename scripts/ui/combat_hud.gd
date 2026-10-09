@@ -178,9 +178,6 @@ func _update_raider_indicator(raider: Node2D, raider_id: int) -> void:
 	var viewport_rect := Rect2(Vector2.ZERO, view_size)
 	# Never clamp an off-screen Raider to a viewport edge: that makes a remote
 	# enemy look as if it were beside the player. Hide partially clipped bars too.
-	if screen_head.y < HUD_TOP_CLEARANCE:
-		root_control.visible = false
-		return
 	indicator_position = _choose_raider_indicator_position(raider, indicator_position, viewport_rect)
 	if indicator_position.x < 0.0:
 		root_control.visible = false
@@ -207,24 +204,30 @@ func _choose_raider_indicator_position(raider: Node2D, preferred: Vector2, viewp
 				blocker_bounds.append(bounds)
 	var best := Vector2(-1.0, -1.0)
 	var best_score := INF
-	# Keep the bar above the alpha head, but slide it sideways when a nearby
-	# Player or Raider silhouette would otherwise sit directly under the label.
-	for offset in [0.0, -56.0, 56.0, -112.0, 112.0, -168.0, 168.0]:
-		var candidate := preferred + Vector2(offset, 0.0)
+	var candidates: Array[Vector2] = []
+	# Prefer the familiar position just above the alpha head. If that position is
+	# clipped by the fixed HUD, try a readable row below the head; tall sprites can
+	# otherwise lose their health indicator even while the Raider is on screen.
+	var vertical_positions := [preferred.y, maxf(HUD_TOP_CLEARANCE + 4.0, preferred.y + 48.0)]
+	for vertical_index in range(vertical_positions.size()):
+		var candidate_y := float(vertical_positions[vertical_index])
+		var offsets := [0.0, -56.0, 56.0, -112.0, 112.0, -168.0, 168.0, -224.0, 224.0, -280.0, 280.0, -336.0, 336.0, -392.0, 392.0, -448.0, 448.0]
+		for offset in offsets:
+			candidates.append(Vector2(preferred.x + float(offset), candidate_y))
+	for candidate in candidates:
 		var rect := Rect2(candidate, RAIDER_INDICATOR_SIZE)
 		if not viewport_rect.encloses(rect):
 			continue
 		if _overlaps_fixed_hud(rect):
 			continue
-		var score := absf(offset) * 2.0
-		var obstructed := false
+		var score := absf(candidate.x - preferred.x) * 2.0 + absf(candidate.y - preferred.y) * 3.0
+		var actor_overlap := 0.0
 		for actor_bounds in blocker_bounds:
-			var overlap := rect.intersection(actor_bounds).get_area()
-			if overlap > 0.0:
-				obstructed = true
-				break
-		if obstructed:
-			continue
+			actor_overlap += rect.intersection(actor_bounds).get_area()
+		# Prefer clear placements. If a large sprite fills all nearby choices,
+		# keep the indicator readable at the least-overlapping on-screen position
+		# instead of hiding it for a living Raider.
+		score += actor_overlap * 100.0
 		if score < best_score:
 			best_score = score
 			best = candidate

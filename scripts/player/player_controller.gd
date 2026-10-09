@@ -8,9 +8,10 @@ signal skill_started(skill_id: int)
 signal skill_hit(skill_id: int)
 
 @export var walk_speed: float = 280.0
+@export var attack_damage: int = 1
 @export var arena_bounds: Rect2 = Rect2(Vector2(237, 722), Vector2(1446, 258))
-@export var jump_height: float = 54.0
-@export var jump_velocity: float = 360.0
+@export var jump_height: float = 120.0
+@export var jump_velocity: float = 536.66
 @export var jump_buffer_time: float = 0.12
 @export var coyote_time: float = 0.10
 @export var released_jump_gravity_multiplier: float = 2.4
@@ -41,6 +42,8 @@ const BLOCK_KNOCKBACK_MULTIPLIER := 0.35
 const BLOCK_HITSTUN_MULTIPLIER := 0.5
 const KNOCKBACK := [210.0, 310.0, 440.0]
 const HIT_STOP := [0.035, 0.055, 0.08]
+const ATTACK_RECOIL_DURATION := [0.055, 0.07, 0.085]
+const ATTACK_RECOIL_SPEED := [105.0, 135.0, 165.0]
 const CAMERA_TRAUMA := [0.12, 0.22, 0.34]
 const INPUT_BUFFER_TIME := 0.24
 const COMBAT_IMPACT_SCENE := preload("res://scenes/vfx/combat_impact.tscn")
@@ -55,6 +58,8 @@ const SKILL_KNOCKBACK := [520.0, 360.0]
 const SKILL_HIT_STUN := [0.42, 0.32]
 const SKILL_COOLDOWN := [1.35, 1.8]
 const SKILL_LUNGE := 120.0
+const SKILL_RECOIL_DURATION := 0.08
+const SKILL_RECOIL_SPEED := 175.0
 
 var facing_direction := Vector2.DOWN
 var jump_vertical_velocity := 0.0
@@ -81,6 +86,8 @@ var _saved_time_scale := 1.0
 var _hit_stop_active := false
 var _combat_impacts: Array[Node2D] = []
 var _attack_hit_emitted := false
+var attack_recoil_remaining := 0.0
+var attack_recoil_velocity := Vector2.ZERO
 var _ground_distance_since_dust := 0.0
 var _ground_dust_instances: Array[Node2D] = []
 var skill_id := 0
@@ -133,6 +140,10 @@ func _physics_process(delta: float) -> void:
 	if hitstun_remaining > 0.0:
 		hitstun_remaining = maxf(0.0, hitstun_remaining - delta)
 		velocity = velocity.move_toward(Vector2.ZERO, 900.0 * delta)
+	elif attack_recoil_remaining > 0.0:
+		attack_recoil_remaining = maxf(0.0, attack_recoil_remaining - delta)
+		velocity = attack_recoil_velocity
+		attack_recoil_velocity = attack_recoil_velocity.move_toward(Vector2.ZERO, 1200.0 * delta)
 	elif attack_phase == "idle" and skill_phase == "idle" and not is_blocking:
 		velocity = input_direction.normalized() * walk_speed if input_direction.length_squared() > 0.0 else Vector2.ZERO
 	elif is_blocking:
@@ -387,13 +398,14 @@ func _check_skill_hitbox() -> void:
 			direction = facing_direction
 		var combat_stage := 3 if skill_id == 1 else 2
 		target.receive_hit({
-			"damage": SKILL_DAMAGE[skill_id - 1],
+			"damage": _skill_damage(skill_id),
 			"direction": direction,
 			"knockback": SKILL_KNOCKBACK[skill_id - 1],
 			"hit_stun": SKILL_HIT_STUN[skill_id - 1],
 			"attack_stage": combat_stage,
 			"skill_id": skill_id,
 		})
+		_start_attack_recoil(direction, SKILL_RECOIL_DURATION, SKILL_RECOIL_SPEED)
 		skill_hit.emit(skill_id)
 		_spawn_combat_impact(target, combat_stage, direction)
 		_trigger_hit_stop(0.06 if skill_id == 1 else 0.045)
@@ -427,19 +439,37 @@ func _check_stage_hitbox(stage: int) -> void:
 		if direction == Vector2.ZERO:
 			direction = facing_direction
 		var hit := {
-			"damage": 1 + (stage - 1),
+			"damage": _basic_attack_damage(stage),
 			"direction": direction,
 			"knockback": KNOCKBACK[stage - 1],
 			"hit_stun": 0.14 + stage * 0.055,
 			"attack_stage": stage,
 		}
 		target.receive_hit(hit)
+		_start_attack_recoil(direction, ATTACK_RECOIL_DURATION[stage - 1], ATTACK_RECOIL_SPEED[stage - 1])
 		if not _attack_hit_emitted:
 			_attack_hit_emitted = true
 			attack_hit.emit(stage)
 		_spawn_combat_impact(target, stage, direction)
 		_trigger_hit_stop(HIT_STOP[stage - 1])
 		_add_camera_trauma(CAMERA_TRAUMA[stage - 1])
+
+func _basic_attack_damage(stage: int) -> int:
+	return maxi(0, attack_damage) + maxi(0, stage - 1)
+
+func _skill_damage(selected_skill: int) -> int:
+	if selected_skill < 1 or selected_skill > SKILL_DAMAGE.size():
+		return 0
+	return maxi(0, attack_damage) + SKILL_DAMAGE[selected_skill - 1] - 1
+
+func _start_attack_recoil(hit_direction: Vector2, duration: float, speed: float) -> void:
+	if is_ko or hitstun_remaining > 0.0:
+		return
+	var recoil_direction := -hit_direction.normalized()
+	if recoil_direction == Vector2.ZERO:
+		recoil_direction = -facing_direction
+	attack_recoil_remaining = maxf(attack_recoil_remaining, duration)
+	attack_recoil_velocity = recoil_direction * speed
 
 func _spawn_combat_impact(target: Node2D, stage: int, direction: Vector2) -> void:
 	if is_ko or not is_instance_valid(target) or not target.is_inside_tree():
@@ -484,6 +514,8 @@ func receive_hit(hit: Dictionary) -> void:
 	if not hit.has("damage") or not hit.has("direction") or not hit.has("knockback") or not hit.has("hit_stun") or not hit.has("attack_stage"):
 		return
 	_cancel_skill()
+	attack_recoil_remaining = 0.0
+	attack_recoil_velocity = Vector2.ZERO
 	player_hit.emit(int(hit["attack_stage"]))
 	var direction: Vector2 = hit["direction"]
 	if direction.length_squared() > 0.0:

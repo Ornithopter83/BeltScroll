@@ -7,6 +7,7 @@ const HIT_FLASH_DURATION := 0.12
 const ATTACK_STARTUP := [0.075, 0.085, 0.10]
 const ATTACK_ACTIVE := [0.105, 0.12, 0.14]
 const ATTACK_RECOVERY := [0.20, 0.22, 0.28]
+const ATTACK_TEMPORARY_MOTION_FRAMES := 5
 
 @onready var player: CharacterBody2D = get_parent() as CharacterBody2D
 @onready var art: Sprite2D = player.get_node("VisualRoot/PlayerArt") as Sprite2D
@@ -122,12 +123,13 @@ func _process(delta: float) -> void:
 			var breath := sin(_state_elapsed * TAU / TEMPORARY_STATE_DURATIONS["idle"])
 			target_rotation += breath * 0.004
 			target_scale *= Vector2(1.0 + breath * 0.002, 1.0 + breath * 0.003)
-	if is_current_pose_temporary() and _state_frame_count > 1 and _animation_state != "walk" and _animation_state != "idle":
+	if _animation_state.begins_with("attack") and _state_frame_count > 1:
 		# Small timed transform keys are an explicitly temporary stand-in until
 		# approved artwork exists for this action's missing in-between frames.
 		var frame_wave := sin(TAU * float(_state_frame) / float(_state_frame_count))
-		target_rotation += frame_wave * 0.006 * facing_sign
-		target_scale *= Vector2(1.0 + frame_wave * 0.003, 1.0 - frame_wave * 0.003)
+		var motion_weight := 1.0 if is_current_pose_temporary() else 0.45
+		target_rotation += frame_wave * 0.009 * facing_sign * motion_weight
+		target_scale *= Vector2(1.0 + frame_wave * 0.004 * motion_weight, 1.0 - frame_wave * 0.004 * motion_weight)
 
 	var blend := 1.0 - exp(-FOLLOW_SPEED * maxf(delta, 0.0))
 	_pose_rotation = lerpf(_pose_rotation, target_rotation, blend)
@@ -152,6 +154,13 @@ func get_state_frame_count() -> int:
 func is_current_pose_temporary() -> bool:
 	return not _animation_state.begins_with("attack") or not _animation_state.ends_with("_contact")
 
+func get_pose_art_status() -> String:
+	if _animation_state.begins_with("attack") and _animation_state.ends_with("_contact"):
+		return "approved contact keypose; temporary transform motion"
+	if _animation_state.begins_with("attack"):
+		return "temporary transform; approved intermediate art unavailable"
+	return "temporary transform; approved frame art unavailable"
+
 func _resolve_animation_state(jumping: bool) -> String:
 	if player.get("is_ko") == true:
 		return "ko"
@@ -172,10 +181,16 @@ func _update_animation_clock(next_state: String, delta: float) -> void:
 		_animation_state = next_state
 		_state_elapsed = 0.0
 		_state_frame = 0
-		_state_frame_count = 1 if next_state == "ko" else (4 if next_state == "walk" else (3 if next_state.begins_with("attack") else 2))
+		_state_frame_count = 1 if next_state == "ko" else (4 if next_state == "walk" else (ATTACK_TEMPORARY_MOTION_FRAMES if next_state.begins_with("attack") else 2))
 	else:
 		_state_elapsed += maxf(delta, 0.0)
 	var duration: float = TEMPORARY_STATE_DURATIONS.get(_animation_state, 0.16)
+	if _animation_state.begins_with("attack"):
+		# The combat controller owns this timer. Deriving elapsed time from its
+		# remaining value keeps pose keys and the real hitbox window in lockstep,
+		# including hit-stop and variable render frame rates.
+		var phase_remaining := maxf(0.0, float(player.get("attack_phase_remaining")))
+		_state_elapsed = clampf(duration - phase_remaining, 0.0, duration)
 	_state_frame = posmod(int(floor(_state_elapsed / maxf(duration / float(_state_frame_count), 0.001))), _state_frame_count)
 
 func _update_approved_attack_pose() -> void:
@@ -196,7 +211,12 @@ func _update_approved_attack_pose() -> void:
 	var action := "attack%d" % stage
 	var pose_phase := "contact" if phase == "active" else phase
 	pose_blender.sync_from_art(art)
-	pose_blender.set_pose(action, pose_phase)
+	var fade_duration := 0.055
+	if pose_phase == "contact":
+		fade_duration = [0.060, 0.095, 0.075][stage - 1]
+	elif pose_phase == "recovery":
+		fade_duration = [0.075, 0.085, 0.10][stage - 1]
+	pose_blender.set_pose(action, pose_phase, fade_duration)
 	pose_blender.visible = true
 	art.visible = false
 
@@ -213,18 +233,34 @@ func _apply_attack_pose(facing_sign: float) -> void:
 	var scale_factor := Vector2.ONE
 	match phase:
 		"startup":
-			amount = 1.0 - clampf(remaining / ATTACK_STARTUP[index], 0.0, 1.0)
+			var progress := _attack_phase_progress(index, phase, remaining)
+			amount = _ease_in_out(progress)
 			rotation_offset = facing_sign * [0.045, 0.075, 0.12][index] * amount
 			scale_factor = Vector2(1.0 - [0.025, 0.045, 0.075][index] * amount, 1.0 + [0.018, 0.035, 0.065][index] * amount)
 		"active":
-			rotation_offset = -facing_sign * [0.11, 0.19, 0.31][index]
-			scale_factor = Vector2(1.0 + [0.04, 0.075, 0.12][index], 1.0 - [0.035, 0.065, 0.105][index])
+			var progress := _attack_phase_progress(index, phase, remaining)
+			var contact_blend := 1.0 if index != 1 else _ease_in_out(clampf(progress / 0.42, 0.0, 1.0))
+			rotation_offset = lerpf(facing_sign * [0.045, 0.075, 0.12][index], -facing_sign * [0.11, 0.19, 0.31][index], contact_blend)
+			scale_factor = Vector2.ONE.lerp(Vector2(1.0 + [0.04, 0.075, 0.12][index], 1.0 - [0.035, 0.065, 0.105][index]), contact_blend)
 		"recovery":
-			amount = clampf(remaining / ATTACK_RECOVERY[index], 0.0, 1.0)
-			rotation_offset = -facing_sign * [0.11, 0.19, 0.31][index] * amount * 0.48
-			scale_factor = Vector2.ONE.lerp(Vector2(1.0 + [0.04, 0.075, 0.12][index], 1.0 - [0.035, 0.065, 0.105][index]), amount * 0.48)
+			amount = _ease_out(clampf(remaining / ATTACK_RECOVERY[index], 0.0, 1.0))
+			var recovery_fraction: float = [0.34, 0.30, 0.26][index]
+			rotation_offset = -facing_sign * [0.11, 0.19, 0.31][index] * amount * recovery_fraction
+			scale_factor = Vector2.ONE.lerp(Vector2(1.0 + [0.04, 0.075, 0.12][index], 1.0 - [0.035, 0.065, 0.105][index]), amount * recovery_fraction)
 	_attack_rotation = _base_rotation + rotation_offset
 	_attack_scale = _base_scale * scale_factor
+
+func _attack_phase_progress(index: int, phase: String, remaining: float) -> float:
+	var duration: float = ATTACK_STARTUP[index] if phase == "startup" else (ATTACK_ACTIVE[index] if phase == "active" else ATTACK_RECOVERY[index])
+	return clampf((duration - remaining) / duration, 0.0, 1.0)
+
+func _ease_in_out(value: float) -> float:
+	var t := clampf(value, 0.0, 1.0)
+	return t * t * (3.0 - 2.0 * t)
+
+func _ease_out(value: float) -> float:
+	var t := clampf(value, 0.0, 1.0)
+	return 1.0 - (1.0 - t) * (1.0 - t)
 
 func _keep_foot_anchor() -> void:
 	var scaled_foot := Vector2(

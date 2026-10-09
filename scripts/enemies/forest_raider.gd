@@ -13,7 +13,7 @@ signal raider_ko
 @export var attack_depth_tolerance: float = 34.0
 @export var separation_radius: float = 108.0
 @export var separation_strength: float = 120.0
-@export var windup_duration: float = 0.34
+@export var windup_duration: float = 0.42
 @export var active_duration: float = 0.16
 @export var recovery_duration: float = 0.62
 @export var attack_damage: int = 1
@@ -41,6 +41,8 @@ var attack_phase_remaining := 0.0
 var hitstun_remaining := 0.0
 var hit_flash_remaining := 0.0
 var facing_direction := Vector2.LEFT
+var hit_reaction_direction := Vector2.LEFT
+var hit_reaction_strength := 0.0
 var _hit_targets: Dictionary = {}
 var _spacing_engaged := false
 var _silhouette_top_offset := -40.0
@@ -82,7 +84,8 @@ func _physics_process(delta: float) -> void:
 	var player := _find_player()
 	if hitstun_remaining > 0.0:
 		hitstun_remaining = maxf(0.0, hitstun_remaining - delta)
-		velocity = velocity.move_toward(Vector2.ZERO, 760.0 * delta)
+		# Preserve the initial impact, then bleed momentum smoothly throughout stun.
+		velocity = velocity.move_toward(Vector2.ZERO, (520.0 + velocity.length() * 2.8) * delta)
 		move_and_slide()
 		_apply_arena_bounds()
 		_enforce_nearby_raider_spacing(delta)
@@ -344,10 +347,18 @@ func receive_hit(hit: Dictionary) -> void:
 	var direction: Vector2 = hit["direction"]
 	if direction.length_squared() > 0.0:
 		direction = direction.normalized()
+	else:
+		direction = facing_direction
+	hit_reaction_direction = direction
+	# Stages 1/2/3 cover a regular hit through progressively heavier skills.
+	# Keep damage and physics impulses authored by the attack, while exposing an
+	# independent strength value for a clearly graded visual reaction.
+	var stage := clampi(int(hit["attack_stage"]), 1, 3)
+	hit_reaction_strength = [0.72, 1.0, 1.32][stage - 1]
 	velocity = direction * maxf(0.0, float(hit["knockback"]))
 	hitstun_remaining = maxf(hitstun_remaining, maxf(0.0, float(hit["hit_stun"])))
 	_cancel_attack()
-	hit_flash_remaining = 0.14
+	hit_flash_remaining = 0.14 + 0.025 * float(stage - 1)
 	body_visual.modulate = HIT_COLOR
 
 func _update_hit_flash(delta: float) -> void:

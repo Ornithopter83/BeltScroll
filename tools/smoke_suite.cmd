@@ -194,7 +194,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-call "%PROBE%" "%RUN_LOG%" "" "pass_probe: all checks passed"
+call "%PROBE%" "%RUN_LOG%" "missing" "pass_probe: all checks passed"
 if not errorlevel 1 (
     echo [smoke] ERROR: runner accepted a missing process exit code.
     exit /b 1

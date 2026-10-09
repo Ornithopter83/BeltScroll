@@ -43,32 +43,44 @@ func _process(delta: float) -> void:
 		target_scale *= Vector2(1.025, 0.94)
 	elif float(raider.get("hit_flash_remaining")) > 0.0:
 		var flash := clampf(float(raider.get("hit_flash_remaining")) / HIT_FLASH_DURATION, 0.0, 1.0)
-		var facing: Vector2 = raider.get("facing_direction")
-		var impulse_direction := signf(float(raider.velocity.x))
-		if is_zero_approx(impulse_direction):
-			impulse_direction = -1.0 if facing.x < 0.0 else 1.0
-		target_rotation += -impulse_direction * 0.13 * flash
-		target_scale *= Vector2(1.035, 0.94 + 0.06 * (1.0 - flash))
+		var impulse: Vector2 = raider.get("hit_reaction_direction")
+		var strength := clampf(float(raider.get("hit_reaction_strength")), 0.65, 1.4)
+		var impulse_x := signf(impulse.x)
+		if is_zero_approx(impulse_x):
+			impulse_x = -1.0 if raider.velocity.x < 0.0 else 1.0
+		# Recoil leans away from impact and compresses the body before settling.
+		target_rotation += -impulse_x * 0.18 * strength * flash
+		target_scale *= Vector2(1.025 + 0.035 * strength * flash, 0.91 + 0.09 * (1.0 - flash))
 	elif float(raider.get("hitstun_remaining")) > 0.0:
-		var impulse_direction := signf(float(raider.velocity.x))
-		target_rotation += -impulse_direction * 0.065
-		target_scale *= Vector2(1.018, 0.97)
+		var impulse: Vector2 = raider.get("hit_reaction_direction")
+		var impulse_x := signf(impulse.x)
+		var strength := clampf(float(raider.get("hit_reaction_strength")), 0.65, 1.4)
+		var wobble := sin((1.0 - clampf(float(raider.get("hitstun_remaining")) / 0.42, 0.0, 1.0)) * TAU)
+		target_rotation += -impulse_x * (0.085 + 0.018 * wobble) * strength
+		target_scale *= Vector2(1.0 + 0.015 * strength, 0.965)
 	else:
 		var phase := str(raider.get("attack_phase"))
 		var speed := raider.velocity.length()
 		if phase == "windup":
 			var windup_duration := maxf(0.001, float(raider.get("windup_duration")))
 			var progress := 1.0 - clampf(float(raider.get("attack_phase_remaining")) / windup_duration, 0.0, 1.0)
-			target_rotation += 0.045 * progress
-			target_scale *= Vector2(1.015 - 0.01 * progress, 1.0 - 0.055 * progress)
+			var facing: Vector2 = raider.get("facing_direction")
+			var facing_sign := -1.0 if facing.x < 0.0 else 1.0
+			var anticipation := sin(progress * PI * 0.5)
+			target_rotation += facing_sign * (0.035 + 0.12 * anticipation)
+			target_scale *= Vector2(1.0 - 0.06 * anticipation, 1.0 - 0.12 * anticipation)
 		elif phase == "active":
-			target_rotation += -0.11
-			target_scale *= Vector2(1.055, 0.94)
+			var facing: Vector2 = raider.get("facing_direction")
+			var facing_sign := -1.0 if facing.x < 0.0 else 1.0
+			target_rotation += -facing_sign * 0.18
+			target_scale *= Vector2(1.12, 0.86)
 		elif phase == "recovery":
 			var recovery_duration := maxf(0.001, float(raider.get("recovery_duration")))
 			var recovery := clampf(float(raider.get("attack_phase_remaining")) / recovery_duration, 0.0, 1.0)
-			target_rotation += -0.025 * recovery
-			target_scale *= Vector2(1.0 + 0.008 * recovery, 1.0 - 0.012 * recovery)
+			var facing: Vector2 = raider.get("facing_direction")
+			var facing_sign := -1.0 if facing.x < 0.0 else 1.0
+			target_rotation += facing_sign * 0.07 * recovery
+			target_scale *= Vector2(1.0 + 0.02 * recovery, 1.0 - 0.035 * recovery)
 		elif speed > 10.0:
 			var speed_factor := clampf(speed / WALK_SPEED_REFERENCE, 0.35, 1.3)
 			_stride_phase = fposmod(_stride_phase + delta * (7.0 + 4.0 * speed_factor), TAU)

@@ -29,6 +29,7 @@ func _run() -> void:
 	await _check_arena_clamp()
 	await _check_camera_bounds()
 	await _check_visual_jump_and_landing()
+	await _check_jump_height_and_airtime()
 	await _check_jump_buffer()
 	await _check_variable_jump()
 	await _check_coyote_grace()
@@ -193,6 +194,37 @@ func _check_jump_buffer() -> void:
 	_release("jump")
 	await _frames(30)
 
+func _check_jump_height_and_airtime() -> void:
+	await _reset_player(Vector2(960, 800))
+	Input.action_press("jump")
+	await _frames(2)
+	var floor_position := player.global_position
+	var peak_height := 0.0
+	var airborne_frames := 0
+	for _frame in range(90):
+		await physics_frame
+		peak_height = maxf(peak_height, float(player.get("jump_height_offset")))
+		if player.get("is_jumping"):
+			airborne_frames += 1
+		else:
+			break
+	_release("jump")
+	_check(peak_height >= 110.0 and peak_height <= 130.0, "held jump reaches the intended 110 to 130 world pixel arc (peak=%.1f)" % peak_height)
+	_check(airborne_frames >= 45 and airborne_frames <= 65, "held jump keeps a readable, bounded airtime (frames=%d)" % airborne_frames)
+	_check(player.global_position == floor_position, "larger jump still keeps the actor's floor coordinate grounded")
+	_check(not player.get("is_jumping") and is_zero_approx(float(player.get("jump_height_offset"))), "larger jump lands and resets its visual offset")
+	await _reset_player(Vector2(960, 800))
+	Input.action_press("jump")
+	await _frames(1)
+	_release("jump")
+	await _frames(2)
+	var height_before_repeat := float(player.get("jump_height_offset"))
+	Input.action_press("jump")
+	await _frames(2)
+	_check(player.get("is_jumping") and float(player.get("jump_height_offset")) > height_before_repeat, "repeated jump input while airborne does not reset the current jump")
+	_release("jump")
+	await _frames(70)
+
 func _check_variable_jump() -> void:
 	var short_jump_height := await _measure_jump_height(2)
 	var full_jump_height := await _measure_jump_height(18)
@@ -252,6 +284,8 @@ func _reset_player(position: Vector2) -> void:
 	player.set("jump_buffer_remaining", 0.0)
 	player.set("coyote_remaining", 0.0)
 	player.set("is_jumping", false)
+	player.set("attack_recoil_remaining", 0.0)
+	player.set("attack_recoil_velocity", Vector2.ZERO)
 	player.set("is_blocking", false)
 	player.set("hitstun_remaining", 0.0)
 	visual_root.position = Vector2(0, -18)

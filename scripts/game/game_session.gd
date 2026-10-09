@@ -57,7 +57,7 @@ func _apply_editor_overrides() -> void:
 	var stage_values := _find_override(data.get("stages", []), STAGE_ID, "stages")
 	if is_instance_valid(_player):
 		var previous_max := int(_player.get("max_health"))
-		DATA_LOADER.apply_properties(_player, player_values, ["max_health", "walk_speed"])
+		DATA_LOADER.apply_properties(_player, player_values, ["max_health", "walk_speed", "attack_damage"])
 		if player_values.has("max_health") and int(_player.get("max_health")) != previous_max:
 			_player.set("health", int(_player.get("max_health")))
 			_player.set_meta("editor_id", PLAYER_ID)

@@ -63,9 +63,10 @@ internal static class Program
         }
         ApplicationConfiguration.Initialize();
         string? acceptanceDir = null;
+        bool runtimeRoundtrip = args.Any(a => a.Equals("--runtime-roundtrip", StringComparison.OrdinalIgnoreCase));
         for (int i = 0; i < args.Length; i++)
             if (args[i].Equals("--gui-acceptance", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length) acceptanceDir = Path.GetFullPath(args[++i]);
-        using var form = new EditorForm(acceptanceDir);
+        using var form = new EditorForm(acceptanceDir, runtimeRoundtrip);
         Application.Run(form);
         return form.ExitCode;
     }
@@ -142,13 +143,15 @@ internal sealed class EditorForm : Form
     private string currentPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "data", "editor", "overrides.json"));
     private bool loading;
     private readonly string? acceptanceDir;
+    private readonly bool runtimeRoundtrip;
     private System.Windows.Forms.Timer? acceptanceTimer;
     private int acceptanceStep;
     internal int ExitCode { get; private set; }
 
-    public EditorForm(string? acceptanceDir = null)
+    public EditorForm(string? acceptanceDir = null, bool runtimeRoundtrip = false)
     {
         this.acceptanceDir = acceptanceDir;
+        this.runtimeRoundtrip = runtimeRoundtrip;
         Text = "BeltScroll 에디터"; Width = 1120; Height = 780; MinimumSize = new Size(900, 600); StartPosition = FormStartPosition.CenterScreen;
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, Padding = new Padding(8) };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 290)); root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -315,6 +318,7 @@ internal sealed class EditorForm : Form
     {
         try
         {
+            if (runtimeRoundtrip) { RunRuntimeRoundtripAcceptance(); return; }
             acceptanceStep++;
             switch (acceptanceStep)
             {
@@ -331,12 +335,61 @@ internal sealed class EditorForm : Form
         }
         catch (Exception ex) { acceptanceTimer?.Stop(); ExitCode = 1; WriteAcceptanceReport(false, ex.ToString()); try { CaptureAcceptance(); } catch { } Close(); }
     }
+    private void RunRuntimeRoundtripAcceptance()
+    {
+        try
+        {
+            acceptanceTimer?.Stop();
+            SetNumeric("characters", "Player", "MaxHealth", "9");
+            SetNumeric("characters", "Player", "WalkSpeed", "301");
+            SetNumeric("characters", "Player", "AttackDamage", "13");
+            SetNumeric("enemies", "ForestRaider", "MaxHealth", "6");
+            SetNumeric("enemies", "ForestRaider", "WalkSpeed", "131");
+            SetNumeric("enemies", "ForestRaider", "AttackDamage", "4");
+            var raider = document.Enemies.Single(x => x.Id == "ForestRaider");
+            var ai = new Dictionary<string, double>(raider.Ai) { ["notice_range"] = 610, ["attack_depth_tolerance"] = 42, ["separation_radius"] = 126, ["separation_strength"] = 147 };
+            SelectForEdit("enemies", raider);
+            ((TextBox)editors["Ai"]).Text = JsonSerializer.Serialize(ai, Program.JsonOptions);
+            if (selected?.Ai["notice_range"] != 610) throw new Exception("ForestRaider AI edit failed.");
+            var stage = document.Stages.Single(x => x.Id == "ForestRuins");
+            SelectForEdit("stages", stage);
+            stage.X = 946; stage.Y = 792;
+            var playerSpawn = stage.Spawns.Single(x => x.ActorId == "Player"); playerSpawn.X = 946; playerSpawn.Y = 792;
+            var raiderSpawn = stage.Spawns.Single(x => x.ActorId == "ForestRaider"); raiderSpawn.X = 710; raiderSpawn.Y = 772;
+            SetFields(stage);
+            if (!SaveTo(currentPath)) throw new Exception("Runtime roundtrip output did not save.");
+            LoadPath(currentPath);
+            var savedPlayer = document.Characters.Single(x => x.Id == "Player");
+            var savedRaider = document.Enemies.Single(x => x.Id == "ForestRaider");
+            var savedStage = document.Stages.Single(x => x.Id == "ForestRuins");
+            if (savedPlayer.MaxHealth != 9 || savedPlayer.WalkSpeed != 301 || savedPlayer.AttackDamage != 13 || savedRaider.MaxHealth != 6 || savedRaider.WalkSpeed != 131 || savedRaider.AttackDamage != 4 || savedRaider.Ai["notice_range"] != 610 || savedStage.Spawns.Single(x => x.ActorId == "Player").X != 946 || savedStage.Spawns.Single(x => x.ActorId == "ForestRaider").Y != 772)
+                throw new Exception("Saved real runtime records did not survive reopen.");
+            CaptureAcceptance();
+            WriteAcceptanceReport(true, "Actual Player, ForestRaider, and ForestRuins records edited through the visible WinForms GUI controls, saved, reopened, and checked. OS mouse input was not used; the acceptance driver invoked real form controls through WinForms on the GUI message loop.", new[] { "Player.max_health=9", "Player.walk_speed=301", "Player.attack_damage=13", "ForestRaider.max_health=6", "ForestRaider.walk_speed=131", "ForestRaider.attack_damage=4", "ForestRaider.ai.notice_range=610", "ForestRaider.ai.attack_depth_tolerance=42", "ForestRaider.ai.separation_radius=126", "ForestRaider.ai.separation_strength=147", "ForestRuins.Player spawn=(946,792)", "ForestRuins.ForestRaider spawn=(710,772)" });
+            ExitCode = 0; Close();
+        }
+        catch (Exception ex) { ExitCode = 1; WriteAcceptanceReport(false, ex.ToString(), Array.Empty<string>()); try { CaptureAcceptance(); } catch { } Close(); }
+    }
+    private void SetNumeric(string kind, string id, string field, string value)
+    {
+        var list = kind == "characters" ? document.Characters : document.Enemies;
+        var item = list.Single(x => x.Id == id);
+        SelectForEdit(kind, item);
+        ((TextBox)editors[field]).Text = value;
+        if (selected != item) throw new Exception($"Could not select {id} for GUI edit.");
+    }
+    private void SelectForEdit(string kind, EditorItem item)
+    {
+        category.SelectedIndex = kind == "characters" ? 0 : kind == "enemies" ? 1 : 2;
+        items.SelectedItem = item;
+        if (selected != item) throw new Exception($"Could not select {item.Id} in GUI list.");
+    }
     private Control FindButton(string label) => Controls.Find(label, true).FirstOrDefault() ?? FindControls(this).OfType<Button>().First(b => b.Text == label);
     private static IEnumerable<Control> FindControls(Control root) { foreach (Control child in root.Controls) { yield return child; foreach (var descendant in FindControls(child)) yield return descendant; } }
     private void CaptureAcceptance() { using var bitmap = new Bitmap(Math.Max(1, Width), Math.Max(1, Height)); DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size)); bitmap.Save(Path.Combine(acceptanceDir!, "gui-capture.png"), System.Drawing.Imaging.ImageFormat.Png); }
-    private void WriteAcceptanceReport(bool passed, string details)
+    private void WriteAcceptanceReport(bool passed, string details, string[]? editedValues = null)
     {
-        var report = new { product = "BeltScrollEditor", mode = "--gui-acceptance", passed, details, steps = new[] { "startup partial record load", "character create/clone/edit/delete", "enemy create/clone/edit/delete", "stage create/clone/edit/delete", "stage Player coordinate preservation", "range rejection", "failed Save As path preservation", "failed overwrite preserves existing file and backup", "malformed JSON rejection", "save", "reopen", "backup", "unknown document/item/spawn field preservation", "normal close" }, workingDirectory = Environment.CurrentDirectory, output = currentPath, screenshot = Path.Combine(acceptanceDir!, "gui-capture.png"), exitCode = passed ? 0 : 1 };
+        var report = new { product = "BeltScrollEditor", mode = runtimeRoundtrip ? "--gui-acceptance --runtime-roundtrip" : "--gui-acceptance", passed, details, editedValues = editedValues ?? Array.Empty<string>(), actualOsMouseInput = false, uiAutomation = "WinForms controls invoked on the visible GUI message loop", steps = runtimeRoundtrip ? new[] { "actual Player/ForestRaider/ForestRuins loaded", "stats, AI and placement edited in GUI fields", "save", "reopen", "saved actual records verified", "capture", "normal close" } : new[] { "startup partial record load", "character create/clone/edit/delete", "enemy create/clone/edit/delete", "stage create/clone/edit/delete", "stage Player coordinate preservation", "range rejection", "failed Save As path preservation", "failed overwrite preserves existing file and backup", "malformed JSON rejection", "save", "reopen", "backup", "unknown document/item/spawn field preservation", "normal close" }, workingDirectory = Environment.CurrentDirectory, output = currentPath, screenshot = Path.Combine(acceptanceDir!, "gui-capture.png"), exitCode = passed ? 0 : 1 };
         File.WriteAllText(Path.Combine(acceptanceDir!, "gui-acceptance.json"), JsonSerializer.Serialize(report, Program.JsonOptions), new UTF8Encoding(false));
         File.WriteAllText(Path.Combine(acceptanceDir!, "exit-code.txt"), (passed ? "0" : "1") + Environment.NewLine, new UTF8Encoding(false));
     }

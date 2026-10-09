@@ -19,6 +19,7 @@ const STATES := [
 	{"key": "recovery", "label": "회복 · 오른쪽", "facing": 1, "kind": "recovery"},
 	{"key": "hit", "label": "피격 경직 · 왼쪽", "facing": -1, "kind": "hit"},
 	{"key": "ko", "label": "KO · 오른쪽", "facing": 1, "kind": "ko"},
+	{"key": "skill_hit", "label": "강한 스킬 피격 · 오른쪽", "facing": 1, "kind": "skill_hit"},
 ]
 
 var _root_node: Node2D
@@ -207,7 +208,16 @@ func _apply_state(state: Dictionary) -> void:
 			_raider.velocity = Vector2(80.0, 0.0)
 			_raider.set("hitstun_remaining", 0.2)
 			_raider.set("hit_flash_remaining", 0.11)
+			_raider.set("hit_reaction_direction", Vector2.RIGHT)
+			_raider.set("hit_reaction_strength", 0.72)
 			_art.modulate = Color(1.0, 0.78, 0.58, 1.0)
+		"skill_hit":
+			_raider.velocity = Vector2(170.0, 0.0)
+			_raider.set("hitstun_remaining", 0.34)
+			_raider.set("hit_flash_remaining", 0.16)
+			_raider.set("hit_reaction_direction", Vector2.RIGHT)
+			_raider.set("hit_reaction_strength", 1.32)
+			_art.modulate = Color(1.0, 0.72, 0.5, 1.0)
 		"ko":
 			_raider.set("health", 0)
 			_art.modulate = Color(0.62, 0.62, 0.62, 0.78)
