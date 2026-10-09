@@ -49,6 +49,7 @@ function Invoke-Probe([string]$ExitCode, [string]$ExpectedMarker) {
 
 try {
     $suite = [IO.File]::ReadAllText($suitePath, [Text.Encoding]::UTF8)
+    if (-not $suite.Contains('call :suite_main') -or -not $suite.Contains('endlocal & exit /b %SUITE_FINAL_EXIT%')) { throw 'The production cmd.exe entry must return through one suite wrapper.' }
     if (-not $suite.Contains('if /I "%SMOKE_NAME%"=="player_skill2_spin_art_smoke" set "SUCCESS_MARKER=' + $marker + '"')) {
         throw 'The production spin-art dispatch marker differs from its Godot output.'
     }

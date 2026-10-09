@@ -13,6 +13,11 @@ if defined SUITE_INITIALIZED (
     exit /b 1
 )
 set "SUITE_INITIALIZED=1"
+call :suite_main
+set "SUITE_FINAL_EXIT=%ERRORLEVEL%"
+endlocal & exit /b %SUITE_FINAL_EXIT%
+
+:suite_main
 
 if not defined GODOT_EXE (
     where godot.exe >nul 2>nul

@@ -37,6 +37,12 @@
 
 `tests/animation_live_review_suite_smoke.ps1`는 명시적 캡처 재생성 경로가 일반 회귀와 분리됐는지, 캡처가 실제 Window 렌더러를 요청하는지, 성공 시에도 승인 대기 상태를 유지하는지 확인한다. `tests/smoke_runner_probe.cmd`는 종료 코드가 0이 아니거나 성공 표식이 없거나 스크립트/파서/런타임 오류가 있으면 실패시킨다. timeout 및 runner 실패 로그는 검사별로 보존한다.
 
+### WORK #98 실제 cmd.exe 실행 체크포인트 (2026-10-10)
+
+Windows `cmd.exe`에서 Godot `4.7.2.stable.mono.official.ed1daf0bf` 전체 suite가 자연 종료 코드 0으로 완료됐다. 실행 로그는 `%TEMP%\belt98_suite_full_crlf_20261010.log`에 보존했다. 로그에서 72개 Godot 호출, 추가 recorder 14개(순번·이름 고유, 전부 `process_exit=0`), spin-art의 실제 headless 검사와 정확한 성공 표식 검증, suite summary 1회(`process_exit=0`), recorder summary 1회(`additional_checks=14`, 종료 코드 0), 전체 PASS 표식 1회를 확인했다. 전체 실행 시간은 480.888초였고 실패·중복 recorder 표식은 없었다. 성공 cleanup으로 run log와 recorder 원장은 제거됐으며 보존된 console log는 실행 증거다.
+
+실행 누락 및 반복 dispatch의 원인은 `tools/smoke_suite.cmd` 안에 CRLF와 bare LF 줄 끝이 섞여 있어 Windows `cmd.exe`가 일부 batch 호출을 건너뛰는 것이었다. batch 파일의 줄 끝을 CRLF로 통일하고 suite 본문을 명시적 반환 wrapper 안에서 실행했다. 이후 coverage, dispatch, animation candidate, live review 검사가 통과했고 위 전체 실행으로 수정 결과를 검증했다.
+
 ## 실제 Window 캡처 재생성
 
 프로젝트 루트에서 명시적으로 실행한다.

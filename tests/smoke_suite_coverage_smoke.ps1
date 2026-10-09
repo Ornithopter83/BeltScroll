@@ -218,6 +218,12 @@ $checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('set "RUN_EXIT="')
 $checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('[Guid]::NewGuid().ToString(''N'')') -and $joinedSuite.Contains('beltscroll_smoke_%SUITE_RUN_ID%_') -and $joinedSuite.Contains('beltscroll_smoke_additional_%SUITE_RUN_ID%_'); Message = 'Each cmd.exe suite run must use a collision-resistant unique diagnostic and recorder log namespace.' })
 $checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('call :run_additional_accounting_fixture') -and $joinedSuite.Contains(':run_additional_accounting_fixture') -and $joinedSuite.Contains('call :run_suite_dispatch') -and $boundedRunnerProbe.Contains('RESULT: TIMEOUT') -and $dispatchSmoke.Contains('Process exited with code 7.') -and $dispatchSmoke.Contains('Process exited with code 124.'); Message = 'The suite must execute bounded cmd.exe exit, timeout, dispatch, and summary regressions.' })
 $checks.Add([pscustomobject]@{ Passed = $joinedSuite.Contains('call :run_suite_dispatch') -and $joinedSuite.Contains('smoke_suite_dispatch_smoke.ps1') -and $dispatchSmoke.Contains('WaitForExit($TimeoutMilliseconds)') -and $dispatchSmoke.Contains("Exit = '7'") -and $dispatchSmoke.Contains("Exit = '124'") -and $dispatchSmoke.Contains('player_skill2_spin_art_smoke.gd') -and $dispatchSmoke.Contains('--accounting-fixture') -and $dispatchSmoke.Contains('$suiteSummaries.Count -ne 1') -and $dispatchSmoke.Contains('$accountingSummaries.Count -ne 1') -and $dispatchSmoke.Contains('Invoke-Probe'); Message = 'The suite must run a bounded real cmd.exe dispatch regression for process/marker outcomes, headless spin-art, and one failure summary.' })
+$suiteBytes = [IO.File]::ReadAllBytes($suitePath)
+$hasBareLineFeed = $false
+for ($index = 0; $index -lt $suiteBytes.Length; $index++) {
+    if ($suiteBytes[$index] -eq 10 -and ($index -eq 0 -or $suiteBytes[$index - 1] -ne 13)) { $hasBareLineFeed = $true; break }
+}
+$checks.Add([pscustomobject]@{ Passed = -not $hasBareLineFeed -and $joinedSuite.Contains('call :suite_main') -and $joinedSuite.Contains('endlocal & exit /b %SUITE_FINAL_EXIT%'); Message = 'The production batch file must retain Windows CRLF line endings and return once through its suite wrapper.' })
 $finalizeStart = [Array]::IndexOf($suite, ':finalize_suite')
 $finalizeLines = @()
 if ($finalizeStart -ge 0) {
