@@ -27,11 +27,11 @@
 
 ## 누락·중복·비정상 종료 판정
 
-`tests/smoke_suite_coverage_smoke.ps1`는 기존 68개 호출의 순서 보존과 뒤에 추가된 네 skill 호출, 총 72개 인벤토리, 중복, 필요한 `.gd` 파일, 실행 route, 시간제한, 성공 표식 및 실패 로그 보존을 확인한다. 기존 추가 검사 14개(headless 12건, PowerShell 2건)의 이름·순서를 예상 목록과 대조해 빠진 호출, 중복 호출, 불일치를 거부한다. headless recorder 12개는 대상 Godot 호출 바로 다음 줄에서 실제 종료 코드를 writer에 넘긴다. 각 recorder는 이름, 실행 유형, 프로세스 종료 코드와 누적 번호를 콘솔 및 UTF-8 임시 원장에 기록한다. 원장 delimiter는 세미콜론이다. 성공 표시 직전 원장의 행 수, 순서, 고유 이름, 실행 유형, 종료 코드와 기대 개수 14를 검증한다. 최종 요약은 한 번만 출력하며, 요약의 `additional_checks`는 검증된 recorder 행 수와 같다. 검증이 실패하면 성공 표시 없이 실패 경로로 간다. skill 네 호출도 bounded runner의 종료 코드와 probe의 성공 표식을 통과해야 전체 회귀가 성공한다.
+`tests/smoke_suite_coverage_smoke.ps1`는 기존 68개 호출의 순서 보존과 뒤에 추가된 네 skill 호출, 총 72개 인벤토리, 중복, 필요한 `.gd` 파일, 실행 route, 시간제한, 성공 표식 및 실패 로그 보존을 확인한다. 기존 추가 검사 14개(headless 12건, PowerShell 2건)의 이름·순서를 예상 목록과 대조해 빠진 호출, 중복 호출, 불일치를 거부한다. headless recorder 12개는 대상 Godot 호출 바로 다음 줄에서 실제 종료 코드를 writer에 넘긴다. 각 recorder는 이름, 실행 유형, 프로세스 종료 코드와 누적 번호를 콘솔 및 UTF-8 임시 원장에 기록한다. 원장 delimiter는 세미콜론이다. 성공 표시 직전 원장의 행 수, 순서, 고유 이름, 실행 유형, 종료 코드와 기대 개수 14를 검증한다. 성공과 실패는 공통 종료 경로를 사용해 suite summary를 한 번 출력한다. 성공 summary는 검증된 recorder 행 수를 사용하고 suite 종료 코드가 실제 0인 경우에만 전체 PASS를 출력한다. 실패는 종료 코드 1로 남으며 summary나 중간 subroutine의 성공 종료 코드가 그 실패를 덮지 않는다. 성공 경로는 존재하는 임시 원장만 `if exist ... del /q`로 삭제하고, 실패 증거는 보존한다. skill 네 호출도 bounded runner의 종료 코드와 probe의 성공 표식을 통과해야 전체 회귀가 성공한다.
 
-2026-10-10 재실행에서는 72개 인벤토리/route 검증, 세 실제 Window skill 검사, spin-art headless 검사와 두 PowerShell gate가 종료 코드 0 및 성공 표식으로 확인됐다. 전체 suite는 추가 recorder 원장 검증에서 기대 14행과 실제 12행이 일치하지 않아 실패했다. 따라서 이번 재실행은 회귀 PASS가 아니다. Window capture smoke의 GUI 자동 검사는 사람의 GUI 인수나 물리 입력 검증으로 승격하지 않는다.
+`tests/smoke_suite_dispatch_smoke.ps1`는 실제 Windows `cmd.exe` probe로 성공/실패/timeout 종료 코드와 최종 표식 불일치를 검사한다. production accounting fixture도 실제 `cmd.exe`로 실행해 recorder 네 줄과 exit 1인 suite/accounting summary가 각각 한 번만 나오는지 확인한다. suite summary 호출이 한 곳에 있고, 전체 PASS 표식이 실제 종료 코드 0을 확인한 뒤에만 나오는지 확인하며 cleanup 명령도 실제 `cmd.exe`에서 실행한다. spin-art 경로는 실제 Godot headless 프로세스의 종료 코드 0과 정확한 기계 검사 표식을 probe로 검증한다. 전체 suite에서 이 회귀를 PowerShell gate로 실행한다. Window capture smoke의 GUI 자동 검사는 사람의 GUI 인수나 물리 입력 검증으로 승격하지 않는다.
 
-`tests/smoke_additional_accounting_smoke.ps1`는 Windows `cmd.exe`에서 실제 batch subroutine과 bounded runner를 호출해 정상 종료, 일반 실패, timeout, PowerShell 실패를 재현한다. 각 결과의 종료 코드와 누적 번호, 유일 이름, 실행 유형을 확인하고 요약이 한 번만 출력되며 총계가 4인지 검사한다. 전체 suite에서도 이 fixture를 45초 제한으로 실행한다. fixture 기록은 suite의 14개 실제 추가 검사 원장에 포함되지 않는다.
+`tests/smoke_bounded_runner_smoke.ps1`는 실제 하위 프로세스의 성공, 실패, timeout을 확인한다. cmd.exe dispatch fixture는 probe에 정상·비정상 종료 코드와 timeout 코드를 전달해 표식 검증 동작을 확인한다. 두 fixture 결과는 suite의 14개 실제 추가 검사 원장에 포함되지 않는다.
 
 `tests/animation_candidate_coverage_smoke.ps1`는 신규 후보 호출 네 개의 유일성, 선택적 v4 미확보 상태, 그리고 기존 승인 프레임 격리 검사를 검사한다. 이 검사는 45초 제한이며 전체 추가 검사 집계에 PowerShell 검사로 포함된다. `tests/editor_executable_parse_smoke.ps1`도 45초 제한 PowerShell 검사로 집계한다.
 

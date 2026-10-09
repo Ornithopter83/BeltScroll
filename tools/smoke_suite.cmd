@@ -8,6 +8,11 @@ if not "%~1"=="" (
     echo Usage: tools\smoke_suite.cmd [--rebuild-live-review-captures]
     exit /b 2
 )
+if defined SUITE_INITIALIZED (
+    echo [smoke] ERROR: duplicate suite dispatch in the same cmd.exe context
+    exit /b 1
+)
+set "SUITE_INITIALIZED=1"
 
 if not defined GODOT_EXE (
     where godot.exe >nul 2>nul
@@ -24,8 +29,9 @@ if not defined GODOT_EXE (
 
 set "BOUNDED_RUNNER=%PROJECT_DIR%\tools\run_smoke_bounded.ps1"
 set "PROBE=%PROJECT_DIR%\tests\smoke_runner_probe.cmd"
-set "RUN_LOG=%TEMP%\beltscroll_smoke_%RANDOM%_%RANDOM%.log"
-set "ADDITIONAL_LOG=%TEMP%\beltscroll_smoke_additional_%RANDOM%_%RANDOM%.log"
+for /f %%G in ('powershell.exe -NoLogo -NoProfile -NonInteractive -Command "[Guid]::NewGuid().ToString('N')"') do set "SUITE_RUN_ID=%%G"
+set "RUN_LOG=%TEMP%\beltscroll_smoke_%SUITE_RUN_ID%_%RANDOM%_%RANDOM%.log"
+set "ADDITIONAL_LOG=%TEMP%\beltscroll_smoke_additional_%SUITE_RUN_ID%_%RANDOM%_%RANDOM%.log"
 set "SUITE_FAILED=0"
 set "FAILED_LOG="
 set "ADDITIONAL_CHECKS=0"
@@ -223,12 +229,8 @@ if errorlevel 1 (
     call :save_failure additional_accounting
     goto failed
 )
-del "%RUN_LOG%" >nul 2>nul
-call :report_suite 0
-if errorlevel 1 exit /b 1
-del "%ADDITIONAL_LOG%" >nul 2>nul
-echo [smoke] All independent smoke checks passed.
-exit /b 0
+set "SUITE_EXIT=0"
+goto finalize_suite
 
 :run_smoke
 set "SMOKE_NAME=%~1"
@@ -258,6 +260,7 @@ if /I "%SMOKE_NAME%"=="player_run_cycle_review_smoke" set "SMOKE_TIMEOUT=120"
 if /I "%SMOKE_NAME%"=="m5_art_review_board_smoke" set "SMOKE_TIMEOUT=120"
 echo [smoke] Type=headless timeout=%SMOKE_TIMEOUT%s log=%RUN_LOG%
 call :run_bounded %SMOKE_TIMEOUT%
+if not defined RUN_EXIT set "RUN_EXIT=125"
 set "ALLOW_MODE="
 set "SUCCESS_MARKER=%SMOKE_NAME%: all checks passed"
 if /I "%SMOKE_NAME%"=="player_art_normalize_smoke" set "ALLOW_MODE=png-negative"
@@ -309,6 +312,7 @@ echo [smoke] Running %SMOKE_NAME% with the window renderer
 set "SMOKE_ARGS=--path ""%PROJECT_DIR%"" --script ""res://tests/%SMOKE_NAME%.gd"""
 echo [smoke] Type=window timeout=%SMOKE_TIMEOUT%s log=%RUN_LOG%
 call :run_bounded %SMOKE_TIMEOUT%
+if not defined RUN_EXIT set "RUN_EXIT=125"
 if /I "%SMOKE_NAME%"=="camera_boundary_window_smoke" call :report_camera_run
 call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SUCCESS_MARKER%"
 if errorlevel 1 (
@@ -404,18 +408,8 @@ if errorlevel 1 (
 exit /b 0
 
 :run_additional_accounting_fixture
-echo [smoke] Verifying additional-check accounting in Windows cmd.exe
-set "SMOKE_ARGS=-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""%PROJECT_DIR%\tests\smoke_additional_accounting_smoke.ps1"""
-set "BOUNDED_EXECUTABLE=powershell.exe"
-call :run_bounded 45
-set "BOUNDED_EXECUTABLE="
-call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "smoke_additional_accounting_smoke: all checks passed"
-if errorlevel 1 (
-    echo [smoke] FAILED: additional-check accounting fixtures
-    type "%RUN_LOG%"
-    exit /b 1
-)
-exit /b 0
+call :run_suite_dispatch
+exit /b %ERRORLEVEL%
 
 :record_additional_check
 set /a ADDITIONAL_CHECKS+=1
@@ -425,6 +419,13 @@ if not defined RUN_EXIT set "RUN_EXIT=125"
 echo [smoke] additional_check=%ADDITIONAL_CHECKS% name=%~1 execution_type=%CHECK_EXECUTION_TYPE% process_exit=%RUN_EXIT% cumulative=%ADDITIONAL_CHECKS%
 >>"%ADDITIONAL_LOG%" echo %ADDITIONAL_CHECKS%;%~1;%CHECK_EXECUTION_TYPE%;%RUN_EXIT%
 set "CHECK_EXECUTION_TYPE="
+exit /b 0
+
+:run_suite_dispatch
+echo [smoke] Verifying dispatch, marker, exit-code, summary, and cleanup behavior in Windows cmd.exe
+set "BOUNDED_EXECUTABLE="
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%PROJECT_DIR%\tests\smoke_suite_dispatch_smoke.ps1"
+if errorlevel 1 exit /b 1
 exit /b 0
 
 :verify_additional_checks
@@ -439,7 +440,8 @@ if errorlevel 1 exit /b 1
 exit /b %ERRORLEVEL%
 
 :accounting_fixture
-set "ADDITIONAL_LOG=%TEMP%\beltscroll_accounting_fixture_%RANDOM%_%RANDOM%.log"
+for /f %%G in ('powershell.exe -NoLogo -NoProfile -NonInteractive -Command "[Guid]::NewGuid().ToString('N')"') do set "SUITE_RUN_ID=%%G"
+set "ADDITIONAL_LOG=%TEMP%\beltscroll_accounting_fixture_%SUITE_RUN_ID%_%RANDOM%_%RANDOM%.log"
 set "ADDITIONAL_CHECKS=0"
 set "ADDITIONAL_EXPECTED=4"
 set "ADDITIONAL_TYPES=headless,powershell"
@@ -519,6 +521,7 @@ if errorlevel 1 (
     call :save_failure build_player_attack3_startup_review
 ) else echo [smoke] capture=player_attack3_startup_review execution_type=headless_generated_board process_exit=%RUN_EXIT%
 if "%SUITE_FAILED%"=="1" goto failed_capture
+echo [smoke] Live review captures saved; human visual approval remains pending.
 del "%RUN_LOG%" >nul 2>nul
 echo [smoke] Live review capture artifacts regenerated; human visual approval remains pending.
 exit /b 0
@@ -572,11 +575,21 @@ exit /b 0
 :failed
 call :verify_additional_checks 1
 if errorlevel 1 echo [smoke] ERROR: additional-check accounting validation failed
-call :report_suite 1
-if errorlevel 1 exit /b 1
 echo [smoke] FAILED. Diagnostic log: %FAILED_LOG%
 if defined FAILED_LOG type "%FAILED_LOG%"
-exit /b 1
+set "SUITE_EXIT=1"
+goto finalize_suite
+
+:finalize_suite
+if not defined SUITE_EXIT set "SUITE_EXIT=1"
+call :report_suite %SUITE_EXIT%
+if errorlevel 1 set "SUITE_EXIT=1"
+if "%SUITE_EXIT%"=="0" (
+    if exist "%RUN_LOG%" del /q "%RUN_LOG%" >nul 2>nul
+    if exist "%ADDITIONAL_LOG%" del /q "%ADDITIONAL_LOG%" >nul 2>nul
+    echo [smoke] All independent smoke checks passed.
+)
+exit /b %SUITE_EXIT%
 
 :report_camera_run
 for /f "tokens=2 delims=:" %%E in ('findstr /C:"Actual process exit code:" "%RUN_LOG%"') do echo [smoke] camera_boundary_window_smoke process_exit=%%E

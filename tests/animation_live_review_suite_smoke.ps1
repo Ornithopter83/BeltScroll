@@ -30,7 +30,20 @@ foreach ($line in $registered) {
 foreach ($name in @('player_skill1_visual_telegraph_smoke', 'player_skill2_visual_telegraph_smoke', 'player_skill_interruption_smoke')) {
     $line = @($suite | Where-Object { $_ -match ('^call :run_window_smoke ' + [regex]::Escape($name) + ' 360(?:\s|$)') })
     Assert-ReviewPolicy ($line.Count -eq 1 -and $line[0] -notmatch '--headless') "$name is routed through the real Window smoke helper with a 360 second timeout"
+    $recorderLine = @($suite | Where-Object { $_ -match ('record_smoke_additional_check\.ps1.*-Name ' + [regex]::Escape($name) + ' -ExecutionType headless') })
+    Assert-ReviewPolicy ($recorderLine.Count -eq 0) "$name is never recorded as a headless additional check"
 }
+$windowHelpers = @($suite | Where-Object { $_ -match '^call :run_window_smoke ' })
+foreach ($line in $windowHelpers) {
+    Assert-ReviewPolicy ($line -notmatch '--headless') "Window check uses a non-headless invocation: $($line.Trim())"
+}
+$windowHelperStart = [Array]::IndexOf($suite, ':run_window_smoke')
+$windowHelperEnd = [Array]::IndexOf($suite, ':run_gameplay_endings_window_smoke')
+$windowHelperText = ''
+if ($windowHelperStart -ge 0 -and $windowHelperEnd -gt $windowHelperStart) {
+    $windowHelperText = ($suite[$windowHelperStart..($windowHelperEnd - 1)] -join "`n")
+}
+Assert-ReviewPolicy ($windowHelperText.Contains('set "SMOKE_ARGS=--path') -and $windowHelperText -notmatch '--headless') 'the shared Window helper launches Godot without the headless flag'
 $spinLine = @($suite | Where-Object { $_.Trim() -ceq 'call :run_smoke player_skill2_spin_art_smoke' })
 Assert-ReviewPolicy ($spinLine.Count -eq 1) 'player_skill2_spin_art_smoke runs once through the headless helper'
 Assert-ReviewPolicy ($joined.Contains('player_skill2_spin_art_smoke: mechanical checks passed; no production registration without human approval')) 'spin-art mechanical results do not claim human art approval'
@@ -58,6 +71,7 @@ Assert-ReviewPolicy ($joined.Contains('if /I "%~1"=="--rebuild-live-review-captu
 Assert-ReviewPolicy ($liveText.Contains('execution_type=window_capture,visual_approval=not_granted')) 'capture mode logs Window execution without claiming visual approval'
 Assert-ReviewPolicy ($liveText.Contains('human visual approval remains pending')) 'capture completion keeps human visual review pending'
 Assert-ReviewPolicy ($liveText -notmatch '(?i)visual_approval=(approved|accepted)|visual review passed') 'capture mode contains no automatic visual approval claim'
+Assert-ReviewPolicy ($liveText -match '(?i)all checks passed|capture.*saved' -and $liveText.Contains('visual_approval=not_granted')) 'capture operation success remains separate from human visual approval'
 
 $attack2Capture = Join-Path $root 'tools\capture_attack2_candidate_motion_review.gd'
 $matrixCapture = Join-Path $root 'tools\capture_player_animation_state_matrix.gd'

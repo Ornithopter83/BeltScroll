@@ -15,14 +15,16 @@ const ITEMS := [
 	{"id":"attack1_contact", "title":"기준 · 승인 attack1 contact", "source":"elven_fighter_attack1_reference_v1_contour_candidate_1254x1254.png", "status":"기존 승인 접촉 1/3 · 0.105 s", "kind":"approved"},
 	{"id":"attack2_contact", "title":"기준 · 승인 attack2 contact", "source":"elven_fighter_attack2_reference_v4_ink_final_candidate_1254x1254.png", "status":"기존 승인 접촉 2/3 · 0.120 s", "kind":"approved"},
 	{"id":"attack3_contact", "title":"기준 · 승인 attack3 contact", "source":"elven_fighter_attack3_reference_v2_contour_candidate_1254x1254.png", "status":"기존 승인 접촉 3/3 · 0.140 s", "kind":"approved"},
-	{"id":"attack1_startup", "title":"미승인 후보 · attack1 startup", "source":"elven_fighter_attack1_startup_v1_candidate_1254x1254.png", "safe":"elven_fighter_attack1_startup_v1_safe_candidate_1254x1254.png", "status":"전환·실루엣·잘림·identity 검토", "kind":"candidate"},
-	{"id":"attack3_startup", "title":"미승인 후보 · attack3 startup", "source":"elven_fighter_attack3_startup_v1_candidate_1254x1254.png", "safe":"elven_fighter_attack3_startup_v1_safe_candidate_1254x1254.png", "status":"전환·실루엣·잘림·identity 검토", "kind":"candidate"},
-	{"id":"run_v1", "title":"미승인 후보 · run stride v1", "source":"elven_fighter_run_stride_v1_candidate_1254x1254.png", "safe":"elven_fighter_run_stride_v1_safe_candidate_1254x1254.png", "status":"기존 판정: v2·v3·v4와 동일 보폭 · 지지발 미판정", "kind":"candidate"},
-	{"id":"run_v2", "title":"미승인 후보 · run stride v2 opposite", "source":"elven_fighter_run_stride_v2_opposite_candidate_1254x1254.png", "safe":"elven_fighter_run_stride_v2_safe_candidate_1254x1254.png", "status":"기존 판정: v1·v3·v4와 동일 보폭 · 지지발 미판정", "kind":"candidate"},
-	{"id":"run_v3", "title":"미승인 후보 · run stride v3 left lead", "source":"elven_fighter_run_stride_v3_left_lead_candidate_1254x1254.png", "status":"기존 판정: v1·v2·v4와 동일 보폭 · 지지발 미판정", "kind":"candidate"},
-	{"id":"run_v4", "title":"미승인 후보 · run stride v4 opposite contact", "source":"elven_fighter_run_stride_v4_opposite_contact_candidate_1254x1254.png", "safe":"elven_fighter_run_stride_v4_safe_candidate_1254x1254.png", "status":"기존 판정: v1·v2·v3와 동일 보폭, 반대 보폭 아님 · 미수용", "kind":"candidate"},
-	{"id":"jump_rise", "title":"미승인 후보 · jump rise", "source":"elven_fighter_jump_rise_v1_candidate_1254x1254.png", "safe":"elven_fighter_jump_rise_v1_safe_candidate_1254x1254.png", "status":"도약/상승 전환·발 이탈·잘림 검토", "kind":"candidate"},
-	{"id":"num4_skill1", "title":"미승인 후보 · Num4 전방 돌진 접촉", "source":"elven_fighter_skill1_rush_contact_v1_candidate_1254x1254.png", "safe":"elven_fighter_skill1_rush_contact_v1_safe_candidate_1254x1254.png", "status":"skill1 접촉·방향·잘림·identity 검토", "kind":"candidate"}
+	{"id":"attack1_startup", "title":"미승인 후보 · attack1 startup", "source":"elven_fighter_attack1_startup_v1_candidate_1254x1254.png", "safe":"elven_fighter_attack1_startup_v1_safe_candidate_1254x1254.png", "status":"승인 대기 · 전환·실루엣·잘림·identity 검토", "kind":"candidate"},
+	{"id":"attack3_startup", "title":"미승인 후보 · attack3 startup", "source":"elven_fighter_attack3_startup_v1_candidate_1254x1254.png", "safe":"elven_fighter_attack3_startup_v1_safe_candidate_1254x1254.png", "status":"승인 대기 · 전환·실루엣·잘림·identity 검토", "kind":"candidate"},
+	{"id":"run_v1", "title":"미승인 후보 · run stride v1", "source":"elven_fighter_run_stride_v1_candidate_1254x1254.png", "safe":"elven_fighter_run_stride_v1_safe_candidate_1254x1254.png", "status":"기존 판정: v1~v4 동일 보폭 · 반대 보폭 미수용 · 지지발 미판정", "kind":"candidate"},
+	{"id":"run_v2", "title":"미승인 후보 · run stride v2", "source":"elven_fighter_run_stride_v2_opposite_candidate_1254x1254.png", "safe":"elven_fighter_run_stride_v2_safe_candidate_1254x1254.png", "status":"기존 판정: v1~v4 동일 보폭 · 반대 보폭 미수용 · 지지발 미판정", "kind":"candidate"},
+	{"id":"run_v3", "title":"미승인 후보 · run stride v3", "source":"elven_fighter_run_stride_v3_left_lead_candidate_1254x1254.png", "status":"기존 판정: v1~v4 동일 보폭 · 반대 보폭 미수용 · 지지발 미판정", "kind":"candidate"},
+	{"id":"run_v4", "title":"미승인 후보 · run stride v4", "source":"elven_fighter_run_stride_v4_opposite_contact_candidate_1254x1254.png", "safe":"elven_fighter_run_stride_v4_safe_candidate_1254x1254.png", "status":"기존 판정: v1~v4 동일 보폭 · 반대 보폭 미수용 · 지지발 미판정", "kind":"candidate"},
+	{"id":"jump_rise", "title":"미승인 후보 · jump rise", "source":"elven_fighter_jump_rise_v1_candidate_1254x1254.png", "safe":"elven_fighter_jump_rise_v1_safe_candidate_1254x1254.png", "status":"승인 대기 · 도약/상승 전환·발 이탈·잘림 검토", "kind":"candidate"},
+	{"id":"num4_skill1", "title":"미승인 후보 · Num4 전방 돌진 접촉", "source":"elven_fighter_skill1_rush_contact_v1_candidate_1254x1254.png", "safe":"elven_fighter_skill1_rush_contact_v1_safe_candidate_1254x1254.png", "status":"승인 대기 · Num4 직선 돌진 접촉·방향·잘림·identity 검토", "kind":"candidate"},
+	{"id":"num5_v1", "title":"미승인 후보 · Num5 v1 접촉", "source":"elven_fighter_skill2_spin_contact_v1_candidate_1254x1254.png", "status":"파일 확보 · 회전 동작 미입증 · 회전 접촉 원화 미수용", "kind":"candidate"},
+	{"id":"num5_v2", "title":"미승인 후보 · Num5 v2 backfist", "source":"elven_fighter_skill2_spin_backfist_v2_candidate_1254x1254.png", "safe":"elven_fighter_skill2_spin_backfist_v2_safe_candidate_1254x1254.png", "status":"원본 파일 확보 · 회전 접촉 원화 미수용 · 사람 승인 대기", "kind":"candidate"}
 ]
 
 var _errors: Array[String] = []
@@ -44,8 +46,8 @@ func _build() -> void:
 			visible_items.append(item)
 		else:
 			_errors.append("필수 이미지 누락: " + str(item.source))
-	for filename in _find_optional_num5_candidates():
-		visible_items.append({"id":"optional_num5", "title":"미승인 후보 · Num5", "source":filename, "status":"파일 존재로 포함 · 미승인 · 동작/전환/identity 검토", "kind":"candidate"})
+	for filename in _find_optional_hit_reaction_candidates():
+		visible_items.append({"id":"hit_reaction_" + filename.get_basename(), "title":"미승인 후보 · hit reaction 원본", "source":filename, "status":"원본 파일 존재로 포함 · 승인 대기 · 피격 방향/실루엣/전환 검토", "kind":"candidate"})
 	if not _errors.is_empty():
 		_fail("; ".join(_errors))
 		return
@@ -74,8 +76,8 @@ func _build_svg(items: Array[Dictionary]) -> String:
 	var result := '<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d"><rect width="100%%" height="100%%" fill="#101820"/>' % [_page_size.x, _page_size.y, _page_size.x, _page_size.y]
 	result += _svg_text("플레이어 애니메이션 원화 검수 패킷", 32, 54, 38, "#f3e3b2")
 	result += _svg_text("사람 검수 전용 · 자동 생성물은 승인 기록이 아님 · 신규 승인 0건", 36, 96, 21, "#ffca78")
-	result += _svg_text("기존 승인 4장(v8 + 접촉 3장) · 신규 항목은 모두 미승인 · 공통 1254→192 캔버스 축소 · 좌우 미러", 36, 130, 18, "#d1dfdf")
-	result += _svg_text("alpha 하단 중앙은 기하 추정점(+)일 뿐 실제 지지발은 미판정 · run v1~v4 기존 판정: 동일 보폭", 36, 160, 18, "#b7c8c8")
+	result += _svg_text("기존 승인 4장(v8 + 접촉 3장) 보존 · 신규 승인 0건 · 모든 후보는 미승인 · 1254 전체 캔버스→192px 동일 배율 · 좌우 미러", 36, 130, 18, "#d1dfdf")
+	result += _svg_text("Num5 v1/v2 파일 확보, 회전 미수용 · run v1~v4 동일 보폭 미수용 · jump/startup/Num4 승인 대기", 36, 160, 18, "#b7c8c8")
 	for index in range(items.size()):
 		result += _svg_card(items[index], index)
 	return result + "</svg>"
@@ -164,8 +166,8 @@ func _annotate_png(path: String, items: Array[Dictionary]) -> int:
 	commands.append("$orange = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb(255, 255, 189, 121))")
 	commands.append("$g.DrawString('플레이어 애니메이션 원화 검수 패킷', $fb, $gold, [single]32, [single]18)")
 	commands.append("$g.DrawString('사람 검수 전용 · 자동 생성물은 승인 기록이 아님 · 신규 승인 0건', $f, $orange, [single]36, [single]64)")
-	commands.append("$g.DrawString('기존 승인 4장(v8 + 접촉 3장) · 신규 항목 미승인 · 공통 1254→192 캔버스 축소', $f, $white, [single]36, [single]100)")
-	commands.append("$g.DrawString('alpha 하단 중앙(+)은 기하 추정치 · 실제 지지발 미판정 · run v1~v4 기존 판정: 동일 보폭', $f, $white, [single]36, [single]130)")
+	commands.append("$g.DrawString('기존 승인 4장(v8 + 접촉 3장) 보존 · 신규 승인 0건 · 후보 미승인 · 1254 전체 캔버스→192px 동일 배율 · 좌우 미러', $f, $white, [single]36, [single]100)")
+	commands.append("$g.DrawString('Num5 v1/v2 확보·회전 미수용 · run v1~v4 동일 보폭 미수용 · jump/startup/Num4 승인 대기', $f, $white, [single]36, [single]130)")
 	for i in range(items.size()):
 		var item: Dictionary = items[i]
 		var x := 24 + (i % COLS) * 1520
@@ -240,7 +242,7 @@ func _exists(path: String) -> bool:
 	var full_path := path if path.begins_with("res://") else PLAYER_DIR + path
 	return FileAccess.file_exists(full_path)
 
-func _find_optional_num5_candidates() -> Array[String]:
+func _find_optional_hit_reaction_candidates() -> Array[String]:
 	var found: Array[String] = []
 	var directory := DirAccess.open(PLAYER_DIR)
 	if directory == null:
@@ -249,7 +251,7 @@ func _find_optional_num5_candidates() -> Array[String]:
 	var filename := directory.get_next()
 	while not filename.is_empty():
 		var lower := filename.to_lower()
-		if not directory.current_is_dir() and lower.ends_with(".png") and lower.contains("candidate") and (lower.contains("num5") or lower.contains("skill2")):
+		if not directory.current_is_dir() and lower.ends_with(".png") and lower.contains("candidate") and lower.contains("hit") and lower.contains("reaction"):
 			found.append(filename)
 		filename = directory.get_next()
 	directory.list_dir_end()
