@@ -50,6 +50,29 @@ func _run() -> void:
 	var indicator_map: Dictionary = hud.get("_raider_indicators")
 	var target: Node2D = raiders[1]
 	var indicator: Dictionary = indicator_map[target.get_instance_id()]
+	player.receive_hit({"damage": 2, "direction": Vector2.LEFT, "knockback": 0.0, "hit_stun": 0.0, "attack_stage": 1})
+	hud.refresh()
+	hud.call("_advance_health_bars", 0.1)
+	hud.set("_player_damage_delay", 1.0)
+	hud.refresh()
+	await _draw_frame()
+	var player_damage_frame := root.get_texture().get_image()
+	if hud.get("health_value_label").text != "3 / 5" or not _player_bar_has_pixels(player_damage_frame, hud.get("health_bar"), "green") or not _player_bar_has_pixels(player_damage_frame, hud.get("health_bar"), "red"):
+		game.queue_free()
+		_fail("Rendered Player damage frame did not match 3/5 health with a visible damage tail.")
+		return
+	player.set("health", 4)
+	hud.refresh()
+	if hud.get("health_value_label").text != "4 / 5" or not is_equal_approx(hud.get("health_bar").value, 4.0) or not is_equal_approx(hud.get("health_damage_bar").value, 4.0):
+		game.queue_free()
+		_fail("Player partial recovery left the 4/5 number and health bar values inconsistent.")
+		return
+	await _draw_frame()
+	var player_healed_frame := root.get_texture().get_image()
+	if not _valid_frame(player_healed_frame) or not _player_bar_has_pixels(player_healed_frame, hud.get("health_bar"), "green") or _player_bar_has_pixels(player_healed_frame, hud.get("health_bar"), "red"):
+		game.queue_free()
+		_fail("Rendered Player 3/5 to 4/5 recovery retained red damage-tail pixels.")
+		return
 	if not _indicator_tracks_head(target, indicator, camera):
 		game.queue_free()
 		_fail("Rendered health indicator does not track the transformed alpha head position.")
@@ -58,6 +81,17 @@ func _run() -> void:
 		game.queue_free()
 		_fail("Rendered health indicator overlaps the Player alpha silhouette instead of sliding clear.")
 		return
+	var original_target_position := target.global_position
+	target.global_position = player.global_position + Vector2(50.0, 0.0)
+	hud.refresh()
+	await _draw_frame()
+	if not indicator["root"].visible or _indicator_overlaps_player(indicator, player):
+		game.queue_free()
+		_fail("Close-combat health indicator was hidden or rendered over the Player silhouette.")
+		return
+	target.global_position = original_target_position
+	hud.refresh()
+	await _draw_frame()
 	var art := target.get_node("VisualRoot/RaiderArt") as Sprite2D
 	var original_texture := art.texture
 	var changed_image := original_texture.get_image()
@@ -92,23 +126,34 @@ func _run() -> void:
 	target.get_node("VisualRoot").scale.x *= -1.0
 	target.receive_hit(HIT)
 	hud.refresh()
-	await _draw_frame()
-	var damage_frame := root.get_texture().get_image()
-	if not _valid_frame(damage_frame) or not _has_bar_pixels(damage_frame):
-		game.queue_free()
-		_fail("Damage state did not render Raider health bar pixels in the Window.")
-		return
-	# Partial recovery must clear/shorten the red tail immediately and keep the
-	# live indicator visible; the corresponding state is also checked in smoke.
-	target.set("health", 2)
+	hud.call("_advance_health_bars", 0.1)
+	# Keep the damage layer held while the real Window finishes rendering.
+	indicator["damage_delay"] = 1.0
 	hud.refresh()
 	await _draw_frame()
-	if not indicator["root"].visible or indicator["label"].text != "2 / 3":
+	var damage_frame := root.get_texture().get_image()
+	if not _valid_frame(damage_frame) or not _bar_has_pixels(damage_frame, indicator, "green") or not _bar_has_pixels(damage_frame, indicator, "red"):
 		game.queue_free()
-		_fail("Partial Raider recovery did not remain visible in the captured scene.")
+		_fail("Damage state did not render both current-health and damage-tail pixels in the Window.")
+		return
+	# Recover from 1/3 to 2/3; both bar layers must agree with the numeric value.
+	target.set("health", 2)
+	hud.refresh()
+	if indicator["label"].text != "2 / 3" or not is_equal_approx(indicator["bar"].value, 2.0) or not is_equal_approx(indicator["damage_bar"].value, 2.0):
+		game.queue_free()
+		_fail("Partial Raider recovery left numeric health and bar values inconsistent.")
+		return
+	await _draw_frame()
+	var healed_frame := root.get_texture().get_image()
+	var healed_green := _bar_has_pixels(healed_frame, indicator, "green")
+	var healed_red := _bar_has_pixels(healed_frame, indicator, "red")
+	var healed_label := _label_has_pixels(healed_frame, indicator)
+	if not indicator["root"].visible or not _valid_frame(healed_frame) or not healed_green or healed_red or not healed_label:
+		game.queue_free()
+		_fail("Partial Raider recovery render mismatch (visible=%s, green=%s, red=%s, label=%s)." % [str(indicator["root"].visible), str(healed_green), str(healed_red), str(healed_label)])
 		return
 	var output_file := ProjectSettings.globalize_path(OUTPUT_PATH)
-	var save_error := damage_frame.save_png(output_file)
+	var save_error := healed_frame.save_png(output_file)
 	target.receive_hit({"damage": 99, "direction": Vector2.LEFT, "knockback": 0.0, "hit_stun": 0.0, "attack_stage": 1})
 	hud.refresh()
 	await _draw_frame()
@@ -129,7 +174,9 @@ func _run() -> void:
 		_fail("Could not save Window capture (Image.save_png error %d)." % save_error)
 		return
 	print("raider-healthbar-window-capture: saved rendered Window frame to %s" % output_file)
-	print("raider-healthbar-window-capture: checked alpha bounds, transforms, damage, partial recovery, KO, and off-screen hiding")
+	var bar_pixel_rect := Rect2i(Vector2i(indicator["bar"].get_global_rect().position), Vector2i(84, 9))
+	print("raider-healthbar-window-capture: healed-bar-rect=%d,%d,%d,%d" % [bar_pixel_rect.position.x, bar_pixel_rect.position.y, bar_pixel_rect.size.x, bar_pixel_rect.size.y])
+	print("raider-healthbar-window-capture: checked alpha bounds, transforms, damage/recovery pixels, KO, and off-screen hiding")
 	print("raider-healthbar-window-capture: all checks passed")
 	quit(0)
 
@@ -169,14 +216,41 @@ func _draw_frame() -> void:
 func _valid_frame(image: Image) -> bool:
 	return image != null and not image.is_empty() and image.get_size() == EXPECTED_SIZE
 
-func _has_bar_pixels(image: Image) -> bool:
+func _bar_has_pixels(image: Image, indicator: Dictionary, color: String) -> bool:
+	var bar: Control = indicator["bar"]
+	var rect := Rect2i(Vector2i(bar.get_global_rect().position), Vector2i(84, 9)).grow(3)
 	var matches := 0
-	for y in range(image.get_height()):
-		for x in range(image.get_width()):
+	for y in range(rect.position.y, rect.end.y):
+		for x in range(rect.position.x, rect.end.x):
 			var pixel := image.get_pixel(x, y)
-			if pixel.g > 0.32 and pixel.g > pixel.r * 1.18 and pixel.g > pixel.b * 1.05:
+			if color == "green" and pixel.g > pixel.r * 1.02 and pixel.g > pixel.b * 1.3:
 				matches += 1
-	return matches >= 40
+			elif color == "red" and pixel.r > pixel.g * 1.35 and pixel.r > pixel.b * 1.35:
+				matches += 1
+	return matches >= 8
+
+func _player_bar_has_pixels(image: Image, bar: ProgressBar, color: String) -> bool:
+	var rect := Rect2i(Vector2i(bar.get_global_rect().position), Vector2i(roundi(bar.size.x), 14)).grow(3)
+	var matches := 0
+	for y in range(rect.position.y, rect.end.y):
+		for x in range(rect.position.x, rect.end.x):
+			var pixel := image.get_pixel(x, y)
+			if color == "green" and pixel.g > pixel.r * 1.02 and pixel.g > pixel.b * 1.3:
+				matches += 1
+			elif color == "red" and pixel.r > pixel.g * 1.35 and pixel.r > pixel.b * 1.35:
+				matches += 1
+	return matches >= 8
+
+func _label_has_pixels(image: Image, indicator: Dictionary) -> bool:
+	var root_control: Control = indicator["root"]
+	var rect := Rect2i(Vector2i(root_control.position), Vector2i(root_control.size.x, 14))
+	var matches := 0
+	for y in range(rect.position.y, rect.end.y):
+		for x in range(rect.position.x, rect.end.x):
+			var pixel := image.get_pixel(x, y)
+			if pixel.r > 0.68 and pixel.g > 0.66 and pixel.b > 0.58:
+				matches += 1
+	return matches >= 4
 
 func _fail(message: String) -> void:
 	push_error("raider-healthbar-window-capture: " + message)

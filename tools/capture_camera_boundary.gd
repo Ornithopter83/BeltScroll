@@ -13,11 +13,14 @@ const POSITIONS := [
 const POSITION_NAMES := ["top-left", "top-edge", "top-right", "left-edge", "center", "right-edge", "bottom-left", "bottom-edge", "bottom-right"]
 
 var _failures: Array[String] = []
+var _check_count := 0
+var _started_usec := 0
 
 func _initialize() -> void:
 	call_deferred("_capture")
 
 func _capture() -> void:
+	_started_usec = Time.get_ticks_usec()
 	if DisplayServer.get_name() == "headless" or OS.has_feature("dedicated_server"):
 		_fail("A windowed renderer is required; the active display server is headless.")
 		return
@@ -71,10 +74,21 @@ func _capture() -> void:
 		player.velocity = Vector2.ZERO
 		player.set("camera_trauma", 0.0)
 		player.camera.offset = Vector2.ZERO
-		# Let the real camera smoothing interpolate from the preceding anchor.
-		for _frame in range(100):
+		# Keep the real camera smoothing enabled and wait only until it settles.
+		var previous_center := camera.get_screen_center_position()
+		var settled_frames := 0
+		for _frame in range(120):
 			await process_frame
 			await RenderingServer.frame_post_draw
+			var current_center := camera.get_screen_center_position()
+			if current_center.distance_to(previous_center) <= 0.5:
+				settled_frames += 1
+				if settled_frames >= 3:
+					break
+			else:
+				settled_frames = 0
+			previous_center = current_center
+		_check(settled_frames >= 3, "%s camera smoothing settles before capture" % POSITION_NAMES[position_index])
 		player.call("_add_camera_trauma", 0.34)
 		player.call("_add_camera_trauma", 0.22)
 		player.call("_add_camera_trauma", 0.12)
@@ -87,10 +101,10 @@ func _capture() -> void:
 		if frame == null or frame.get_size() != CAPTURE_SIZE:
 			continue
 		_check_boundary_pixels(frame, source, camera, POSITION_NAMES[position_index])
-		var tile := frame.duplicate()
-		tile.resize(TILE_SIZE.x, TILE_SIZE.y, Image.INTERPOLATE_LANCZOS)
+		# Pixel checks are complete, so resize this one captured image in place.
+		frame.resize(TILE_SIZE.x, TILE_SIZE.y, Image.INTERPOLATE_LANCZOS)
 		var tile_origin := Vector2i((position_index % 3) * TILE_SIZE.x, (position_index / 3) * TILE_SIZE.y)
-		comparison.blit_rect(tile, Rect2i(Vector2i.ZERO, TILE_SIZE), tile_origin)
+		comparison.blit_rect(frame, Rect2i(Vector2i.ZERO, TILE_SIZE), tile_origin)
 
 	# Wait for accumulated three-hit trauma to decay completely and ensure offset restores.
 	for _frame in range(100):
@@ -132,12 +146,15 @@ func _color_distance_squared(left: Color, right: Color) -> float:
 	return difference.r * difference.r + difference.g * difference.g + difference.b * difference.b
 
 func _check(condition: bool, description: String) -> void:
+	_check_count += 1
 	if condition:
 		print("PASS: " + description)
 	else:
 		_failures.append(description)
 
 func _finish() -> void:
+	var elapsed_seconds := float(Time.get_ticks_usec() - _started_usec) / 1000000.0
+	print("camera-boundary-capture: checks=%d elapsed_seconds=%.3f" % [_check_count, elapsed_seconds])
 	if _failures.is_empty():
 		print("camera-boundary-capture: all checks passed")
 		quit(0)

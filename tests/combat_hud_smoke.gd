@@ -67,8 +67,8 @@ func _run() -> void:
 	_check(health_label.text == "4 / 5", "healing updates the displayed number immediately")
 	hud.call("_advance_health_bars", 0.1)
 	hud.refresh()
-	_check(health_bar.value > 3.0 and health_bar.value < 4.0, "healing interpolates the live Player bar")
-	_check(health_damage_bar.value <= 4.0 and health_damage_bar.value >= health_bar.value, "partial healing clears the damage trail while the live bar finishes its interpolation")
+	_check(is_equal_approx(health_bar.value, 4.0), "partial healing updates the Player bar immediately")
+	_check(is_equal_approx(health_damage_bar.value, 4.0), "partial healing removes the rendered damage tail immediately")
 
 	player.call("_begin_attack", 1)
 	hud.refresh()
@@ -88,30 +88,40 @@ func _run() -> void:
 	hud.refresh()
 	_check(is_equal_approx(health_bar.value, 0.0), "Player KO bar interpolates to zero")
 
-	raiders[0].receive_hit(HIT)
+	raiders[0].receive_hit({"damage": 2, "direction": Vector2.LEFT, "knockback": 0.0, "hit_stun": 0.0, "attack_stage": 1})
 	hud.refresh()
-	_check(first_indicator["label"].text == "2 / 3" and second_indicator["label"].text == "3 / 3", "damage is shown on the correct individual Raider")
+	_check(first_indicator["label"].text == "1 / 3" and second_indicator["label"].text == "3 / 3", "damage is shown on the correct individual Raider")
 	_check(is_equal_approx(first_indicator["bar"].value, 3.0), "Raider bar retains its prior value at the damage frame")
 	hud.call("_advance_health_bars", 0.1)
-	_check(float(first_indicator["bar"].value) < 3.0 and float(first_indicator["bar"].value) > 2.0, "Raider bar interpolates from real health")
+	_check(float(first_indicator["bar"].value) < 3.0 and float(first_indicator["bar"].value) > 1.0, "Raider bar interpolates from real health")
 	_check(is_equal_approx(second_indicator["bar"].value, 3.0), "unharmed Raider bar remains independent")
+	raiders[0].set("health", 2)
+	hud.refresh()
+	_check(first_indicator["label"].text == "2 / 3", "Raider recovery updates the displayed number immediately")
+	_check(is_equal_approx(first_indicator["bar"].value, 2.0) and is_equal_approx(first_indicator["damage_bar"].value, 2.0), "Raider recovery clears the rendered damage tail immediately")
 	raiders[0].receive_hit({"damage": 99, "direction": Vector2.LEFT, "knockback": 0.0, "hit_stun": 0.0, "attack_stage": 1})
 	hud.refresh()
 	_check(not first_indicator["root"].visible and raider_label.text == "02", "KO Raider indicator hides and remaining count updates")
 
 	var camera: Camera2D = player.get_node("Camera2D")
 	camera.make_current()
+	var moved_raider: Node2D = raiders[1]
+	moved_raider.global_position = player.global_position + Vector2(250.0, 0.0)
+	camera.global_position = moved_raider.global_position
+	camera.zoom = Vector2.ONE
+	camera.rotation = 0.0
 	await process_frame
 	hud.refresh()
 	var before_camera_move: Vector2 = second_indicator["root"].position
-	camera.global_position += Vector2(100.0, 0.0)
-	camera.zoom = Vector2(1.5, 1.5)
-	camera.rotation = 0.12
+	camera.global_position += Vector2(50.0, 0.0)
+	camera.zoom = Vector2(1.1, 1.1)
+	camera.rotation = 0.05
 	raiders[1].get_node("VisualRoot").scale.x *= -1.0
 	await process_frame
 	hud.refresh()
 	var after_camera_move: Vector2 = second_indicator["root"].position
-	_check(not before_camera_move.is_equal_approx(after_camera_move), "Raider indicator follows camera movement, zoom, rotation, and sprite mirroring")
+	_check(not before_camera_move.is_equal_approx(after_camera_move) and second_indicator["root"].visible and _indicator_tracks_head(moved_raider, second_indicator), "Raider indicator follows camera movement, zoom, rotation, and sprite mirroring")
+	_check(not second_indicator["root"].visible or not _indicator_overlaps_player(second_indicator, player), "near-combat Raider indicator stays clear of the Player silhouette")
 	raiders[1].global_position = Vector2(-1000.0, -1000.0)
 	hud.refresh()
 	_check(not second_indicator["root"].visible, "off-screen Raider indicator hides instead of pinning to the viewport edge")
@@ -140,3 +150,31 @@ func _check(condition: bool, description: String) -> void:
 		print("PASS: " + description)
 	else:
 		failures.append(description)
+
+func _indicator_tracks_head(raider: Node2D, indicator: Dictionary) -> bool:
+	var art := raider.get_node("VisualRoot/RaiderArt") as Sprite2D
+	var bounds := art.texture.get_image().get_used_rect()
+	var local_head := Vector2(bounds.position.x + bounds.size.x * 0.5, bounds.position.y) - Vector2(art.texture.get_size()) * 0.5
+	var screen_head: Vector2 = art.get_global_transform_with_canvas() * local_head
+	var control: Control = indicator["root"]
+	return absf(control.position.y + control.size.y + 12.0 - screen_head.y) < 1.0 and absf(control.position.x + control.size.x * 0.5 - screen_head.x) <= 168.0
+
+func _indicator_overlaps_player(indicator: Dictionary, player: Node) -> bool:
+	var rect := Rect2(indicator["root"].position, indicator["root"].size)
+	for sprite in player.find_children("*", "Sprite2D", true, false):
+		var art := sprite as Sprite2D
+		if art == null or not art.is_visible_in_tree() or art.texture == null:
+			continue
+		var alpha := art.texture.get_image().get_used_rect()
+		if alpha.size == Vector2i.ZERO:
+			continue
+		var half := Vector2(art.texture.get_size()) * 0.5
+		var local := Rect2(Vector2(alpha.position) - half, Vector2(alpha.size))
+		var transform := art.get_global_transform_with_canvas()
+		var points: Array[Vector2] = [transform * local.position, transform * Vector2(local.end.x, local.position.y), transform * local.end, transform * Vector2(local.position.x, local.end.y)]
+		var bounds := Rect2(points[0], Vector2.ZERO)
+		for point in points.slice(1):
+			bounds = bounds.expand(point)
+		if rect.intersects(bounds):
+			return true
+	return false

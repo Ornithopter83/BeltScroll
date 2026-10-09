@@ -132,6 +132,10 @@ finally {
 }
 
 $elapsed = [Math]::Round(((Get-Date) - $startedAt).TotalSeconds, 3)
+$checkCount = 0
+foreach ($match in [regex]::Matches($stdout + "`n" + $stderr, 'total_checks=(\d+)')) {
+    $checkCount += [int]$match.Groups[1].Value
+}
 $log = New-Object System.Text.StringBuilder
 [void]$log.AppendLine("[smoke bounded] PID: $processId")
 [void]$log.AppendLine("[smoke bounded] Timeout seconds: $TimeoutSeconds")
@@ -144,6 +148,7 @@ if ($timedOut) {
     [void]$log.AppendLine("[smoke bounded] Actual process exit code: $exitCode")
 }
 [void]$log.AppendLine("[smoke bounded] Elapsed seconds: $elapsed")
+[void]$log.AppendLine("[smoke bounded] Reported check count: $checkCount")
 [void]$log.AppendLine('----- stderr -----')
 [void]$log.Append($stderr)
 if (-not $stderr.EndsWith("`n") -and -not $stderr.EndsWith("`r")) { [void]$log.AppendLine() }

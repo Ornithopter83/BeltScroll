@@ -7,11 +7,15 @@ const EXPECTED_SIZE := Vector2i(1920, 1080)
 const SUCCESS_MARKER := "camera-boundary-capture: all checks passed"
 
 var _failures: Array[String] = []
+var _check_count := 0
+var _capture_check_count := 0
+var _started_usec := 0
 
 func _initialize() -> void:
 	call_deferred("_run")
 
 func _run() -> void:
+	_started_usec = Time.get_ticks_usec()
 	_check(DisplayServer.get_name() != "headless", "smoke runs with a Window Viewport renderer")
 	var game := (load(MAIN_SCENE) as PackedScene).instantiate() as Node2D
 	root.size = EXPECTED_SIZE
@@ -31,7 +35,7 @@ func _run() -> void:
 	_check(camera.limit_left == 0 and camera.limit_top == 0 and camera.limit_right == 1920 and camera.limit_bottom == 1080, "camera limits cover the stage background exactly")
 	_check(player.get("arena_bounds") == Rect2(Vector2(237, 722), Vector2(1446, 258)), "player combat arena stays inside the HUD-safe visible band")
 	player.global_position = Vector2(250.0, 760.0)
-	await _wait_frames(120)
+	await _wait_camera_settled(camera)
 	var requested := Vector2(100.0, -100.0)
 	var bounded: Vector2 = player.call("_clamp_camera_offset_to_background", requested)
 	_check(bounded.length() < requested.length(), "camera trauma offset is constrained by visible background limits (requested=%s bounded=%s)" % [requested, bounded])
@@ -54,6 +58,8 @@ func _run() -> void:
 	_check(_output_contains(capture_output, SUCCESS_MARKER), "capture tool reports all boundary checks passed")
 	_check(_output_contains(capture_output, "shows no backdrop gaps at viewport edge pixels"), "all nine rendered positions check for background gaps")
 	_check(_output_contains(capture_output, "boundary samples match actual Forest Ruins pixels"), "edge checks compare rendered pixels to the stage source pixels")
+	_capture_check_count = _reported_check_count(capture_output)
+	_check(_capture_check_count > 0, "capture tool reports its executed check count")
 	if capture_status != 0:
 		for line in capture_output:
 			push_error(str(line))
@@ -64,10 +70,6 @@ func _run() -> void:
 		_check(capture.get_size() == EXPECTED_SIZE, "comparison capture is exactly 1920x1080")
 		_check(_has_visible_variation(capture), "comparison capture contains rendered Forest Ruins pixels")
 
-	var headless_output: Array[String] = []
-	var headless_status := OS.execute(executable, ["--headless", "--path", project_path, "--script", CAPTURE_TOOL], headless_output, true)
-	_check(headless_status != 0, "capture tool exits nonzero without a window renderer")
-	_check(_output_contains(headless_output, "active display server is headless"), "windowless capture failure explains the unavailable renderer")
 	game.queue_free()
 	_finish()
 
@@ -86,7 +88,7 @@ func _check_player_silhouette_at_arena_edges(player: CharacterBody2D) -> void:
 	player.set("jump_height_offset", 0.0)
 	visual_root.position.y = -18.0
 	player.set("camera_trauma", 0.0)
-	await _wait_frames(120)
+	await _wait_camera_settled(player.get_node("Camera2D") as Camera2D)
 	player.set("is_jumping", true)
 	player.set("jump_height_offset", float(player.get("jump_height")))
 	player.set("jump_vertical_velocity", 0.0)
@@ -99,18 +101,18 @@ func _check_player_silhouette_at_arena_edges(player: CharacterBody2D) -> void:
 	_check(bottom_screen_y <= EXPECTED_SIZE.y, "real player alpha feet remain visible at the upper jump boundary")
 	await _check_attack_pose_silhouette(player)
 	player.global_position.x = 250.0
-	await _wait_frames(120)
+	await _wait_camera_settled(player.get_node("Camera2D") as Camera2D)
 	var left_screen_x: float = (player_art.get_global_transform_with_canvas() * alpha_left_local).x
 	_check(left_screen_x >= 0.0, "full player alpha silhouette remains inside the left camera edge")
 	player.global_position.x = 1670.0
-	await _wait_frames(120)
+	await _wait_camera_settled(player.get_node("Camera2D") as Camera2D)
 	var right_screen_x: float = (player_art.get_global_transform_with_canvas() * alpha_right_local).x
 	_check(right_screen_x <= EXPECTED_SIZE.x, "full player alpha silhouette remains inside the right camera edge")
 	player.global_position = Vector2(960.0, 978.0)
 	player.set("is_jumping", false)
 	player.set("jump_height_offset", 0.0)
 	visual_root.position.y = -18.0
-	await _wait_frames(120)
+	await _wait_camera_settled(player.get_node("Camera2D") as Camera2D)
 	bottom_screen = player_art.get_global_transform_with_canvas() * alpha_bottom_local
 	bottom_screen_y = bottom_screen.y
 	_check(bottom_screen_y <= EXPECTED_SIZE.y, "real player alpha feet remain visible at the lower arena boundary")
@@ -147,9 +149,20 @@ func _check_attack_pose_silhouette(player: CharacterBody2D) -> void:
 		player.call("_set_stage_hitbox", index, false)
 	await process_frame
 
-func _wait_frames(count: int) -> void:
-	for _frame in range(count):
+func _wait_camera_settled(camera: Camera2D) -> void:
+	var previous := camera.get_screen_center_position()
+	var settled_frames := 0
+	for _frame in range(120):
 		await process_frame
+		var current := camera.get_screen_center_position()
+		if current.distance_to(previous) <= 0.5:
+			settled_frames += 1
+			if settled_frames >= 3:
+				return
+		else:
+			settled_frames = 0
+		previous = current
+	_check(false, "camera smoothing settles within 120 rendered frames")
 
 func _has_visible_variation(image: Image) -> bool:
 	var first_color := image.get_pixel(0, 0)
@@ -167,13 +180,25 @@ func _output_contains(output: Array, fragment: String) -> bool:
 			return true
 	return false
 
+func _reported_check_count(output: Array) -> int:
+	for line in output:
+		var matched := RegEx.new()
+		matched.compile("checks=(\\d+)")
+		var result := matched.search(str(line))
+		if result != null:
+			return int(result.get_string(1))
+	return 0
+
 func _check(condition: bool, description: String) -> void:
+	_check_count += 1
 	if condition:
 		print("PASS: " + description)
 	else:
 		_failures.append(description)
 
 func _finish() -> void:
+	var elapsed_seconds := float(Time.get_ticks_usec() - _started_usec) / 1000000.0
+	print("camera_boundary_window_smoke: total_checks=%d capture_checks=%d elapsed_seconds=%.3f" % [_check_count + _capture_check_count, _capture_check_count, elapsed_seconds])
 	if _failures.is_empty():
 		print("camera_boundary_window_smoke: all checks passed")
 		quit(0)

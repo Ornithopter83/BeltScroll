@@ -20,6 +20,7 @@ set "PROBE=%PROJECT_DIR%\tests\smoke_runner_probe.cmd"
 set "RUN_LOG=%TEMP%\beltscroll_smoke_%RANDOM%_%RANDOM%.log"
 set "SUITE_FAILED=0"
 set "FAILED_LOG="
+for /f %%T in ('powershell.exe -NoLogo -NoProfile -NonInteractive -Command "[Diagnostics.Stopwatch]::GetTimestamp()"') do set "SUITE_START_TICKS=%%T"
 
 echo [smoke] Importing project resources
 set "SMOKE_ARGS=--headless --editor --path ""%PROJECT_DIR%"" --import --quit"
@@ -73,6 +74,7 @@ call :run_window_smoke player_art_integration_smoke
 call :run_window_smoke player_visual_animator_smoke
 call :run_window_smoke player_attack_pose_integration_smoke
 call :run_window_smoke camera_boundary_window_smoke
+call :run_window_smoke display_num_input_window_smoke
 call :run_window_smoke gameplay_window_render_smoke
 call :run_window_smoke combat_live_session_window_smoke
 call :run_window_smoke raider_healthbar_window_smoke
@@ -97,6 +99,7 @@ if errorlevel 1 (
 )
 if "%SUITE_FAILED%"=="1" goto failed
 del "%RUN_LOG%" >nul 2>nul
+call :report_suite 0
 echo [smoke] All independent smoke checks passed.
 exit /b 0
 
@@ -137,6 +140,7 @@ set "SMOKE_NAME=%~1"
 echo [smoke] Running %SMOKE_NAME% with the window renderer
 set "SMOKE_ARGS=--path ""%PROJECT_DIR%"" --script ""res://tests/%SMOKE_NAME%.gd"""
 call :run_bounded 240
+if /I "%SMOKE_NAME%"=="camera_boundary_window_smoke" call :report_camera_run
 call "%PROBE%" "%RUN_LOG%" "%RUN_EXIT%" "%SMOKE_NAME%: all checks passed"
 if errorlevel 1 (
     set "SUITE_FAILED=1"
@@ -209,6 +213,18 @@ if not errorlevel 1 (
 exit /b 0
 
 :failed
+call :report_suite 1
 echo [smoke] FAILED. Diagnostic log: %FAILED_LOG%
 if defined FAILED_LOG type "%FAILED_LOG%"
 exit /b 1
+
+:report_camera_run
+for /f "tokens=2 delims=:" %%E in ('findstr /C:"Actual process exit code:" "%RUN_LOG%"') do echo [smoke] camera_boundary_window_smoke process_exit=%%E
+for /f "tokens=2 delims=:" %%E in ('findstr /C:"Elapsed seconds:" "%RUN_LOG%"') do echo [smoke] camera_boundary_window_smoke elapsed_seconds=%%E
+for /f "tokens=2 delims=:" %%E in ('findstr /C:"Reported check count:" "%RUN_LOG%"') do echo [smoke] camera_boundary_window_smoke checks=%%E
+exit /b 0
+
+:report_suite
+for /f %%T in ('powershell.exe -NoLogo -NoProfile -NonInteractive -Command "$elapsed=([Diagnostics.Stopwatch]::GetTimestamp() - [long]$env:SUITE_START_TICKS) / [Diagnostics.Stopwatch]::Frequency; [Math]::Round($elapsed,3)"') do set "SUITE_ELAPSED=%%T"
+echo [smoke] suite process_exit=%~1 elapsed_seconds=%SUITE_ELAPSED%
+exit /b 0

@@ -54,8 +54,10 @@ func refresh() -> void:
 			_player_health_target = float(current)
 		elif float(current) != _player_health_target:
 			if float(current) > _player_health_target:
-				# Healing removes the damage tail immediately, including partial heals.
-				_player_damage_value = maxf(_player_bar_value, float(current))
+				# Both layers must reach the healed value together. Otherwise the red
+				# layer remains visible between the interpolating live bar and target.
+				_player_bar_value = float(current)
+				_player_damage_value = float(current)
 				_player_damage_delay = 0.0
 			else:
 				_player_damage_delay = PLAYER_DAMAGE_DELAY
@@ -131,11 +133,16 @@ func _update_raider_indicator(raider: Node2D, raider_id: int) -> void:
 		indicator["initialized"] = true
 	elif target != float(indicator["target"]):
 		if target > float(indicator["target"]):
-			indicator["damage_value"] = maxf(float(indicator["bar_value"]), target)
+			indicator["bar_value"] = target
+			indicator["damage_value"] = target
 			indicator["damage_delay"] = 0.0
 		else:
 			indicator["damage_delay"] = RAIDER_DAMAGE_DELAY
 		indicator["target"] = target
+	# Apply state changes before any visibility/placement early return so a
+	# visible Raider that heals cannot retain the previous frame's red tail.
+	indicator["bar"].value = float(indicator["bar_value"])
+	indicator["damage_bar"].value = float(indicator["damage_value"])
 	var root_control: Control = indicator["root"]
 	if health <= 0:
 		root_control.visible = false
@@ -210,10 +217,14 @@ func _choose_raider_indicator_position(raider: Node2D, preferred: Vector2, viewp
 		if _overlaps_fixed_hud(rect):
 			continue
 		var score := absf(offset) * 2.0
+		var obstructed := false
 		for actor_bounds in blocker_bounds:
 			var overlap := rect.intersection(actor_bounds).get_area()
 			if overlap > 0.0:
-				score += overlap * 100.0 + 100000.0
+				obstructed = true
+				break
+		if obstructed:
+			continue
 		if score < best_score:
 			best_score = score
 			best = candidate

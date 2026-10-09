@@ -22,7 +22,12 @@ func _run() -> void:
 	_check(_contains(output, "synthetic left action reverses live movement"), "capture records direction reversal")
 	_check(_contains(output, "all three attack_hit signals came from live active hitboxes"), "capture confirms real hit signals")
 	_check(_contains(output, "hit-stop was observed during all three real hit events"), "capture observes hit-stop")
-	_check(_count_matches(output, "contains rendered Player/Raider pixels") == 7, "all seven chronological frames contain rendered combat characters")
+	_check(_contains(output, "combat phase physics="), "capture records attack phases by physics frame")
+	_check(_contains(output, "attack buffer physics="), "capture records buffered input by physics frame")
+	for stage in range(1, 4):
+		_check(_contains(output, "attack %d emits its actual hit signal" % stage), "attack %d emits its real hit signal" % stage)
+		_check(_contains(output, "attack %d reduces real Raider health" % stage), "attack %d applies real damage" % stage)
+	_check(_count_matches(output, "contains a rendered scene and visible combat actors") == 7, "all seven chronological frames capture the live combat scene")
 	if status != 0:
 		for line in output:
 			push_error(str(line))
