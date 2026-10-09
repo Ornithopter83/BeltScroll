@@ -19,6 +19,7 @@ func _run() -> void:
 	_check(blender.get_displayed_textures().size() == 1, "safe idle is the only initially visible texture")
 	_check(not blender.approve_pose_texture("attack1", "active", _fixture(Vector2i(20, 28), Rect2i(4, 5, 9, 19), Color.CORAL)), "rejects unsupported phase names")
 	_check(not blender.approve_pose_texture("attack2", "contact", "res://assets/art/player/missing_pose.png"), "rejects missing texture paths")
+	_check(not blender.play_pose_sequence("attack1", ["startup", "contact"], 0.05), "rejects sequences that include unapproved keyposes")
 
 	var fixtures: Dictionary = {}
 	for attack in range(1, 4):
@@ -41,6 +42,17 @@ func _run() -> void:
 		_check(blender.get_displayed_textures().size() == 1, key + " completes its short crossfade")
 		_check(_visible_texture(blender) == fixtures[key], key + " ends on its own approved texture")
 		_check(_foot_point(blender).distance_to(blender.common_foot_anchor) <= 0.01, key + " aligns alpha bounds to common foot anchor")
+
+	var attack_one_sequence: Array[String] = ["startup", "contact", "recovery"]
+	_check(blender.play_pose_sequence("attack1", attack_one_sequence, 0.05), "plays a timed sequence made only from explicitly approved keyposes")
+	_check(blender.get_sequence_frame_count() == 3 and blender.get_sequence_frame() == 0, "sequence exposes its first frame and frame count")
+	blender._process(0.051)
+	_check(blender.get_sequence_frame() == 1 and blender.get_current_pose_key() == "attack1_contact", "sequence clock advances to its approved contact frame")
+	blender._process(0.051)
+	_check(blender.get_sequence_frame() == 2 and blender.get_current_pose_key() == "attack1_recovery", "sequence clock advances to its approved recovery frame")
+	blender.set_pose("attack3", "contact")
+	_check(blender.get_sequence_frame_count() == 0, "direct pose requests interrupt an active sequence")
+	blender._process(FADE)
 
 	# Mirror the anchor correction with an asymmetric-alpha procedural texture.
 	blender.set_pose("attack1", "contact")

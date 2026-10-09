@@ -5,7 +5,7 @@ const CAPTURE_SIZE := Vector2i(1920, 1080)
 const ART_SCALE := Vector2(0.4469274, 0.4469274)
 const POSE_CELL := Vector2(640.0, 380.0)
 const FLOOR_TOLERANCE := 0.08
-const POSE_NAMES := ["idle", "walk", "crouch", "jump rise", "jump fall", "landing", "1 startup", "1 active", "2 active", "3 startup", "3 active", "3 recovery", "hit", "KO"]
+const POSE_NAMES := ["idle", "walk", "idle baseline", "jump rise", "jump fall", "landing", "1 startup", "1 active", "2 active", "3 startup", "3 active", "3 recovery", "hit", "KO"]
 const POSE_COUNT := 14
 
 var failures: Array[String] = []
@@ -81,11 +81,14 @@ func _run() -> void:
 		var pose_blender := poses[index].get_node("VisualRoot/PoseBlender") as PlayerPoseBlender
 		if pose_blender.visible:
 			_check(_blender_keeps_common_foot(pose_blender), POSE_NAMES[index] + " keeps PoseBlender crossfade sprites on the common foot anchor")
-		if index > 0:
+		if index > 0 and index != 2:
 			var pose_art := poses[index].get_node("VisualRoot/PlayerArt") as Sprite2D
 			var pose_is_distinct := absf(pose_art.rotation) > 0.008 or pose_art.scale.distance_to(ART_SCALE) > 0.0015
 			_check(pose_is_distinct, POSE_NAMES[index] + " differs visibly from the neutral still pose")
 			_check(_alpha_bounds_fit_cell(pose_art), POSE_NAMES[index] + " enlarged art remains inside its capture cell")
+		_check(animator.get_animation_state() == _expected_state(index), POSE_NAMES[index] + " resolves to a timed animation state")
+		_check(animator.get_state_frame_count() >= 1 and animator.get_state_frame() >= 0, POSE_NAMES[index] + " exposes its current frame in the state sequence")
+		_check(animator.is_current_pose_temporary() == (index not in [7, 8, 10]), POSE_NAMES[index] + " identifies temporary poses separately from approved attack contact art")
 
 	var idle := poses[0]
 	var idle_art := idle.get_node("VisualRoot/PlayerArt") as Sprite2D
@@ -101,6 +104,7 @@ func _run() -> void:
 		idle_animator.call("_process", 1.0 / 60.0)
 	_check(idle_art.transform.origin.distance_to(idle_transform.origin) < 1.5 and absf(idle_art.rotation) < 0.01 and idle_art.scale.distance_to(ART_SCALE) < 0.002, "idle transform remains neutral and restrained")
 	_check(_foot_point(idle).distance_to(idle_foot) <= FLOOR_TOLERANCE, "idle return retains the same foot anchor")
+	_check(idle_animator.get_state_elapsed() > 0.0, "idle state clock advances while its pose loops")
 
 	var third_start := poses[9].get_node("VisualRoot/PlayerArt") as Sprite2D
 	var third_active := poses[10].get_node("VisualRoot/PlayerArt") as Sprite2D
@@ -142,6 +146,15 @@ func _run() -> void:
 	var recovered_art := left_player.get_node("VisualRoot/PlayerArt") as Sprite2D
 	_check(absf(recovered_art.rotation) < 0.01 and recovered_art.scale.distance_to(authored_scale) < 0.002, "stage three recovery transitions smoothly back to neutral")
 	_check(_foot_point(left_player).distance_to(recovery_foot) <= FLOOR_TOLERANCE, "recovery return keeps its original foot anchor")
+	left_player.set("is_ko", true)
+	left_player.set("attack_phase", "startup")
+	left_player.set("attack_stage", 1)
+	left_animator.call("_process", 1.0 / 60.0)
+	_check(left_animator.get_animation_state() == "ko", "KO preempts an in-flight attack state")
+	left_player.set("is_ko", false)
+	left_player.set("attack_phase", "startup")
+	left_animator.call("_process", 1.0 / 60.0)
+	_check(left_animator.get_animation_state() == "attack1_startup" and left_animator.get_state_elapsed() == 0.0, "rapid state changes reset the active state clock")
 
 	await process_frame
 	await RenderingServer.frame_post_draw
@@ -158,7 +171,6 @@ func _run() -> void:
 func _configure_pose(player: CharacterBody2D, index: int) -> void:
 	player.velocity = Vector2.ZERO
 	player.set("is_ko", false)
-	player.set("is_sitting", false)
 	player.set("is_jumping", false)
 	player.set("jump_vertical_velocity", 0.0)
 	player.set("attack_phase", "idle")
@@ -172,9 +184,7 @@ func _configure_pose(player: CharacterBody2D, index: int) -> void:
 		1:
 			player.velocity = Vector2(280.0, 0.0)
 		2:
-			player.set("is_sitting", true)
-			visual_root.scale.y = 0.78
-			visual_root.position.y = -18.0 + 0.22 * 15.0
+			pass
 		3:
 			player.set("is_jumping", true)
 			player.set("jump_vertical_velocity", -220.0)
@@ -206,6 +216,36 @@ func _set_attack(player: CharacterBody2D, stage: int, phase: String, remaining: 
 	player.set("attack_stage", stage)
 	player.set("attack_phase", phase)
 	player.set("attack_phase_remaining", remaining)
+
+func _expected_state(index: int) -> String:
+	match index:
+		0, 2:
+			return "idle"
+		1:
+			return "walk"
+		3:
+			return "jump_rise"
+		4:
+			return "jump_fall"
+		5:
+			return "landing"
+		6:
+			return "attack1_startup"
+		7:
+			return "attack1_contact"
+		8:
+			return "attack2_contact"
+		9:
+			return "attack3_startup"
+		10:
+			return "attack3_contact"
+		11:
+			return "attack3_recovery"
+		12:
+			return "hit"
+		13:
+			return "ko"
+	return "idle"
 
 func _baseline_foot(player: CharacterBody2D) -> Vector2:
 	var sprite := player.get_node("VisualRoot/PlayerArt") as Sprite2D

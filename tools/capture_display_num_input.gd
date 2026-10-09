@@ -5,7 +5,7 @@ const MAIN_SCENE := "res://scenes/game/main.tscn"
 const CAPTURE_PATH := "display_num_input_window.png"
 const REPORT_PATH := "display_num_input_window.txt"
 const KEYPAD_CODES := [KEY_KP_1, KEY_KP_2, KEY_KP_3, KEY_KP_4, KEY_KP_5, KEY_KP_6, KEY_KP_7, KEY_KP_8, KEY_KP_9]
-const ACTIONS := ["attack", "jump", "block", "skill_4", "skill_5", "skill_6", "skill_7", "skill_8", "skill_9"]
+const ACTIONS := ["attack", "jump", "block", "skill_1", "skill_2", "skill_6", "skill_7", "skill_8", "skill_9"]
 
 var _failures: Array[String] = []
 
@@ -60,6 +60,8 @@ func _run() -> void:
 		return
 
 	for index in range(KEYPAD_CODES.size()):
+		if index == 3:
+			await _wait_for_attack_idle(player, 240)
 		var action: StringName = ACTIONS[index]
 		var code: Key = KEYPAD_CODES[index]
 		_check(_has_key(action, code), "Num%d keypad physical key is mapped to %s" % [index + 1, action])
@@ -79,8 +81,12 @@ func _run() -> void:
 			_check(await _wait_for_player_flag(player, "is_jumping", true, 6), "Num2 changes the real Player jump state")
 		elif index == 2:
 			_check(await _wait_for_player_flag(player, "is_blocking", true, 6), "Num3 changes the real Player block state")
+		elif index == 3 or index == 4:
+			var expected_skill := index - 2
+			_check(await _wait_for_skill_start(player, expected_skill, 6), "Num%d starts the real Player skill %d state" % [index + 1, expected_skill])
+			await _wait_for_skill_idle(player, 240)
 		else:
-			_check(not bool(player.get("is_jumping")) and not bool(player.get("is_blocking")) and str(player.get("attack_phase")) == "idle", "Num%d remains a reserved skill action without an implemented Player move" % (index + 1))
+			_check(int(player.get("skill_id")) == 0 and str(player.get("skill_phase")) == "idle", "Num%d remains reserved without starting a Player skill" % (index + 1))
 		Input.parse_input_event(_key_event(code, false))
 		await process_frame
 		await physics_frame
@@ -101,8 +107,8 @@ func _run() -> void:
 	metadata.append("report_file=%s" % report_absolute)
 	print("DISPLAY_NUM_INPUT: capture_png=%s" % capture_absolute)
 	print("DISPLAY_NUM_INPUT: report_file=%s" % report_absolute)
-	metadata.append("synthetic_keypad_actions=attack,jump,block,skill_4,skill_5,skill_6,skill_7,skill_8,skill_9")
-	metadata.append("reserved_skills=Num4-Num9 mapped in InputMap; no Player move implementation asserted")
+	metadata.append("synthetic_keypad_actions=attack,jump,block,skill_1,skill_2,skill_6,skill_7,skill_8,skill_9")
+	metadata.append("implemented_skills=Num4:skill_1,Num5:skill_2; reserved_skills=Num6-Num9")
 	metadata.append("physical_keyboard_status=NOT_TESTED")
 	_finish(metadata)
 
@@ -123,6 +129,27 @@ func _wait_for_player_flag(player: Node, property: StringName, expected: bool, m
 			return true
 		await physics_frame
 	return bool(player.get(property)) == expected
+
+func _wait_for_skill_idle(player: Node, max_physics_frames: int) -> void:
+	for _frame in range(max_physics_frames):
+		if str(player.get("skill_phase")) == "idle":
+			return
+		await physics_frame
+	_check(str(player.get("skill_phase")) == "idle", "skill input returns Player control after recovery")
+
+func _wait_for_skill_start(player: Node, skill_id: int, max_physics_frames: int) -> bool:
+	for _frame in range(max_physics_frames):
+		if int(player.get("skill_id")) == skill_id and str(player.get("skill_phase")) != "idle":
+			return true
+		await physics_frame
+	return int(player.get("skill_id")) == skill_id and str(player.get("skill_phase")) != "idle"
+
+func _wait_for_attack_idle(player: Node, max_physics_frames: int) -> void:
+	for _frame in range(max_physics_frames):
+		if str(player.get("attack_phase")) == "idle" and float(player.get("hitstun_remaining")) <= 0.0 and not bool(player.get("is_blocking")):
+			return
+		await physics_frame
+	_check(str(player.get("attack_phase")) == "idle" and float(player.get("hitstun_remaining")) <= 0.0 and not bool(player.get("is_blocking")), "Player is free before skill keypad verification")
 
 func _has_key(action: StringName, code: Key) -> bool:
 	if not InputMap.has_action(action):

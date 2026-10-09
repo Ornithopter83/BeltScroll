@@ -24,6 +24,12 @@ var _transition_elapsed := 0.0
 var _transitioning := false
 var _facing_left := false
 var _ko := false
+var _sequence_action := ""
+var _sequence_phases: Array[String] = []
+var _sequence_frame_duration := 0.0
+var _sequence_elapsed := 0.0
+var _sequence_frame := 0
+var _sequence_loop := false
 
 func _ready() -> void:
 	for index in range(2):
@@ -78,6 +84,38 @@ func approve_pose_texture(action: String, phase: String, texture_source: Variant
 ## action is idle, attack1, attack2, or attack3. Attack phases are startup, contact,
 ## and recovery. Unknown/unapproved/missing poses safely resolve to the approved v8 still.
 func set_pose(action: String, phase: String = "") -> void:
+	_clear_sequence()
+	_select_pose(action, phase)
+
+## Plays an explicitly approved sequence. Each item must already have been
+## approved through approve_pose_texture; unapproved in-between art is rejected.
+func play_pose_sequence(action: String, phases: Array, frame_duration: float, loop := false) -> bool:
+	if _ko or action not in ["attack1", "attack2", "attack3"] or phases.is_empty() or frame_duration <= 0.0:
+		return false
+	var accepted_phases: Array[String] = []
+	for phase in phases:
+		if not phase is String or not PHASES.has(phase) or not _approved_textures.has(_pose_key(action, phase)):
+			return false
+		accepted_phases.append(phase)
+	_sequence_action = action
+	_sequence_phases = accepted_phases
+	_sequence_frame_duration = frame_duration
+	_sequence_elapsed = 0.0
+	_sequence_frame = 0
+	_sequence_loop = loop
+	_select_pose(action, _sequence_phases[0])
+	return true
+
+func get_sequence_frame() -> int:
+	return _sequence_frame
+
+func get_sequence_frame_count() -> int:
+	return _sequence_phases.size()
+
+func get_sequence_elapsed() -> float:
+	return _sequence_elapsed
+
+func _select_pose(action: String, phase: String = "") -> void:
 	if _ko:
 		_request_texture("idle", _load_safe_idle())
 		return
@@ -104,12 +142,14 @@ func set_facing_left(facing_left: bool) -> void:
 func set_ko(is_ko: bool) -> void:
 	_ko = is_ko
 	if _ko:
+		_clear_sequence()
 		_request_texture("idle", _load_safe_idle(), true)
 
 func clear_ko() -> void:
 	_ko = false
 
 func interrupt_to_idle() -> void:
+	_clear_sequence()
 	_request_texture("idle", _load_safe_idle(), true)
 
 func get_current_pose_key() -> String:
@@ -123,6 +163,7 @@ func get_displayed_textures() -> Array[Texture2D]:
 	return result
 
 func _process(delta: float) -> void:
+	_advance_sequence(delta)
 	if not _transitioning:
 		return
 	_transition_elapsed = minf(_transition_elapsed + maxf(delta, 0.0), crossfade_duration)
@@ -134,6 +175,29 @@ func _process(delta: float) -> void:
 		_sprites[_transition_from].modulate.a = 0.0
 		_sprites[_transitioning_index()].modulate.a = 1.0
 		_transitioning = false
+
+func _advance_sequence(delta: float) -> void:
+	if _sequence_phases.is_empty() or _sequence_frame_duration <= 0.0:
+		return
+	_sequence_elapsed += maxf(delta, 0.0)
+	var next_frame := int(floor(_sequence_elapsed / _sequence_frame_duration))
+	if _sequence_loop:
+		next_frame = posmod(next_frame, _sequence_phases.size())
+	else:
+		next_frame = mini(next_frame, _sequence_phases.size() - 1)
+	if next_frame != _sequence_frame:
+		_sequence_frame = next_frame
+		_select_pose(_sequence_action, _sequence_phases[_sequence_frame])
+	if not _sequence_loop and _sequence_elapsed >= _sequence_frame_duration * _sequence_phases.size():
+		_clear_sequence()
+
+func _clear_sequence() -> void:
+	_sequence_action = ""
+	_sequence_phases.clear()
+	_sequence_frame_duration = 0.0
+	_sequence_elapsed = 0.0
+	_sequence_frame = 0
+	_sequence_loop = false
 
 func _request_texture(key: String, texture: Texture2D, immediate := false) -> void:
 	if not _texture_is_usable(texture):

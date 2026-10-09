@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/player_controller.gd" id="1_controller"]
 [ext_resource type="Texture2D" path="res://assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png" id="2_player_art"]
@@ -17,6 +17,12 @@ size = Vector2(78, 52)
 
 [sub_resource type="RectangleShape2D" id="HitboxShape_stage_3"]
 size = Vector2(100, 66)
+
+[sub_resource type="RectangleShape2D" id="HitboxShape_skill_1"]
+size = Vector2(108, 58)
+
+[sub_resource type="CircleShape2D" id="HitboxShape_skill_2"]
+radius = 64.0
 
 [node name="Player" type="CharacterBody2D"]
 collision_layer = 1
@@ -80,6 +86,22 @@ monitoring = false
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Hitboxes/Hitbox3"]
 shape = SubResource("HitboxShape_stage_3")
+
+[node name="Skill1Hitbox" type="Area2D" parent="Hitboxes"]
+collision_layer = 0
+collision_mask = 2
+monitoring = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitboxes/Skill1Hitbox"]
+shape = SubResource("HitboxShape_skill_1")
+
+[node name="Skill2Hitbox" type="Area2D" parent="Hitboxes"]
+collision_layer = 0
+collision_mask = 2
+monitoring = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitboxes/Skill2Hitbox"]
+shape = SubResource("HitboxShape_skill_2")
 
 [node name="Camera2D" type="Camera2D" parent="."]
 zoom = Vector2(1.2, 1.2)

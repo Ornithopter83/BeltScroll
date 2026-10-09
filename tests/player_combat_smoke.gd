@@ -148,20 +148,32 @@ func _run() -> void:
 	_check(player.get("is_jumping") == false, "jump completes after hit-stop restores gameplay time")
 	_check(is_equal_approx(Engine.time_scale, time_scale_before_stop), "hit stop restores the previous gameplay time scale")
 	await _check_player_hits_training_dummy()
+	await _wait_for_idle()
+	var skill1_keys := InputMap.action_get_events("skill_1")
+	var skill2_keys := InputMap.action_get_events("skill_2")
+	_check(skill1_keys.any(func(event: InputEvent) -> bool: return event is InputEventKey and (event as InputEventKey).keycode == KEY_KP_4), "Num4 keypad key is bound to skill 1")
+	_check(skill2_keys.any(func(event: InputEvent) -> bool: return event is InputEventKey and (event as InputEventKey).keycode == KEY_KP_5), "Num5 keypad key is bound to skill 2")
+	player.call("_request_skill", 1)
+	_check(player.get("skill_phase") == "startup", "skill action can begin after ordinary combat")
+	player.call("_request_attack")
+	_check(player.get("skill_phase") == "startup" and player.get("attack_phase") == "idle", "basic combo input cannot overlap a skill")
+	player.call("_cancel_skill")
+	player.set("hitstun_remaining", 0.0)
 
 	# KO interrupts an active combo and all player input while preserving floor placement.
 	player.global_position = Vector2(900.0, 800.0)
-	player.call("_begin_attack", 2)
-	player.set("attack_phase", "active")
-	player.call("_set_stage_hitbox", 2, true)
+	player.call("_request_skill", 2)
+	player.set("skill_phase", "active")
+	player.call("_set_skill_hitboxes", true)
 	var floor_position := player.global_position
 	player.receive_hit({"damage": 99, "direction": Vector2.LEFT, "knockback": 500.0, "hit_stun": 0.2, "attack_stage": 3})
 	_check(player.get("health") == 0 and player.get("is_ko"), "lethal damage enters the terminal KO state")
-	_check(player.get("attack_phase") == "idle" and player.get("attack_stage") == 0, "KO cancels the current combo")
+	_check(player.get("attack_phase") == "idle" and player.get("attack_stage") == 0 and player.get("skill_phase") == "idle", "KO cancels combo and skill states")
 	var hitboxes_off := true
 	for index in range(1, 4):
 		hitboxes_off = hitboxes_off and not player.get_node("Hitboxes/Hitbox%d" % index).monitoring
-	_check(hitboxes_off, "KO disables every player hitbox")
+	hitboxes_off = hitboxes_off and not player.get_node("Hitboxes/Skill1Hitbox").monitoring and not player.get_node("Hitboxes/Skill2Hitbox").monitoring
+	_check(hitboxes_off, "KO disables every combo and skill hitbox")
 	Input.action_press("move_right")
 	Input.action_press("jump")
 	Input.action_press("attack")

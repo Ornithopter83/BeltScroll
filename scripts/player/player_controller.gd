@@ -4,6 +4,8 @@ signal attack_started(stage: int)
 signal attack_hit(stage: int)
 signal player_hit(stage: int)
 signal player_ko
+signal skill_started(skill_id: int)
+signal skill_hit(skill_id: int)
 
 @export var walk_speed: float = 280.0
 @export var arena_bounds: Rect2 = Rect2(Vector2(237, 722), Vector2(1446, 258))
@@ -45,6 +47,14 @@ const COMBAT_IMPACT_SCENE := preload("res://scenes/vfx/combat_impact.tscn")
 const GROUND_DUST_SCENE := preload("res://scenes/vfx/ground_dust.tscn")
 const GROUND_DUST_STEP_DISTANCE := 72.0
 const MAX_GROUND_DUST_INSTANCES := 4
+const SKILL_STARTUP := [0.16, 0.22]
+const SKILL_ACTIVE := [0.12, 0.18]
+const SKILL_RECOVERY := [0.42, 0.55]
+const SKILL_DAMAGE := [3, 2]
+const SKILL_KNOCKBACK := [520.0, 360.0]
+const SKILL_HIT_STUN := [0.42, 0.32]
+const SKILL_COOLDOWN := [1.35, 1.8]
+const SKILL_LUNGE := 120.0
 
 var facing_direction := Vector2.DOWN
 var jump_vertical_velocity := 0.0
@@ -73,6 +83,11 @@ var _combat_impacts: Array[Node2D] = []
 var _attack_hit_emitted := false
 var _ground_distance_since_dust := 0.0
 var _ground_dust_instances: Array[Node2D] = []
+var skill_id := 0
+var skill_phase := "idle"
+var skill_phase_remaining := 0.0
+var skill_cooldowns := [0.0, 0.0]
+var _skill_hit_targets: Dictionary = {}
 
 func _ready() -> void:
 	health = max_health
@@ -81,40 +96,53 @@ func _ready() -> void:
 	camera.position = Vector2(0.0, CAMERA_VERTICAL_FRAME_OFFSET)
 	add_to_group("hit_receivers")
 	_set_attack_stage_visual(0)
+	_set_skill_hitboxes(false)
 
 func _physics_process(delta: float) -> void:
+	for index in range(2):
+		skill_cooldowns[index] = maxf(0.0, skill_cooldowns[index] - delta)
 	if is_ko:
 		velocity = Vector2.ZERO
 		move_and_slide()
 		_apply_arena_bounds()
 		_update_jump(delta)
 		_update_attack(delta)
+		_update_skill(delta)
 		_update_hit_flash(delta)
 		_update_camera_trauma(delta)
 		return
 
-	if Input.is_action_just_pressed("attack"):
+	if Input.is_action_just_pressed("skill_1"):
+		_request_skill(1)
+	elif Input.is_action_just_pressed("skill_2"):
+		_request_skill(2)
+	elif Input.is_action_just_pressed("attack"):
 		_request_attack()
 	else:
 		attack_buffer_remaining = maxf(0.0, attack_buffer_remaining - delta)
 
 	var input_direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	if input_direction.length_squared() > 0.0 and hitstun_remaining <= 0.0 and attack_phase == "idle":
+	if input_direction.length_squared() > 0.0 and hitstun_remaining <= 0.0 and attack_phase == "idle" and skill_phase == "idle":
 		facing_direction = input_direction.normalized()
 		if absf(facing_direction.x) > 0.1:
 			visual_root.scale.x = -1.0 if facing_direction.x < 0.0 else 1.0
 
-	is_blocking = Input.is_action_pressed("block") and hitstun_remaining <= 0.0 and attack_phase == "idle" and not is_jumping
+	is_blocking = Input.is_action_pressed("block") and hitstun_remaining <= 0.0 and attack_phase == "idle" and skill_phase == "idle" and not is_jumping
+	if Input.is_action_pressed("block") and skill_phase != "idle":
+		_cancel_skill()
 	if hitstun_remaining > 0.0:
 		hitstun_remaining = maxf(0.0, hitstun_remaining - delta)
 		velocity = velocity.move_toward(Vector2.ZERO, 900.0 * delta)
-	elif attack_phase == "idle" and not is_blocking:
+	elif attack_phase == "idle" and skill_phase == "idle" and not is_blocking:
 		velocity = input_direction.normalized() * walk_speed if input_direction.length_squared() > 0.0 else Vector2.ZERO
 	elif is_blocking:
 		velocity = Vector2.ZERO
 	else:
 		velocity = Vector2.ZERO
-		_apply_attack_lunge()
+		if skill_phase != "idle":
+			_apply_skill_motion()
+		else:
+			_apply_attack_lunge()
 
 	var floor_position_before_move := global_position
 	move_and_slide()
@@ -122,6 +150,7 @@ func _physics_process(delta: float) -> void:
 	var landed := _update_jump(delta)
 	_update_ground_dust(floor_position_before_move, landed)
 	_update_attack(delta)
+	_update_skill(delta)
 	_update_hit_flash(delta)
 	_update_camera_trauma(delta)
 
@@ -163,7 +192,7 @@ func _update_jump(delta: float) -> bool:
 	else:
 		coyote_remaining = maxf(0.0, coyote_time)
 
-	if jump_buffer_remaining > 0.0 and (not is_jumping or coyote_remaining > 0.0) and hitstun_remaining <= 0.0 and not is_blocking:
+	if jump_buffer_remaining > 0.0 and (not is_jumping or coyote_remaining > 0.0) and hitstun_remaining <= 0.0 and not is_blocking and skill_phase == "idle" and attack_phase == "idle":
 		_start_jump()
 
 	visual_root.position.y = VISUAL_BASE_Y - jump_height_offset
@@ -219,7 +248,7 @@ func _jump_gravity() -> float:
 	return velocity_magnitude * velocity_magnitude / (2.0 * height)
 
 func _request_attack() -> void:
-	if is_ko or hitstun_remaining > 0.0 or is_blocking or Input.is_action_pressed("block"):
+	if is_ko or hitstun_remaining > 0.0 or is_blocking or is_jumping or skill_phase != "idle" or Input.is_action_pressed("block"):
 		return
 	if attack_phase == "idle":
 		_begin_attack(1)
@@ -227,6 +256,8 @@ func _request_attack() -> void:
 		attack_buffer_remaining = INPUT_BUFFER_TIME
 
 func _begin_attack(stage: int) -> void:
+	if skill_phase != "idle":
+		return
 	attack_stage = clampi(stage, 1, COMBO_COUNT)
 	attack_phase = "startup"
 	attack_phase_remaining = STARTUP[attack_stage - 1]
@@ -284,6 +315,105 @@ func _set_stage_hitbox(stage: int, enabled: bool) -> void:
 		hitbox.position = facing_direction * (ATTACK_RANGE[index - 1] * ATTACK_REACH_SCALE * 0.58)
 		hitbox.rotation = facing_direction.angle()
 
+func _request_skill(requested_skill_id: int) -> void:
+	if requested_skill_id < 1 or requested_skill_id > 2:
+		return
+	var index := requested_skill_id - 1
+	if is_ko or hitstun_remaining > 0.0 or is_blocking or Input.is_action_pressed("block") or is_jumping:
+		return
+	if skill_phase != "idle" or attack_phase != "idle" or skill_cooldowns[index] > 0.0:
+		return
+	skill_id = requested_skill_id
+	skill_phase = "startup"
+	skill_phase_remaining = SKILL_STARTUP[index]
+	skill_cooldowns[index] = SKILL_COOLDOWN[index]
+	_skill_hit_targets.clear()
+	skill_started.emit(skill_id)
+	_set_skill_hitbox_transform()
+	_set_skill_hitboxes(false)
+	attack_flash.visible = true
+	attack_flash.color = Color(0.35, 0.9, 1.0, 0.95) if skill_id == 1 else Color(0.95, 0.5, 1.0, 0.95)
+	attack_flash.scale = Vector2(1.8, 1.5) if skill_id == 1 else Vector2(2.0, 2.0)
+
+func _set_skill_hitbox_transform() -> void:
+	var lunge_hitbox := get_node("Hitboxes/Skill1Hitbox") as Area2D
+	var spin_hitbox := get_node("Hitboxes/Skill2Hitbox") as Area2D
+	lunge_hitbox.position = facing_direction * 52.0
+	lunge_hitbox.rotation = facing_direction.angle()
+	spin_hitbox.position = Vector2.ZERO
+	spin_hitbox.rotation = 0.0
+
+func _set_skill_hitboxes(enabled: bool) -> void:
+	get_node("Hitboxes/Skill1Hitbox").monitoring = enabled and skill_id == 1
+	get_node("Hitboxes/Skill2Hitbox").monitoring = enabled and skill_id == 2
+
+func _update_skill(delta: float) -> void:
+	if skill_phase == "idle":
+		return
+	var remaining_delta := delta
+	while remaining_delta > 0.0 and skill_phase != "idle":
+		var phase_step := minf(remaining_delta, skill_phase_remaining)
+		if skill_phase == "active":
+			_check_skill_hitbox()
+		skill_phase_remaining -= phase_step
+		remaining_delta -= phase_step
+		if skill_phase_remaining > 0.000001:
+			break
+		match skill_phase:
+			"startup":
+				skill_phase = "active"
+				skill_phase_remaining = SKILL_ACTIVE[skill_id - 1]
+				_set_skill_hitbox_transform()
+				_set_skill_hitboxes(true)
+			"active":
+				_set_skill_hitboxes(false)
+				skill_phase = "recovery"
+				skill_phase_remaining = SKILL_RECOVERY[skill_id - 1]
+			"recovery":
+				_cancel_skill()
+
+func _check_skill_hitbox() -> void:
+	var area_name := "Skill1Hitbox" if skill_id == 1 else "Skill2Hitbox"
+	var hitbox := get_node("Hitboxes/" + area_name) as Area2D
+	for target in hitbox.get_overlapping_bodies():
+		if target == self or not target.is_in_group("hit_receivers") or not target.has_method("receive_hit"):
+			continue
+		var target_id := target.get_instance_id()
+		if _skill_hit_targets.has(target_id):
+			continue
+		_skill_hit_targets[target_id] = true
+		var direction := (target.global_position - global_position).normalized()
+		if direction == Vector2.ZERO:
+			direction = facing_direction
+		var combat_stage := 3 if skill_id == 1 else 2
+		target.receive_hit({
+			"damage": SKILL_DAMAGE[skill_id - 1],
+			"direction": direction,
+			"knockback": SKILL_KNOCKBACK[skill_id - 1],
+			"hit_stun": SKILL_HIT_STUN[skill_id - 1],
+			"attack_stage": combat_stage,
+			"skill_id": skill_id,
+		})
+		skill_hit.emit(skill_id)
+		_spawn_combat_impact(target, combat_stage, direction)
+		_trigger_hit_stop(0.06 if skill_id == 1 else 0.045)
+		_add_camera_trauma(0.32 if skill_id == 1 else 0.24)
+
+func _apply_skill_motion() -> void:
+	if skill_id == 1 and skill_phase == "startup":
+		velocity = facing_direction * (SKILL_LUNGE / SKILL_STARTUP[0])
+	elif skill_id == 1 and skill_phase == "active":
+		velocity = facing_direction * (SKILL_LUNGE * 0.25 / SKILL_ACTIVE[0])
+	else:
+		velocity = Vector2.ZERO
+
+func _cancel_skill() -> void:
+	_set_skill_hitboxes(false)
+	skill_phase = "idle"
+	skill_phase_remaining = 0.0
+	skill_id = 0
+	attack_flash.visible = false
+
 func _check_stage_hitbox(stage: int) -> void:
 	var hitbox := get_node("Hitboxes/Hitbox%d" % stage) as Area2D
 	for target in hitbox.get_overlapping_bodies():
@@ -340,7 +470,9 @@ func _apply_attack_lunge() -> void:
 func _set_attack_stage_visual(stage: int) -> void:
 	if stage == 0:
 		attack_flash.visible = false
+		attack_flash.color = Color(1.0, 0.8, 0.25, 0.95)
 		return
+	attack_flash.color = Color(1.0, 0.8, 0.25, 0.95)
 	var stage_index := stage - 1
 	attack_flash.visible = true
 	attack_flash.position = Vector2(ATTACK_RANGE[stage_index] * ATTACK_REACH_SCALE * 0.45, -5)
@@ -351,6 +483,7 @@ func receive_hit(hit: Dictionary) -> void:
 		return
 	if not hit.has("damage") or not hit.has("direction") or not hit.has("knockback") or not hit.has("hit_stun") or not hit.has("attack_stage"):
 		return
+	_cancel_skill()
 	player_hit.emit(int(hit["attack_stage"]))
 	var direction: Vector2 = hit["direction"]
 	if direction.length_squared() > 0.0:
@@ -397,6 +530,7 @@ func _enter_ko() -> void:
 	jump_height_offset = 0.0
 	is_jumping = false
 	attack_phase = "idle"
+	_cancel_skill()
 	attack_stage = 0
 	attack_progress = 0.0
 	attack_phase_remaining = 0.0
