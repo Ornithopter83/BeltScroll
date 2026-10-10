@@ -29,7 +29,8 @@ func _run() -> void:
 	_check(player.get("attack_phase") == "recovery", "basic attack enters recovery at active boundary")
 	_check(not player.get_node("Hitboxes/Hitbox1").monitoring, "basic hitbox disables with recovery phase")
 	player.call("_update_attack", 0.20)
-	_check(player.get("attack_phase") == "idle" and player.get("attack_stage") == 0, "recovery completion returns attack to idle")
+	_check(player.get("attack_phase") == "combo_hold" and player.get("attack_stage") == 1, "recovery completion holds combo stage for the M6N link window")
+	_check(player.get("combo_link_remaining") > 0.0 and not player.get_node("Hitboxes/Hitbox1").monitoring, "combo hold keeps its link timer without enabling damage")
 
 	# An early tap remains queued until recovery opens the next stage.
 	player.call("_begin_attack", 1)

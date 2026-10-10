@@ -1,5 +1,9 @@
 .godot/
 
+# Godot .import sidecars can contain source-controlled import settings, and
+# .uid sidecars preserve stable resource identifiers. Keep both visible to Git.
+# Only the disposable editor/import cache above is ignored.
+
 # Generated QA output and local user state. Historical tracked review captures
 # remain in assets/art/review; ignore rules do not remove existing tracked files.
 .qa_logs/
