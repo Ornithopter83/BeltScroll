@@ -49,8 +49,11 @@ var _sequence_durations: Array[float] = []
 var _sequence_elapsed := 0.0
 var _sequence_frame := 0
 var _sequence_loop := false
+var _external_blend_weight := 1.0
+var _base_modulate := Color.WHITE
 
 func _ready() -> void:
+	_base_modulate = modulate
 	for index in range(2):
 		var sprite := Sprite2D.new()
 		sprite.name = "PoseSprite%d" % index
@@ -63,6 +66,18 @@ func _ready() -> void:
 	for action in APPROVED_ATTACK_POSES:
 		approve_pose_texture(action, "contact", APPROVED_ATTACK_POSES[action])
 	visible = false
+	set_external_blend_weight(_external_blend_weight)
+
+## Lets an owning animator crossfade this whole pose layer against another
+## Sprite2D while preserving the blender's own two-sprite pose transition.
+func set_external_blend_weight(weight: float) -> void:
+	_external_blend_weight = clampf(weight, 0.0, 1.0)
+	var layer_modulate := _base_modulate
+	layer_modulate.a *= _external_blend_weight
+	modulate = layer_modulate
+
+func get_external_blend_weight() -> float:
+	return _external_blend_weight
 
 ## Mirrors the existing PlayerArt transform and alpha-foot anchor while the
 ## approved contact still is displayed in its place.
@@ -183,14 +198,15 @@ func set_timed_pose(action: String, phase: String, phase_elapsed: float, phase_d
 			frame_start = time_cursor - float(frames[index].get("duration", 0.0))
 			break
 	_clear_sequence()
-	# Contact art represents the exact hitbox window. Show its first drawing on
-	# the boundary instead of spending that window fading toward it. Likewise,
-	# don't blend between frames within a phase: short authored frames must each
-	# be visible for their scheduled interval.
+	# Keep authored frames within one phase on their scheduled boundaries. A short
+	# eased transition is allowed at a phase boundary so startup/contact/recovery
+	# do not snap between silhouettes; a contact with no requested fade stays exact.
 	var same_phase := _current_key == key
 	var frame_changed := _current_registered_frame != frame_index
 	var selection_fade := transition_duration
-	if phase == "contact" or (same_phase and frame_changed):
+	if phase == "contact" and not same_phase:
+		selection_fade = minf(maxf(transition_duration, 0.0), 0.035)
+	elif same_phase and frame_changed:
 		selection_fade = 0.0
 	_select_pose(action, phase, selection_fade, frame_index)
 	_current_registered_frame_elapsed = clampf(phase_time - frame_start, 0.0, get_current_registered_frame_duration())

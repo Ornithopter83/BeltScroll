@@ -58,6 +58,18 @@ public sealed class AnimationWorkspaceForm : Form
     private readonly PicturePreview leftPreview = new() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(54, 58, 66), Mirror = true };
     private readonly ArtComparisonPanel comparisonPanel = new() { Dock = DockStyle.Fill };
     private readonly TabControl previewTabs = new() { Dock = DockStyle.Fill };
+    private readonly ComboBox transitionRoute = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
+    private readonly ListBox transitionList = new() { Dock = DockStyle.Fill, IntegralHeight = false };
+    private readonly PicturePreview transitionPreview = new() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(54, 58, 66) };
+    private readonly PicturePreview transitionMirror = new() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(54, 58, 66), Mirror = true };
+    private readonly Label transitionInfo = new() { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(8) };
+    private readonly System.Windows.Forms.Timer transitionTimer = new() { Interval = 10 };
+    private readonly Stopwatch transitionClock = new();
+    private List<SequenceFrame> transitionFrames = [];
+    private bool transitionHasVisibleChanges;
+    private int transitionFrameIndex = -1;
+    private double transitionFrameElapsed;
+    private bool transitionPaused;
     private readonly ComboBox phase = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 135 };
     private readonly NumericUpDown duration = new() { DecimalPlaces = 3, Increment = 0.025M, Minimum = 0.01M, Maximum = 10, Width = 100 };
     private readonly ComboBox approval = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 112 };
@@ -84,6 +96,8 @@ public sealed class AnimationWorkspaceForm : Form
     private readonly string? acceptancePath;
     private System.Windows.Forms.Timer? acceptanceTimer;
     internal int ExitCode { get; private set; }
+
+    private sealed record SequenceFrame(AnimationClip Clip, AnimationFrame Frame, int FrameIndex);
 
     public AnimationWorkspaceForm(string? acceptancePath = null)
     {
@@ -135,7 +149,8 @@ public sealed class AnimationWorkspaceForm : Form
         right.Controls.Add(edit, 0, 2); right.SetColumnSpan(edit, 2);
         var frameTab = new TabPage("프레임 미리보기"); frameTab.Controls.Add(right);
         var compareTab = new TabPage("원화 3× 비교"); compareTab.Controls.Add(comparisonPanel);
-        previewTabs.TabPages.Add(frameTab); previewTabs.TabPages.Add(compareTab); root.Controls.Add(previewTabs, 1, 1);
+        var transitionTab = BuildTransitionTab();
+        previewTabs.TabPages.Add(frameTab); previewTabs.TabPages.Add(compareTab); previewTabs.TabPages.Add(transitionTab); root.Controls.Add(previewTabs, 1, 1);
         root.Controls.Add(status, 0, 2); root.SetColumnSpan(status, 2); Controls.Add(root);
 
         clipSelect.SelectedIndexChanged += (_, _) => { if (!updating && clipSelect.SelectedIndex >= 0) { StopPlayback(false); updating = true; clipId.Text = Clip.Id; updating = false; SetPhaseOptions(); RefreshFrames(0); } };
@@ -145,8 +160,11 @@ public sealed class AnimationWorkspaceForm : Form
         clipId.TextChanged += (_, _) => RenameClip();
         preview.AnchorChanged += (_, point) => { if (CurrentFrame is { } f) { f.FootAnchor = new FootAnchor { X = point.X, Y = point.Y }; preview.Invalidate(); leftPreview.Invalidate(); SetStatus($"발 anchor: ({point.X:0.000}, {point.Y:0.000})"); } };
         playback.Tick += (_, _) => OnPlaybackTick();
+        transitionTimer.Tick += (_, _) => OnTransitionTick();
+        transitionRoute.SelectedIndexChanged += (_, _) => { StopTransitionPlayback(false); RebuildTransitionSequence(); };
+        transitionList.SelectedIndexChanged += (_, _) => { if (!transitionTimer.Enabled && transitionList.SelectedIndex >= 0) ShowTransitionFrame(transitionList.SelectedIndex); };
         intermediatePlayback.CheckedChanged += (_, _) => { if (playback.Enabled || playbackPaused) RefreshPlaybackPreview(); };
-        FormClosed += (_, _) => { playback.Stop(); playbackClock.Stop(); preview.DisposeImage(); leftPreview.DisposeImage(); };
+        FormClosed += (_, _) => { playback.Stop(); playbackClock.Stop(); transitionTimer.Stop(); transitionClock.Stop(); preview.DisposeImage(); leftPreview.DisposeImage(); transitionPreview.DisposeImage(); transitionMirror.DisposeImage(); };
         SetStatus($"별도 임시 작업 폴더: {workspacePath}");
         if (acceptancePath is not null)
         {
@@ -155,6 +173,29 @@ public sealed class AnimationWorkspaceForm : Form
             acceptanceTimer.Tick += (_, _) => RunGuiAcceptance();
             Shown += (_, _) => acceptanceTimer.Start();
         }
+        RebuildTransitionSequence();
+    }
+
+    private TabPage BuildTransitionTab()
+    {
+        var page = new TabPage("전환 연속 미리보기 · 격리");
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(8), ColumnCount = 2, RowCount = 3 };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 280)); layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
+        var routeBar = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, AutoScroll = true };
+        routeBar.Controls.Add(new Label { Text = "연속 구간", AutoSize = true, Padding = new Padding(4, 8, 2, 0) });
+        transitionRoute.Items.AddRange(["run → attack1", "run → attack2", "run → attack3", "skill1", "skill2"]); transitionRoute.SelectedIndex = 0; routeBar.Controls.Add(transitionRoute);
+        AddButton(routeBar, "재생", StartTransitionPlayback); AddButton(routeBar, "정지", () => StopTransitionPlayback());
+        routeBar.Controls.Add(new Label { Text = "미승인 프레임은 이 격리 작업공간에서만 재생됩니다 · 게임 승인/등록은 하지 않습니다.", AutoSize = true, Padding = new Padding(8, 8, 0, 0) });
+        layout.Controls.Add(routeBar, 0, 0); layout.SetColumnSpan(routeBar, 2);
+        layout.Controls.Add(transitionList, 0, 1);
+        var previews = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2 };
+        previews.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); previews.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); previews.RowStyles.Add(new RowStyle(SizeType.Absolute, 28)); previews.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        previews.Controls.Add(new Label { Text = "현재 프레임 + 직전 프레임 잔상", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter }, 0, 0);
+        previews.Controls.Add(new Label { Text = "좌우 미러 · anchor 유지 확인", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter }, 1, 0);
+        previews.Controls.Add(transitionPreview, 0, 1); previews.Controls.Add(transitionMirror, 1, 1); layout.Controls.Add(previews, 1, 1);
+        layout.Controls.Add(transitionInfo, 0, 2); layout.SetColumnSpan(transitionInfo, 2);
+        page.Controls.Add(layout); return page;
     }
 
     private AnimationFrame? CurrentFrame => frameList.SelectedIndex is >= 0 and var i && i < Clip.Frames.Count ? Clip.Frames[i] : null;
@@ -188,7 +229,7 @@ public sealed class AnimationWorkspaceForm : Form
     private void RefreshClipSelector(string selectedId)
     {
         StopPlayback(false); updating = true; clipSelect.Items.Clear(); foreach (var c in document.Clips) clipSelect.Items.Add(c.Id);
-        clipSelect.SelectedIndex = Math.Max(0, document.Clips.FindIndex(c => c.Id == selectedId)); clipId.Text = Clip.Id; updating = false; SetPhaseOptions(); RefreshFrames(0);
+        clipSelect.SelectedIndex = Math.Max(0, document.Clips.FindIndex(c => c.Id == selectedId)); clipId.Text = Clip.Id; updating = false; SetPhaseOptions(); RefreshFrames(0); RebuildTransitionSequence();
     }
     private void SetPhaseOptions()
     {
@@ -217,6 +258,7 @@ public sealed class AnimationWorkspaceForm : Form
             count++;
         }
         RefreshFrames(Clip.Frames.Count - 1); SetStatus($"PNG {count}개를 가져왔습니다. 새 프레임은 모두 review 상태입니다.");
+        RebuildTransitionSequence();
     }
 
     private void ExportJson()
@@ -231,20 +273,20 @@ public sealed class AnimationWorkspaceForm : Form
     private void ExportTo(string destinationFolder)
     {
         string sourceRoot = workspacePath;
-        workspacePath = Path.GetFullPath(destinationFolder); Directory.CreateDirectory(Path.Combine(workspacePath, "textures"));
+        string destinationRoot = Path.GetFullPath(destinationFolder); Directory.CreateDirectory(Path.Combine(destinationRoot, "textures"));
         foreach (var frame in document.Clips.SelectMany(c => c.Frames))
         {
             if (string.IsNullOrWhiteSpace(frame.Texture)) continue;
             string source = Path.GetFullPath(Path.Combine(sourceRoot, frame.Texture.Replace('/', Path.DirectorySeparatorChar)));
             if (!File.Exists(source)) { SetStatus($"텍스처가 없습니다: {frame.Texture}"); return; }
             string relative = frame.Texture.Replace('/', Path.DirectorySeparatorChar);
-            string target = Path.GetFullPath(Path.Combine(workspacePath, relative));
-            if (!target.StartsWith(Path.GetFullPath(workspacePath) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) { SetStatus("텍스처 경로가 작업 폴더 밖을 가리킵니다."); return; }
+            string target = Path.GetFullPath(Path.Combine(destinationRoot, relative));
+            if (!target.StartsWith(destinationRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) { SetStatus("텍스처 경로가 작업 폴더 밖을 가리킵니다."); return; }
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             if (!string.Equals(Path.GetFullPath(source), target, StringComparison.OrdinalIgnoreCase)) File.Copy(source, target, true);
         }
-        File.WriteAllText(Path.Combine(workspacePath, "animation.json"), JsonSerializer.Serialize(document, JsonOptions), new UTF8Encoding(false));
-        SetStatus($"내보냄: {Path.Combine(workspacePath, "animation.json")} · 승인 안 된 프레임은 review로 저장");
+        File.WriteAllText(Path.Combine(destinationRoot, "animation.json"), JsonSerializer.Serialize(document, JsonOptions), new UTF8Encoding(false));
+        SetStatus($"내보냄: {Path.Combine(destinationRoot, "animation.json")} · 미리보기는 임시 격리 작업공간에 유지 · 승인 안 된 프레임은 review로 저장");
     }
 
     private void ImportJson()
@@ -263,13 +305,25 @@ public sealed class AnimationWorkspaceForm : Form
             var loaded = JsonSerializer.Deserialize<AnimationDocument>(File.ReadAllText(jsonPath, Encoding.UTF8), JsonOptions) ?? throw new InvalidDataException("문서를 읽을 수 없습니다.");
             ValidateDocument(loaded);
             string root = Path.GetDirectoryName(Path.GetFullPath(jsonPath))!;
+            string rootPrefix = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
             foreach (var f in loaded.Clips.SelectMany(c => c.Frames).Where(f => !string.IsNullOrWhiteSpace(f.Texture)))
             {
                 string texture = Path.GetFullPath(Path.Combine(root, f.Texture!.Replace('/', Path.DirectorySeparatorChar)));
-                if (!texture.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || !File.Exists(texture)) throw new InvalidDataException($"텍스처 파일을 찾을 수 없습니다: {f.Texture}");
+                if (!texture.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase) || !File.Exists(texture)) throw new InvalidDataException($"텍스처 파일을 찾을 수 없습니다: {f.Texture}");
                 using var image = Image.FromFile(texture);
             }
-            document = loaded; workspacePath = root; RefreshClipSelector(loaded.Clips[0].Id);
+            string isolatedRoot = Path.Combine(Path.GetTempPath(), "BeltScrollAnimationWorkspace", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Path.Combine(isolatedRoot, "textures"));
+            string isolatedPrefix = isolatedRoot.EndsWith(Path.DirectorySeparatorChar) ? isolatedRoot : isolatedRoot + Path.DirectorySeparatorChar;
+            foreach (var f in loaded.Clips.SelectMany(c => c.Frames).Where(f => !string.IsNullOrWhiteSpace(f.Texture)))
+            {
+                string relative = f.Texture!.Replace('/', Path.DirectorySeparatorChar);
+                string source = Path.GetFullPath(Path.Combine(root, relative));
+                string target = Path.GetFullPath(Path.Combine(isolatedRoot, relative));
+                if (!target.StartsWith(isolatedPrefix, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("텍스처 복사 경로가 격리 작업공간을 벗어납니다.");
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!); File.Copy(source, target, true);
+            }
+            document = loaded; workspacePath = isolatedRoot; RefreshClipSelector(loaded.Clips[0].Id);
             SetStatus($"불러옴: {jsonPath}");
         }
         catch { throw; }
@@ -359,6 +413,7 @@ public sealed class AnimationWorkspaceForm : Form
         f.Duration = (double)duration.Value; f.ApprovalState = approval.SelectedItem?.ToString() ?? "review";
         comparisonPanel.SetCurrentFrame(f.Texture is null ? null : ResolveTexture(f.Texture), f.FootAnchor, f.Duration, $"{Clip.Id} · 프레임 {frameList.SelectedIndex + 1}");
         int index = frameList.SelectedIndex; RefreshFrames(index); SetStatus(f.ApprovalState == "approved" ? "편집 데이터에 approved로 표시했습니다. 게임 사용은 런타임 allowlist 검증이 별도로 적용됩니다." : $"approval_state={f.ApprovalState}");
+        RebuildTransitionSequence();
     }
     private void MoveFrame(int delta)
     {
@@ -366,11 +421,13 @@ public sealed class AnimationWorkspaceForm : Form
         (Clip.Frames[old], Clip.Frames[next]) = (Clip.Frames[next], Clip.Frames[old]);
         changingPlaybackSelection = true; RefreshFrames(next); changingPlaybackSelection = false;
         if (playback.Enabled || playbackPaused) { playbackFrameIndex = next; playbackClip = Clip; RefreshPlaybackPreview(); }
+        RebuildTransitionSequence();
     }
     private void RemoveFrame()
     {
         int i = frameList.SelectedIndex; if (i < 0) return;
         Clip.Frames.RemoveAt(i); RefreshFrames(Math.Max(0, i - 1));
+        RebuildTransitionSequence();
     }
     private void StartPlayback()
     {
@@ -451,6 +508,128 @@ public sealed class AnimationWorkspaceForm : Form
         RefreshPlaybackPreview();
     }
 
+    private string SelectedTransitionId => transitionRoute.SelectedIndex switch
+    {
+        1 => "attack2", 2 => "attack3", 3 => "skill1", 4 => "skill2", _ => "attack1"
+    };
+
+    private void RebuildTransitionSequence()
+    {
+        transitionFrames = [];
+        string target = SelectedTransitionId;
+        if (target.StartsWith("skill", StringComparison.Ordinal))
+        {
+            AddClipFrames(target);
+        }
+        else
+        {
+            AddClipFrames("run"); AddClipFrames(target);
+        }
+        transitionList.Items.Clear();
+        for (int i = 0; i < transitionFrames.Count; i++)
+        {
+            var entry = transitionFrames[i];
+            transitionList.Items.Add($"{i + 1:00}  {entry.Clip.Id}/{entry.Frame.Phase}  {entry.Frame.Duration:0.###}s  anchor ({entry.Frame.FootAnchor.X:0.000}, {entry.Frame.FootAnchor.Y:0.000})  {entry.Frame.ApprovalState}");
+        }
+        transitionHasVisibleChanges = false;
+        string? firstPath = transitionFrames.FirstOrDefault()?.Frame.Texture is { } firstTexture ? ResolveTexture(firstTexture) : null;
+        if (firstPath is not null && File.Exists(firstPath))
+            transitionHasVisibleChanges = transitionFrames.Skip(1).Any(entry => entry.Frame.Texture is { } texture && File.Exists(ResolveTexture(texture)) && SampledPixelDifference(firstPath, ResolveTexture(texture)) > .01);
+        if (transitionFrames.Count > 0) ShowTransitionFrame(0);
+        else { transitionPreview.SetImage(null, null); transitionMirror.SetImage(null, null); transitionInfo.Text = "선택한 구간에 프레임이 없습니다. PNG를 가져와 startup/contact/recovery 또는 stride 단계로 분류하세요."; }
+    }
+
+    private void AddClipFrames(string id)
+    {
+        var clip = document.Clips.FirstOrDefault(c => c.Id == id);
+        if (clip is null) return;
+        for (int i = 0; i < clip.Frames.Count; i++) transitionFrames.Add(new SequenceFrame(clip, clip.Frames[i], i));
+    }
+
+    private void StartTransitionPlayback()
+    {
+        if (transitionFrames.Count == 0) return;
+        if (transitionTimer.Enabled)
+        {
+            transitionFrameElapsed += transitionClock.Elapsed.TotalSeconds; transitionClock.Reset(); transitionTimer.Stop(); transitionPaused = true;
+            SetStatus("전환 미리보기 일시정지 · 위치/경과시간 보존"); return;
+        }
+        if (!transitionPaused || transitionFrameIndex < 0) { transitionFrameIndex = 0; transitionFrameElapsed = 0; }
+        transitionPaused = false; transitionClock.Restart(); transitionTimer.Start(); ShowTransitionFrame(transitionFrameIndex);
+        SetStatus("격리 전환 미리보기 재생 · 프레임 Duration에 따른 Stopwatch 시계");
+    }
+
+    private void StopTransitionPlayback(bool updateStatus = true)
+    {
+        transitionTimer.Stop(); transitionClock.Reset(); transitionPaused = false; transitionFrameIndex = transitionFrames.Count > 0 ? 0 : -1; transitionFrameElapsed = 0;
+        if (transitionFrameIndex >= 0) ShowTransitionFrame(transitionFrameIndex);
+        if (updateStatus) SetStatus("전환 미리보기 정지");
+    }
+
+    private void OnTransitionTick()
+    {
+        if (transitionFrameIndex < 0 || transitionFrameIndex >= transitionFrames.Count) { StopTransitionPlayback(); return; }
+        transitionFrameElapsed += transitionClock.Elapsed.TotalSeconds; transitionClock.Restart();
+        int guard = 0;
+        while (transitionFrameElapsed >= Math.Max(.001, transitionFrames[transitionFrameIndex].Frame.Duration) && guard++ < transitionFrames.Count + 1)
+        {
+            transitionFrameElapsed -= Math.Max(.001, transitionFrames[transitionFrameIndex].Frame.Duration);
+            transitionFrameIndex++;
+            if (transitionFrameIndex >= transitionFrames.Count)
+            {
+                transitionFrameIndex = transitionFrames.Count - 1; transitionFrameElapsed = 0; StopTransitionPlayback(false); transitionFrameIndex = transitionFrames.Count - 1; ShowTransitionFrame(transitionFrameIndex); SetStatus("전환 구간 끝 · 마지막 프레임 표시"); return;
+            }
+        }
+        ShowTransitionFrame(transitionFrameIndex);
+    }
+
+    private void ShowTransitionFrame(int index)
+    {
+        if (index < 0 || index >= transitionFrames.Count) return;
+        transitionFrameIndex = index;
+        if (transitionList.SelectedIndex != index) transitionList.SelectedIndex = index;
+        var current = transitionFrames[index]; string? currentPath = current.Frame.Texture is null ? null : ResolveTexture(current.Frame.Texture);
+        SequenceFrame? previous = index > 0 ? transitionFrames[index - 1] : null;
+        string? previousPath = previous?.Frame.Texture is null ? null : ResolveTexture(previous.Frame.Texture!);
+        transitionPreview.SetBlendImages(currentPath, previousPath, current.Frame.FootAnchor, previous is null ? 0 : .34);
+        transitionMirror.SetBlendImages(currentPath, previousPath, current.Frame.FootAnchor, previous is null ? 0 : .34);
+        string difference = previous is null ? "첫 프레임" : DescribeFrameDifference(previous, current);
+        string continuity = transitionHasVisibleChanges ? "연속 PNG 후보: 표본에서 이미지 차이 확인" : "정지 이미지/동일 포즈만 확인됨: 회전만으로는 실제 연속 프레임이 아닙니다";
+        transitionInfo.Text = $"순서 {index + 1}/{transitionFrames.Count}  ·  {current.Clip.Id}/{current.Frame.Phase}  ·  지속 {current.Frame.Duration:0.###}초  ·  발 anchor ({current.Frame.FootAnchor.X:0.000}, {current.Frame.FootAnchor.Y:0.000})  ·  상태 {current.Frame.ApprovalState}\r\n전환 전후: {difference}  ·  {continuity}  ·  잔상은 직전 실제 PNG 프레임입니다.";
+    }
+
+    private string DescribeFrameDifference(SequenceFrame previous, SequenceFrame current)
+    {
+        string? aPath = previous.Frame.Texture is null ? null : ResolveTexture(previous.Frame.Texture);
+        string? bPath = current.Frame.Texture is null ? null : ResolveTexture(current.Frame.Texture);
+        string pixels = "이미지 없음";
+        if (aPath is not null && bPath is not null && File.Exists(aPath) && File.Exists(bPath))
+        {
+            if (string.Equals(Path.GetFullPath(aPath), Path.GetFullPath(bPath), StringComparison.OrdinalIgnoreCase)) pixels = "동일 PNG (정지 이미지)";
+            else
+            {
+                double pixelDifference = SampledPixelDifference(aPath, bPath);
+                pixels = pixelDifference <= .01 ? $"픽셀 표본 변화 {pixelDifference:P0} (정지/동일 포즈 가능)" : $"픽셀 표본 변화 {pixelDifference:P0}";
+            }
+        }
+        double dx = (current.Frame.FootAnchor.X - previous.Frame.FootAnchor.X) * 100;
+        double dy = (current.Frame.FootAnchor.Y - previous.Frame.FootAnchor.Y) * 100;
+        return $"{previous.Clip.Id}/{previous.Frame.Phase} → {current.Clip.Id}/{current.Frame.Phase}; {pixels}; anchor Δ({dx:+0.0;-0.0;0}%, {dy:+0.0;-0.0;0}%)";
+    }
+
+    private static double SampledPixelDifference(string firstPath, string secondPath)
+    {
+        using var first = Image.FromFile(firstPath); using var second = Image.FromFile(secondPath);
+        using var a = new Bitmap(first, 48, 48); using var b = new Bitmap(second, 48, 48);
+        int changed = 0;
+        for (int y = 0; y < 48; y++) for (int x = 0; x < 48; x++)
+        {
+            Color ca = a.GetPixel(x, y), cb = b.GetPixel(x, y);
+            if (Math.Abs(ca.A - cb.A) > 20 || Math.Abs(ca.R - cb.R) + Math.Abs(ca.G - cb.G) + Math.Abs(ca.B - cb.B) > 72) changed++;
+        }
+        return changed / 2304d;
+    }
+
     private void ExportReviewOpinion()
     {
         if (acceptancePath is not null) { SetStatus("자동 GUI 검수에서는 사람의 승인 의견 내보내기가 비활성화됩니다."); return; }
@@ -479,7 +658,7 @@ public sealed class AnimationWorkspaceForm : Form
         double[] sorted = timerTickIntervalsMs.Order().ToArray();
         return new { requestedIntervalMs = playback.Interval, sampleCount = sorted.Length, minMs = Math.Round(sorted[0], 3), medianMs = Math.Round(sorted[sorted.Length / 2], 3), meanMs = Math.Round(sorted.Average(), 3), maxMs = Math.Round(sorted[^1], 3), measuredAt = DateTimeOffset.Now.ToString("O") };
     }
-    private void RunGuiAcceptance()
+    private async void RunGuiAcceptance()
     {
         acceptanceTimer?.Stop();
         try
@@ -530,7 +709,7 @@ public sealed class AnimationWorkspaceForm : Form
             var comparisonEvents = comparisonPanel.ExerciseAcceptance(acceptancePath!);
             ((Button)FindControl(this, "재생")).PerformClick(); if (!playback.Enabled || playback.Interval != 10) throw new Exception("Playback did not start with the fixed 10ms UI refresh trigger.");
             var realPlaybackTimeout = Stopwatch.StartNew();
-            while (playbackFrameIndex == 0 && realPlaybackTimeout.Elapsed < TimeSpan.FromSeconds(2)) { Application.DoEvents(); Thread.Sleep(2); }
+            while (playbackFrameIndex == 0 && realPlaybackTimeout.Elapsed < TimeSpan.FromSeconds(2)) await Task.Delay(2);
             if (playbackFrameIndex != 1) throw new Exception("Real Stopwatch-driven WinForms playback did not advance after the 35ms frame duration.");
             ((Button)FindControl(this, "정지")).PerformClick();
             frameList.SelectedIndex = 0;
@@ -563,9 +742,23 @@ public sealed class AnimationWorkspaceForm : Form
             if (loadedRun.Frames.Count != 3 || loadedRun.Frames.Any(f => f.Phase != "stride" || f.ApprovalState != "review")) throw new Exception("JSON reload did not preserve multiple run stride frames.");
             foreach (string id in new[] { "turn", "jump_rise", "jump_fall", "hit", "skill1", "skill2" })
                 if (!document.Clips.Single(c => c.Id == id).Frames.Select(f => f.Phase).SequenceEqual(ClipPhases[id])) throw new Exception($"JSON reload changed {id} phase order.");
+            var transitionCounts = new Dictionary<string, int>();
+            for (int route = 0; route < transitionRoute.Items.Count; route++)
+            {
+                transitionRoute.SelectedIndex = route;
+                transitionCounts[transitionRoute.SelectedItem!.ToString()!] = transitionFrames.Count;
+                if (transitionFrames.Count == 0 || transitionFrames.Any(x => x.Frame.ApprovalState != "review")) throw new Exception("Transition preview did not keep candidate PNG frames in isolated review state.");
+                ShowTransitionFrame(transitionFrames.Count - 1);
+                if (!transitionInfo.Text.Contains("지속", StringComparison.Ordinal) || !transitionInfo.Text.Contains("anchor", StringComparison.Ordinal) || !transitionInfo.Text.Contains("전환 전후", StringComparison.Ordinal)) throw new Exception("Transition preview is missing duration, anchor or before/after difference information.");
+                string expectedLastPhase = route is 0 or 3 or 4 ? "recovery" : "startup";
+                if (transitionFrames[^1].Frame.Phase != expectedLastPhase) throw new Exception("Transition sequence frame order or terminal phase is incorrect.");
+            }
+            if (transitionCounts["run → attack1"] != 7 || transitionCounts["run → attack2"] != 4 || transitionCounts["run → attack3"] != 4 || transitionCounts["skill1"] != 3 || transitionCounts["skill2"] != 3) throw new Exception("Transition routes did not include the expected run/attack and skill frames.");
+            transitionRoute.SelectedIndex = 0;
+            var transitionEvents = new[] { "isolated run→attack1/2/3 sequences", "skill1/skill2 startup-contact-recovery sequences", "ordered frame, duration and foot anchor display", "previous/current frame ghost and sampled pixel difference", "single still image distinguished from frame sequence", "unapproved PNG playback confined to isolated workspace", "automatic preview does not approve art" };
             previewTabs.SelectedIndex = 1;
             using var capture = new Bitmap(Math.Max(1, Width), Math.Max(1, Height)); DrawToBitmap(capture, new Rectangle(Point.Empty, capture.Size)); capture.Save(Path.Combine(acceptancePath!, "animation-gui.png"), System.Drawing.Imaging.ImageFormat.Png);
-            var report = new { passed = true, guiMessageLoop = true, guiControlEvents = new[] { "PNG import", "clip creation and selection", "all schema v1 clip IDs", "clip-specific phase validation", "multiple run stride frames", "new frame review default", "four attack phase selection", "skill startup/contact/recovery selection", "duration edit", "anchor pointer event", "frame reorder with duration identity", "35ms/50ms/105ms/200ms cumulative playback", "real Stopwatch-driven playback", "loop boundary", "pause and resume position", "slow tick catch-up", "10ms UI refresh trigger", "measured WinForms timer precision", "play", "stop", "multi-clip JSON export", "JSON reload" }.Concat(comparisonEvents).ToArray(), timerPrecision, schemaVersion = 1, exportedPath = Path.Combine(exported, "animation.json"), clipCount = document.Clips.Count, frameCount = loadedAttack.Frames.Count, approvalState = "review", approvalDecisionCreated = false, gameAllowlistChanged = false, workspacePath = exported };
+            var report = new { passed = true, guiMessageLoop = true, guiControlEvents = new[] { "PNG import", "clip creation and selection", "all schema v1 clip IDs", "clip-specific phase validation", "multiple run stride frames", "new frame review default", "four attack phase selection", "skill startup/contact/recovery selection", "duration edit", "anchor pointer event", "frame reorder with duration identity", "35ms/50ms/105ms/200ms cumulative playback", "real Stopwatch-driven playback", "loop boundary", "pause and resume position", "slow tick catch-up", "10ms UI refresh trigger", "measured WinForms timer precision", "play", "stop", "multi-clip JSON export", "JSON reload" }.Concat(comparisonEvents).Concat(transitionEvents).ToArray(), transitionCounts, timerPrecision, schemaVersion = 1, exportedPath = Path.Combine(exported, "animation.json"), clipCount = document.Clips.Count, frameCount = loadedAttack.Frames.Count, approvalState = "review", approvalDecisionCreated = false, gameAllowlistChanged = false, workspacePath };
             File.WriteAllText(Path.Combine(acceptancePath!, "animation-gui-acceptance.json"), JsonSerializer.Serialize(report, JsonOptions), new UTF8Encoding(false));
             ExitCode = 0; Close();
         }

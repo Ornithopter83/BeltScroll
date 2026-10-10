@@ -7,6 +7,8 @@ const SKILL2_SPIN_VISUAL_SCRIPT := preload("res://scripts/effects/player_skill2_
 
 const FOLLOW_SPEED := 16.0
 const WALK_SPEED_REFERENCE := 280.0
+const WALK_STRIDE_LENGTH := 76.0
+const POSE_SOURCE_BLEND_DURATION := 0.105
 const HIT_FLASH_DURATION := 0.12
 const TURN_DURATION := 0.13
 const TURN_WINDUP_DURATION := 0.04
@@ -33,6 +35,10 @@ var _idle_reference_from_center := Vector2.ZERO
 var _pose_rotation := 0.0
 var _pose_scale := Vector2.ONE
 var _stride_phase := 0.0
+var _pose_blender_weight := 0.0
+var _pose_blender_target_weight := 0.0
+var _pose_blender_blend_from := 0.0
+var _pose_blender_blend_elapsed := POSE_SOURCE_BLEND_DURATION
 var _landing_remaining := 0.0
 var _was_jumping := false
 var _animation_state := "idle"
@@ -46,6 +52,7 @@ var _turn_elapsed := TURN_DURATION
 var _turn_flip_applied := false
 var _skill1_dash_visual: Node2D
 var _skill2_spin_visual: Node2D
+var _art_base_modulate := Color.WHITE
 
 ## These timing tables drive temporary transform poses only. They do not claim
 ## that missing walk/jump/hit/landing art has been approved as sprite frames.
@@ -105,6 +112,7 @@ func _ready() -> void:
 	_base_position = art.position
 	_base_scale = art.scale
 	_base_rotation = art.rotation
+	_art_base_modulate = art.modulate
 	var texture_size := Vector2(art.texture.get_size())
 	var alpha_bounds := art.texture.get_image().get_used_rect()
 	var alpha_foot := Vector2(
@@ -137,6 +145,8 @@ func _process(delta: float) -> void:
 	_landing_remaining = maxf(0.0, _landing_remaining - maxf(delta, 0.0))
 	var next_state := _resolve_animation_state(jumping)
 	_update_animation_clock(next_state, delta)
+	if player.velocity.length() > 10.0 and next_state not in ["ko", "hit", "jump_rise", "jump_fall", "landing"] and not next_state.begins_with("skill"):
+		_advance_stride_phase(player.velocity.length(), delta)
 	var ordinary_motion: bool = next_state in ["idle", "walk"] and player.get("is_blocking") != true
 	var turning := _advance_facing_turn(delta, ordinary_motion)
 	var facing_sign := _applied_facing_sign
@@ -206,11 +216,9 @@ func _process(delta: float) -> void:
 	else:
 		var speed := player.velocity.length()
 		if speed > 10.0:
-			var speed_factor := clampf(speed / WALK_SPEED_REFERENCE, 0.35, 1.2)
-			_stride_phase = fposmod(_stride_phase + delta * (7.0 + 5.0 * speed_factor), TAU)
-			var stride := sin(_stride_phase)
-			target_rotation += stride * 0.032 * speed_factor * facing_sign
-			target_scale *= Vector2(1.0 - absf(stride) * 0.008, 1.0 + absf(stride) * 0.012)
+			var gait := _locomotion_pose(facing_sign, speed)
+			target_rotation += float(gait.x)
+			target_scale *= Vector2(gait.y, gait.z)
 		else:
 			var breath := sin(_state_elapsed * TAU / TEMPORARY_STATE_DURATIONS["idle"])
 			target_rotation += breath * 0.004
@@ -231,6 +239,7 @@ func _process(delta: float) -> void:
 	art.scale = _pose_scale
 	_keep_combat_anchor()
 	_update_approved_animation_pose(turning)
+	_update_pose_source_blend(delta)
 
 func get_animation_state() -> String:
 	return _animation_state
@@ -240,6 +249,12 @@ func get_turn_progress() -> float:
 
 func is_turning() -> bool:
 	return _turn_elapsed < TURN_DURATION
+
+func is_pose_blender_dominant() -> bool:
+	return _pose_blender_weight >= 0.5
+
+func get_pose_blender_weight() -> float:
+	return _pose_blender_weight
 
 func _advance_facing_turn(delta: float, allow_turn: bool) -> bool:
 	var desired_sign := _applied_facing_sign
@@ -329,24 +344,24 @@ func get_state_frame_status() -> String:
 	return pose_blender.get_current_frame_status() if pose_blender != null else "approved contact keypose"
 
 func get_displayed_texture_path() -> String:
-	if pose_blender != null and pose_blender.visible:
+	if pose_blender != null and is_pose_blender_dominant():
 		return pose_blender.get_current_texture_path()
 	return art.texture.resource_path if art != null and art.texture != null else ""
 
 func get_art_frame_index() -> int:
-	return pose_blender.get_current_registered_frame() if pose_blender != null and pose_blender.visible else 0
+	return pose_blender.get_current_registered_frame() if pose_blender != null and is_pose_blender_dominant() else 0
 
 func get_art_frame_count() -> int:
-	return pose_blender.get_current_registered_frame_count() if pose_blender != null and pose_blender.visible else 1
+	return pose_blender.get_current_registered_frame_count() if pose_blender != null and is_pose_blender_dominant() else 1
 
 func get_art_frame_duration() -> float:
-	return pose_blender.get_current_registered_frame_duration() if pose_blender != null and pose_blender.visible else get_state_frame_duration()
+	return pose_blender.get_current_registered_frame_duration() if pose_blender != null and is_pose_blender_dominant() else get_state_frame_duration()
 
 func get_art_frame_elapsed() -> float:
-	return pose_blender.get_current_registered_frame_elapsed() if pose_blender != null and pose_blender.visible else get_state_frame_elapsed()
+	return pose_blender.get_current_registered_frame_elapsed() if pose_blender != null and is_pose_blender_dominant() else get_state_frame_elapsed()
 
 func get_art_frame_label() -> String:
-	return pose_blender.get_current_registered_frame_label() if pose_blender != null and pose_blender.visible else "temporary transform"
+	return pose_blender.get_current_registered_frame_label() if pose_blender != null and is_pose_blender_dominant() else "temporary transform"
 
 func is_current_pose_temporary() -> bool:
 	if _approved_pose_is_displayed("turn", "turn"):
@@ -361,7 +376,7 @@ func is_current_pose_temporary() -> bool:
 		return not _approved_pose_is_displayed("jump_fall", "fall")
 	if _animation_state == "hit":
 		return not _approved_pose_is_displayed("hit", "reaction")
-	if _animation_state.begins_with("attack") and pose_blender != null and pose_blender.visible:
+	if _animation_state.begins_with("attack") and pose_blender != null and is_pose_blender_dominant():
 		var stage := int(player.get("attack_stage"))
 		var phase := "contact" if str(player.get("attack_phase")) == "active" else str(player.get("attack_phase"))
 		var expected_key := "attack%d_%s" % [stage, phase]
@@ -497,18 +512,58 @@ func _update_approved_animation_pose(turning := false) -> void:
 		phase_duration = float(TEMPORARY_STATE_DURATIONS["jump_fall"])
 		phase_elapsed = _state_elapsed
 	if action.is_empty() or pose_blender.get_registered_frame_count(action, pose_phase) == 0:
-		if pose_blender.visible:
-			pose_blender.interrupt_to_idle()
-		pose_blender.visible = false
-		art.visible = true
+		_set_pose_blender_target(0.0)
 		return
 	pose_blender.sync_from_art(art)
 	pose_blender.set_timed_pose(action, pose_phase, phase_elapsed, maxf(phase_duration, 0.001), fade_duration, looping)
-	pose_blender.visible = true
-	art.visible = false
+	_set_pose_blender_target(1.0)
+
+func _set_pose_blender_target(weight: float) -> void:
+	if is_equal_approx(_pose_blender_target_weight, weight):
+		return
+	_pose_blender_blend_from = _pose_blender_weight
+	_pose_blender_blend_elapsed = 0.0
+	_pose_blender_target_weight = weight
+
+func _update_pose_source_blend(delta: float) -> void:
+	if pose_blender == null or art == null:
+		return
+	if not is_equal_approx(_pose_blender_weight, _pose_blender_target_weight):
+		_pose_blender_blend_elapsed = minf(POSE_SOURCE_BLEND_DURATION, _pose_blender_blend_elapsed + maxf(delta, 0.0))
+		var progress := clampf(_pose_blender_blend_elapsed / POSE_SOURCE_BLEND_DURATION, 0.0, 1.0)
+		_pose_blender_weight = lerpf(_pose_blender_blend_from, _pose_blender_target_weight, _ease_in_out(progress))
+	if progress_is_complete():
+		_pose_blender_weight = _pose_blender_target_weight
+	var weight := clampf(_pose_blender_weight, 0.0, 1.0)
+	pose_blender.visible = weight > 0.001 or _pose_blender_target_weight > 0.0
+	art.visible = weight < 0.999
+	pose_blender.set_external_blend_weight(weight)
+	var art_modulate := _art_base_modulate
+	art_modulate.a *= 1.0 - weight
+	art.modulate = art_modulate
+
+func progress_is_complete() -> bool:
+	return _pose_blender_blend_elapsed >= POSE_SOURCE_BLEND_DURATION
+
+func _advance_stride_phase(speed: float, delta: float) -> void:
+	# A full cycle is one left/right step pair. Cadence follows traveled distance,
+	# while the procedural transform remains explicitly temporary artwork.
+	_stride_phase = fposmod(_stride_phase + maxf(delta, 0.0) * speed / WALK_STRIDE_LENGTH * TAU, TAU)
+
+func _locomotion_pose(facing_sign: float, speed: float) -> Vector3:
+	var speed_weight := clampf(speed / WALK_SPEED_REFERENCE, 0.25, 1.25)
+	var stride := sin(_stride_phase)
+	var contact := absf(cos(_stride_phase))
+	# Alternating half-cycle weight shifts make each planted side read distinctly;
+	# the alpha-foot anchor is reapplied after the transform below.
+	var alternating_lean := stride * 0.046 * speed_weight * facing_sign
+	var torso_recoil := signf(cos(_stride_phase)) * 0.012 * speed_weight * facing_sign
+	var vertical_bounce := absf(stride) * 0.018 * speed_weight
+	var planted_compression := contact * 0.012 * speed_weight
+	return Vector3(alternating_lean + torso_recoil, 1.0 - planted_compression, 1.0 + vertical_bounce)
 
 func _approved_pose_is_displayed(action: String, phase: String) -> bool:
-	return pose_blender != null and pose_blender.visible and pose_blender.get_current_pose_key() == action + "_" + phase and pose_blender.get_current_frame_status().begins_with("approved")
+	return pose_blender != null and is_pose_blender_dominant() and pose_blender.get_current_pose_key() == action + "_" + phase and pose_blender.get_current_frame_status().begins_with("approved")
 
 func _current_art_status(action: String, phase: String, fallback: String) -> String:
 	return pose_blender.get_pose_art_status() if _approved_pose_is_displayed(action, phase) else fallback
@@ -604,6 +659,19 @@ func _apply_attack_pose(facing_sign: float) -> void:
 			var return_blend := _ease_in_out(recovery_progress)
 			rotation_offset = -facing_sign * [0.14, 0.24, 0.38][index] * (1.0 - return_blend)
 			scale_factor = Vector2(1.0 + [0.015, 0.025, 0.035][index], 1.0 - [0.012, 0.02, 0.028][index]).lerp(Vector2.ONE, return_blend)
+	var gait_weight := 0.0
+	if player.velocity.length() > 10.0:
+		match phase:
+			"startup":
+				gait_weight = 1.0 - _ease_in_out(_attack_phase_progress(index, phase, remaining))
+			"active":
+				gait_weight = 1.0 - _ease_in_out(clampf(_attack_phase_progress(index, phase, remaining) / 0.18, 0.0, 1.0))
+			"recovery":
+				gait_weight = _ease_in_out(clampf((1.0 - remaining / ATTACK_RECOVERY[index]) / 0.55, 0.0, 1.0))
+	if gait_weight > 0.0:
+		var gait := _locomotion_pose(facing_sign, player.velocity.length())
+		rotation_offset += float(gait.x) * gait_weight
+		scale_factor *= Vector2.ONE.lerp(Vector2(gait.y, gait.z), gait_weight)
 	_attack_rotation = _base_rotation + rotation_offset
 	_attack_scale = _base_scale * scale_factor
 
