@@ -49,10 +49,22 @@ func _run() -> void:
 	var raider2: Node2D = main.get_node("YSortActors/ForestRaider2") as Node2D
 	var raider3: Node2D = main.get_node("YSortActors/ForestRaider3") as Node2D
 	_check(player.position == Vector2(960, 780) and raider.position == Vector2(1480, 780) and raider2.position == Vector2(3360, 780) and raider3.position == Vector2(5160, 780), "editor spawn overrides place one Raider in each continuous-stage section")
+	_check(raider.get_meta("editor_id", "") == "ForestRaider" and raider2.get_meta("editor_id", "") == "ForestRaider2" and raider3.get_meta("editor_id", "") == "ForestRaider3", "scene node names map to stable editor IDs")
+	var wave_order: Array = main.get("_wave_order")
+	_check(wave_order == [raider, raider2, raider3], "wave ordering follows applied section positions")
 	_check(raider.visible and bool(raider.get("combat_active")) and not raider2.visible and not raider3.visible, "only the first section Raider starts active")
 	player.global_position.x = 2100.0
 	main.call("_update_raider_waves")
 	_check(player.global_position.x == 1882.0 and raider.visible and bool(raider.get("combat_active")) and not raider2.visible, "uncleared first section prevents crossing into the next section")
+	# Re-instantiation models a scene restart and reloads saved overrides from disk.
+	main.queue_free()
+	await process_frame
+	var restarted := (load(MAIN_SCENE) as PackedScene).instantiate()
+	root.add_child(restarted)
+	current_scene = restarted
+	_check((restarted.get_node("YSortActors/ForestRaider1") as Node2D).global_position.distance_to(Vector2(1480, 780)) < 1.0 and (restarted.get_node("YSortActors/ForestRaider2") as Node2D).global_position.distance_to(Vector2(3360, 780)) < 1.0 and (restarted.get_node("YSortActors/ForestRaider3") as Node2D).global_position.distance_to(Vector2(5160, 780)) < 1.0, "restart reapplies all three saved section spawns synchronously")
+	await process_frame
+	_check(restarted.get_node("YSortActors/ForestRaider1").get("max_health") == 3 and restarted.get_node("YSortActors/ForestRaider3").get("max_health") == 3, "restart reapplies saved Raider overrides to every section")
 
 	# Original player attack payload and hitbox sizing remain the combat regression baseline.
 	var player_scene := (load(PLAYER_SCENE) as PackedScene).instantiate()
@@ -61,7 +73,7 @@ func _run() -> void:
 	_check((player_scene.get_node("Hitboxes/Hitbox2/CollisionShape2D").shape as RectangleShape2D).size == Vector2(78, 52), "original stage-two melee range geometry remains unchanged")
 	_check((player_scene.get_node("Hitboxes/Hitbox3/CollisionShape2D").shape as RectangleShape2D).size == Vector2(100, 66), "original stage-three melee range geometry remains unchanged")
 	player_scene.free()
-	main.queue_free()
+	restarted.queue_free()
 	await process_frame
 	_finish()
 

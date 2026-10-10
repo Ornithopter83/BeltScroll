@@ -68,17 +68,24 @@ func _draw_candidate(shape_node: CollisionShape2D) -> void:
 	var role := _role(owner, collider)
 	var active := area != null and area.monitoring
 	var color := _color_for(role, active)
-	var screen_transform := shape_node.get_global_transform_with_canvas()
-	_drawing.draw_set_transform_matrix(screen_transform)
+	# draw_set_transform_matrix is local to this CanvasLayer's canvas. Shape
+	# transforms already include the world canvas/camera, so convert between the
+	# two canvas bases instead of applying the world transform twice.
+	var drawing_canvas := _drawing.get_global_transform_with_canvas()
+	var shape_canvas := shape_node.get_global_transform_with_canvas()
+	var drawing_transform := drawing_canvas.affine_inverse() * shape_canvas
+	_drawing.draw_set_transform_matrix(drawing_transform)
 	_draw_shape_geometry(shape_node.shape, color)
 	_drawing.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	var layer_bits := collider.collision_layer
 	var mask_bits := collider.collision_mask
 	var state := "MON:on" if active else ("MON:off" if area != null else "MON:body")
+	if area != null:
+		state += " MONABLE:%s" % ("on" if area.monitorable else "off")
 	var disabled := " disabled" if shape_node.disabled else ""
 	var owner_name := str(owner.name)
 	var label := "%s / %s %s %s %s Layer:%d Mask:%d%s" % [owner_name, role, shape_node.name, kind, state, layer_bits, mask_bits, disabled]
-	var label_position := screen_transform.origin + Vector2(7, -8)
+	var label_position := drawing_transform * Vector2(7, -8)
 	_drawing.draw_string(_font, label_position, label, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, color)
 
 func _combat_owner(shape_node: CollisionShape2D) -> Node:

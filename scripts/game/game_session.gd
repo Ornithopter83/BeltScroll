@@ -52,8 +52,13 @@ func _ready() -> void:
 		_player.skill_started.connect(_on_player_skill_started)
 	_raiders.clear()
 	for raider in get_tree().get_nodes_in_group("forest_raiders"):
-		if raider is Node and raider.get_parent() == get_node_or_null("YSortActors"):
+		if raider is Node and raider.get_parent() == get_node_or_null("YSortActors") and not _raider_editor_id(raider).is_empty():
 			_raiders.append(raider)
+	_raiders.sort_custom(func(left: Node, right: Node) -> bool: return _raider_editor_id(left) < _raider_editor_id(right))
+	for raider in _raiders:
+		var editor_id := _raider_editor_id(raider)
+		if not editor_id.is_empty():
+			raider.set_meta("editor_id", editor_id)
 	_boss = get_node_or_null("YSortActors/RuinsWardenBoss")
 	if is_instance_valid(_boss) and _boss.has_signal("boss_ko"):
 		_boss.boss_ko.connect(_on_boss_ko)
@@ -77,7 +82,7 @@ func _apply_editor_overrides() -> void:
 		if player_values.has("max_health") and int(_player.get("max_health")) != previous_max:
 			_player.set("health", int(_player.get("max_health")))
 			_player.set_meta("editor_id", PLAYER_ID)
-	for raider in get_tree().get_nodes_in_group("forest_raiders"):
+	for raider in _raiders:
 		if not is_instance_valid(raider):
 			continue
 		DATA_LOADER.apply_properties(raider, raider_values, ["max_health", "walk_speed", "attack_damage", "attack_knockback", "attack_hit_stun", "attack_range", "recovery_duration", "windup_duration", "active_duration"])
@@ -124,16 +129,33 @@ func _apply_stage_to_player(stage_values: Dictionary) -> void:
 
 func _apply_spawns(stage_values: Dictionary) -> void:
 	var actors := {PLAYER_ID: _player}
-	for index in range(_raiders.size()):
-		actors[RAIDER_ID if index == 0 else "%s%d" % [RAIDER_ID, index + 1]] = _raiders[index]
+	for raider in _raiders:
+		var editor_id := _raider_editor_id(raider)
+		if not editor_id.is_empty():
+			actors[editor_id] = raider
 	for spawn in stage_values.get("spawns", []):
 		var actor := actors.get(String(spawn.get("actor_id", ""))) as Node2D
 		if is_instance_valid(actor):
 			actor.global_position = Vector2(float(spawn.x), float(spawn.y))
 
+func _raider_editor_id(raider: Node) -> String:
+	if raider == null:
+		return ""
+	match String(raider.name):
+		"ForestRaider1": return RAIDER_ID
+		"ForestRaider2": return "%s2" % RAIDER_ID
+		"ForestRaider3": return "%s3" % RAIDER_ID
+		_: return ""
+
 func _initialize_raider_waves() -> void:
 	_wave_order = _raiders.duplicate()
-	_wave_order.sort_custom(func(left: Node, right: Node) -> bool: return (left as Node2D).global_position.x < (right as Node2D).global_position.x)
+	_wave_order.sort_custom(func(left: Node, right: Node) -> bool:
+		var left_x := (left as Node2D).global_position.x
+		var right_x := (right as Node2D).global_position.x
+		if is_equal_approx(left_x, right_x):
+			return _raider_editor_id(left) < _raider_editor_id(right)
+		return left_x < right_x
+	)
 	_raider_collision_states.clear()
 	for raider in _wave_order:
 		var attack_area := raider.get_node_or_null("AttackArea") as Area2D
