@@ -47,7 +47,9 @@ const HIT_STOP := [0.035, 0.055, 0.08]
 const ATTACK_RECOIL_DURATION := [0.055, 0.07, 0.085]
 const ATTACK_RECOIL_SPEED := [105.0, 135.0, 165.0]
 const CAMERA_TRAUMA := [0.12, 0.22, 0.34]
-const INPUT_BUFFER_TIME := 0.24
+# Keep an early combo tap alive through the longest basic attack phase. The
+# buffer is consumed only when recovery opens the next stage.
+const INPUT_BUFFER_TIME := 0.60
 const COMBAT_IMPACT_SCENE := preload("res://scenes/vfx/combat_impact.tscn")
 const GROUND_DUST_SCENE := preload("res://scenes/vfx/ground_dust.tscn")
 const GROUND_DUST_STEP_DISTANCE := 72.0
@@ -138,7 +140,7 @@ func _physics_process(delta: float) -> void:
 
 	is_blocking = Input.is_action_pressed("block") and hitstun_remaining <= 0.0 and attack_phase == "idle" and skill_phase == "idle" and not is_jumping
 	if Input.is_action_pressed("block") and skill_phase != "idle":
-		_cancel_skill()
+		_interrupt_skill_for_guard()
 	if hitstun_remaining > 0.0:
 		hitstun_remaining = maxf(0.0, hitstun_remaining - delta)
 		velocity = velocity.move_toward(Vector2.ZERO, HITSTUN_DECELERATION * delta)
@@ -428,6 +430,10 @@ func _cancel_skill() -> void:
 	skill_id = 0
 	attack_flash.visible = false
 
+func _interrupt_skill_for_guard() -> void:
+	# Guard wins over an in-progress skill; activation cooldown is not refunded.
+	_cancel_skill()
+
 func _check_stage_hitbox(stage: int) -> void:
 	var hitbox := get_node("Hitboxes/Hitbox%d" % stage) as Area2D
 	for target in hitbox.get_overlapping_bodies():
@@ -531,6 +537,8 @@ func receive_hit(hit: Dictionary) -> void:
 	if not hit.has("damage") or not hit.has("direction") or not hit.has("knockback") or not hit.has("hit_stun") or not hit.has("attack_stage"):
 		return
 	_cancel_skill()
+	# A hit always breaks the current basic combo as well as a skill. Cooldowns
+	# started at skill activation remain spent after interruption.
 	attack_recoil_remaining = 0.0
 	attack_recoil_velocity = Vector2.ZERO
 	player_hit.emit(int(hit["attack_stage"]))

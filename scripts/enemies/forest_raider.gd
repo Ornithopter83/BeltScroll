@@ -340,6 +340,7 @@ func receive_hit(hit: Dictionary) -> void:
 		collision_layer = 0
 		collision_mask = 0
 		receive_area.collision_layer = 0
+		receive_area.monitoring = false
 		receive_area.monitorable = false
 		_cancel_attack()
 		hit_flash_remaining = 0.14

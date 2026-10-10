@@ -318,6 +318,8 @@ func get_state_frame_elapsed() -> float:
 func get_state_frame_status() -> String:
 	if _animation_state.begins_with("skill"):
 		return "temporary procedural skill motion; approved skill animation art unavailable"
+	if _animation_state.begins_with("attack"):
+		return get_pose_art_status()
 	if is_current_pose_temporary():
 		return "temporary transform frame; approved animation frame unavailable"
 	if get_state_frame_label() == "inbetween":
@@ -380,9 +382,11 @@ func get_pose_art_status() -> String:
 		var phase := "rise" if _animation_state == "jump_rise" else ("fall" if _animation_state == "jump_fall" else "reaction")
 		return _current_art_status(action, phase, "temporary procedural %s; approved frames unavailable" % _animation_state)
 	if _animation_state.begins_with("attack") and _animation_state.ends_with("_contact"):
-		return "approved contact keypose; temporary transform motion"
+		if _approved_pose_is_displayed("attack%d" % int(player.get("attack_stage")), "contact"):
+			return "approved contact keypose with temporary procedural transform; not an approved frame sequence"
+		return "temporary procedural contact transform; approved contact keypose unavailable"
 	if _animation_state.begins_with("attack"):
-		return "temporary transform; approved intermediate art unavailable"
+		return "temporary procedural transform; approved intermediate frame unavailable"
 	return "temporary transform; approved frame art unavailable"
 
 func _resolve_animation_state(jumping: bool) -> String:
@@ -440,10 +444,14 @@ func _update_approved_animation_pose(turning := false) -> void:
 	var phase_duration := 0.0
 	var fade_duration := 0.055
 	var looping := false
+	# _resolve_animation_state is the single priority authority. Re-checking raw
+	# controller fields here used to let an attack pose win over the hit-flash
+	# state for a render frame after hitstun expired (and while the hit flash was
+	# still visible). That made the interrupted pose briefly reappear.
 	var stage := int(player.get("attack_stage"))
 	var attack_phase := str(player.get("attack_phase"))
 	var skill_phase := str(player.get("skill_phase"))
-	if player.get("is_ko") != true and float(player.get("hitstun_remaining")) <= 0.0 and skill_phase == "idle" and stage in [1, 2, 3] and attack_phase in ["startup", "active", "recovery"]:
+	if _animation_state.begins_with("attack") and stage in [1, 2, 3] and attack_phase in ["startup", "active", "recovery"]:
 		action = "attack%d" % stage
 		pose_phase = "contact" if attack_phase == "active" else attack_phase
 		if stage == 2 and attack_phase == "active" and _attack_phase_progress(stage - 1, attack_phase, float(player.get("attack_phase_remaining"))) < 0.42 and pose_blender.get_registered_frame_count(action, "inbetween") > 0:
@@ -456,13 +464,13 @@ func _update_approved_animation_pose(turning := false) -> void:
 			fade_duration = [0.060, 0.125, 0.105][stage - 1]
 		elif pose_phase == "recovery":
 			fade_duration = [0.075, 0.12, 0.135][stage - 1]
-	elif player.get("is_ko") != true and float(player.get("hitstun_remaining")) <= 0.0 and skill_phase in ["startup", "active", "recovery"]:
+	elif _animation_state.begins_with("skill") and skill_phase in ["startup", "active", "recovery"]:
 		var skill_id := clampi(int(player.get("skill_id")), 1, 2)
 		action = "skill%d" % skill_id
 		pose_phase = _normalized_phase(skill_phase)
 		phase_duration = _skill_phase_duration(skill_id - 1, skill_phase)
 		phase_elapsed = maxf(0.0, phase_duration - float(player.get("skill_phase_remaining")))
-	elif player.get("is_ko") != true and (float(player.get("hit_flash_remaining")) > 0.0 or float(player.get("hitstun_remaining")) > 0.0):
+	elif _animation_state == "hit":
 		action = "hit"
 		pose_phase = "reaction"
 		phase_duration = float(TEMPORARY_STATE_DURATIONS["hit"])

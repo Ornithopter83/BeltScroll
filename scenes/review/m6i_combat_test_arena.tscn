@@ -1,0 +1,72 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="1_player"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/forest_raider.tscn" id="2_raider"]
+[ext_resource type="Texture2D" path="res://assets/art/stage/forest_ruins_v1_1920x1080.png" id="3_stage"]
+[ext_resource type="Script" path="res://scripts/review/m6i_combat_test_arena.gd" id="4_arena"]
+
+[node name="M6ICombatTestArena" type="Node2D"]
+script = ExtResource("4_arena")
+
+[node name="StageBackground" type="Sprite2D" parent="."]
+position = Vector2(960, 540)
+texture = ExtResource("3_stage")
+z_index = -1
+
+[node name="YSortActors" type="Node2D" parent="."]
+y_sort_enabled = true
+
+[node name="Player" parent="YSortActors" instance=ExtResource("1_player")]
+position = Vector2(690, 780)
+arena_bounds = Rect2(260, 722, 1400, 258)
+
+[node name="ForestRaider" parent="YSortActors" instance=ExtResource("2_raider")]
+position = Vector2(1030, 780)
+arena_bounds = Rect2(160, 100, 1600, 880)
+notice_range = 1200.0
+
+[node name="TestHUD" type="CanvasLayer" parent="."]
+layer = 10
+
+[node name="Panel" type="PanelContainer" parent="TestHUD"]
+offset_left = 28.0
+offset_top = 24.0
+offset_right = 560.0
+offset_bottom = 394.0
+
+[node name="Margin" type="MarginContainer" parent="TestHUD/Panel"]
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 14
+
+[node name="Rows" type="VBoxContainer" parent="TestHUD/Panel/Margin"]
+theme_override_constants/separation = 7
+
+[node name="Title" type="Label" parent="TestHUD/Panel/Margin/Rows"]
+theme_override_font_sizes/font_size = 24
+text = "전투 연습장 · M6I"
+
+[node name="Controls" type="Label" parent="TestHUD/Panel/Margin/Rows"]
+text = "WASD 이동  ·  J 기본 공격  ·  Num4 돌진  ·  Num5 회전\n상대 공격을 맞아 경직과 넉백도 확인하세요."
+
+[node name="AttackStatus" type="Label" parent="TestHUD/Panel/Margin/Rows"]
+text = "기본 공격: 대기"
+
+[node name="SkillStatus" type="Label" parent="TestHUD/Panel/Margin/Rows"]
+text = "스킬: 대기"
+
+[node name="CooldownStatus" type="Label" parent="TestHUD/Panel/Margin/Rows"]
+text = "쿨다운: Num4 0.00초 · Num5 0.00초"
+
+[node name="HitstunStatus" type="Label" parent="TestHUD/Panel/Margin/Rows"]
+text = "플레이어 경직: 0.00초"
+
+[node name="HealthStatus" type="Label" parent="TestHUD/Panel/Margin/Rows"]
+text = "체력: 플레이어 5 / 5 · 레이더 3 / 3"
+
+[node name="RaiderStatus" type="Label" parent="TestHUD/Panel/Margin/Rows"]
+text = "레이더 공격: 대기"
+
+[node name="ResetHint" type="Label" parent="TestHUD/Panel/Margin/Rows"]
+text = "R: 연습장 재시작"

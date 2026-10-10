@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Diagnostics;
 using System.Windows.Forms;
 
 namespace BeltScrollEditor;
@@ -103,6 +104,7 @@ internal static class Program
         if (!contract.TryGetProperty("characters", out _) || !contract.GetProperty("characters")[0].TryGetProperty("max_health", out _) || contract.GetProperty("characters")[0].TryGetProperty("health", out _))
             throw new InvalidOperationException("Serialized model does not match runtime schema v1 field names.");
         AnimationWorkspaceForm.ContractSelfTest();
+        EditorForm.PlaytestPreparationSelfTest();
     }
 
     internal static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
@@ -147,14 +149,21 @@ internal sealed class EditorForm : Form
     private readonly Panel fields = new() { Dock = DockStyle.Fill, AutoScroll = true };
     private readonly Dictionary<string, Control> editors = new();
     private readonly Label status = new() { AutoSize = true, Padding = new Padding(5) };
+    private readonly TextBox godotPathBox = new() { Width = 310 };
+    private readonly TextBox projectRootBox = new() { Width = 310 };
     private OverrideDocument document = new();
     private EditorItem? selected;
     private string currentPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "data", "editor", "overrides.json"));
     private bool loading;
+    private bool documentDirty;
+    private readonly HashSet<string> invalidFields = new(StringComparer.Ordinal);
     private readonly string? acceptanceDir;
     private readonly bool runtimeRoundtrip;
     private System.Windows.Forms.Timer? acceptanceTimer;
     private int acceptanceStep;
+    private Process? playtestProcess;
+    private string? playtestWorkspace;
+    private readonly StringBuilder playtestOutput = new();
     internal int ExitCode { get; private set; }
 
     public EditorForm(string? acceptanceDir = null, bool runtimeRoundtrip = false)
@@ -162,9 +171,9 @@ internal sealed class EditorForm : Form
         this.acceptanceDir = acceptanceDir;
         this.runtimeRoundtrip = runtimeRoundtrip;
         Text = "BeltScroll 에디터"; Width = 1120; Height = 780; MinimumSize = new Size(900, 600); StartPosition = FormStartPosition.CenterScreen;
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, Padding = new Padding(8) };
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3, Padding = new Padding(8) };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 290)); root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72)); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
         var left = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1 };
         left.RowStyles.Add(new RowStyle(SizeType.Absolute, 36)); left.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); left.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         category.Items.AddRange(["캐릭터", "적", "스테이지"]); category.SelectedIndex = 0; left.Controls.Add(category, 0, 0); left.Controls.Add(items, 0, 1);
@@ -176,7 +185,16 @@ internal sealed class EditorForm : Form
         footer.Controls.Add(status, 0, 0); var fileButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
         foreach (var (label, action) in new (string label, Action action)[] { ("아트·애니메이션 작업공간", OpenAnimationWorkspace), ("저장", Save), ("불러오기", LoadFile), ("다른 이름으로 저장", SaveAs) })
         { var b = new Button { Text = label, AutoSize = true }; b.Click += (_, _) => action(); fileButtons.Controls.Add(b); }
-        footer.Controls.Add(fileButtons, 1, 0); root.Controls.Add(footer, 0, 1); root.SetColumnSpan(footer, 2); Controls.Add(root);
+        footer.Controls.Add(fileButtons, 1, 0); root.Controls.Add(footer, 0, 2); root.SetColumnSpan(footer, 2);
+        var playtestBar = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true, AutoScroll = true, Padding = new Padding(2) };
+        projectRootBox.Text = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, ".."));
+        playtestBar.Controls.Add(new Label { Text = "Godot 실행 파일", AutoSize = true, Padding = new Padding(2, 7, 0, 0) }); playtestBar.Controls.Add(godotPathBox);
+        var chooseGodot = new Button { Text = "찾기…", AutoSize = true }; chooseGodot.Click += (_, _) => ChooseGodot(); playtestBar.Controls.Add(chooseGodot);
+        playtestBar.Controls.Add(new Label { Text = "프로젝트 루트", AutoSize = true, Padding = new Padding(2, 7, 0, 0) }); playtestBar.Controls.Add(projectRootBox);
+        var chooseProject = new Button { Text = "찾기…", AutoSize = true }; chooseProject.Click += (_, _) => ChooseProject(); playtestBar.Controls.Add(chooseProject);
+        foreach (var (label, scene) in new[] { ("게임 전투 테스트", "res://scenes/game/main.tscn"), ("전투 연습장 실행", "res://scenes/review/m6i_combat_test_arena.tscn") })
+        { var b = new Button { Text = label, AutoSize = true }; b.Click += (_, _) => LaunchPlaytest(scene); playtestBar.Controls.Add(b); }
+        root.Controls.Add(playtestBar, 0, 1); root.SetColumnSpan(playtestBar, 2); Controls.Add(root);
         category.SelectedIndexChanged += (_, _) => RefreshList(); items.SelectedIndexChanged += (_, _) => SelectItem();
         BuildFields(); RefreshList();
         if (acceptanceDir is not null)
@@ -217,7 +235,7 @@ internal sealed class EditorForm : Form
     private void SelectItem() { if (loading) return; selected = items.SelectedItem as EditorItem; SetFields(selected); }
     private void SetFields(EditorItem? item)
     {
-        loading = true; foreach (var (key, control) in editors) { var value = item?.GetType().GetProperty(key)?.GetValue(item); control.Text = value is string text ? text : value is null ? "" : value is Array or System.Collections.IDictionary or System.Collections.IList ? JsonSerializer.Serialize(value, Program.JsonOptions) : Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? ""; control.Enabled = item != null; } loading = false;
+        loading = true; invalidFields.Clear(); foreach (var (key, control) in editors) { var value = item?.GetType().GetProperty(key)?.GetValue(item); control.Text = value is string text ? text : value is null ? "" : value is Array or System.Collections.IDictionary or System.Collections.IList ? JsonSerializer.Serialize(value, Program.JsonOptions) : Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? ""; control.Enabled = item != null; control.BackColor = SystemColors.Window; } loading = false;
     }
     private void FieldChanged(TextBox box)
     {
@@ -227,21 +245,21 @@ internal sealed class EditorForm : Form
         else if (prop.PropertyType == typeof(int)) value = int.TryParse(box.Text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var i) ? i : null;
         else if (prop.PropertyType == typeof(double)) value = double.TryParse(box.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : null;
         else { try { value = JsonSerializer.Deserialize(box.Text, prop.PropertyType, Program.JsonOptions); } catch (JsonException) { value = null; } }
-        if (value is null) { box.BackColor = Color.MistyRose; status.Text = $"{key}: 숫자 형식이 올바르지 않습니다."; return; }
-        prop.SetValue(selected, value); box.BackColor = SystemColors.Window; int ix = items.SelectedIndex; if (ix >= 0) { items.Items[ix] = selected; items.SelectedIndex = ix; }
+        if (value is null) { invalidFields.Add(key); box.BackColor = Color.MistyRose; status.Text = $"{key}: 입력값이 올바르지 않습니다. 전투 테스트는 저장된 설정을 사용합니다."; return; }
+        invalidFields.Remove(key); prop.SetValue(selected, value); box.BackColor = SystemColors.Window; documentDirty = true; status.Text = "수정됨 — 전투 테스트는 저장된 설정을 사용합니다."; int ix = items.SelectedIndex; if (ix >= 0) { items.Items[ix] = selected; items.SelectedIndex = ix; }
     }
     private void AddItem()
     {
         string prefix = category.SelectedIndex == 0 ? "character" : category.SelectedIndex == 1 ? "enemy" : "stage";
         var item = new EditorItem { Id = UniqueId($"{prefix}_{DateTime.Now:yyyyMMdd_HHmmssfff}"), Name = $"새 {CurrentKind}" };
         if (category.SelectedIndex == 0) document.Characters.Add(item); else if (category.SelectedIndex == 1) document.Enemies.Add(item); else document.Stages.Add(item);
-        RefreshList(); items.SelectedItem = item;
+        documentDirty = true; status.Text = "수정됨 — 전투 테스트는 저장된 설정을 사용합니다."; RefreshList(); items.SelectedItem = item;
     }
     private void CloneItem()
     {
         if (selected is null) return; var clone = selected.Copy(); clone.Id = UniqueId($"{clone.Id}_copy"); clone.Name = $"{clone.Name} 복사본";
         if (category.SelectedIndex == 0) document.Characters.Add(clone); else if (category.SelectedIndex == 1) document.Enemies.Add(clone); else document.Stages.Add(clone);
-        RefreshList(); items.SelectedItem = clone;
+        documentDirty = true; status.Text = "수정됨 — 전투 테스트는 저장된 설정을 사용합니다."; RefreshList(); items.SelectedItem = clone;
     }
     private string UniqueId(string candidate)
     {
@@ -257,7 +275,7 @@ internal sealed class EditorForm : Form
     private void DeleteItem()
     {
         if (selected is null || (acceptanceDir is null && MessageBox.Show($"'{selected.Name}' 항목을 삭제할까요?", "삭제 확인", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)) return;
-        if (category.SelectedIndex == 0) document.Characters.Remove(selected); else if (category.SelectedIndex == 1) document.Enemies.Remove(selected); else document.Stages.Remove(selected); RefreshList();
+        if (category.SelectedIndex == 0) document.Characters.Remove(selected); else if (category.SelectedIndex == 1) document.Enemies.Remove(selected); else document.Stages.Remove(selected); documentDirty = true; status.Text = "수정됨 — 전투 테스트는 저장된 설정을 사용합니다."; RefreshList();
     }
     private void LoadFile()
     {
@@ -278,12 +296,176 @@ internal sealed class EditorForm : Form
         using var workspace = new AnimationWorkspaceForm();
         workspace.ShowDialog(this);
     }
+
+    private void ChooseGodot()
+    {
+        using var dialog = new OpenFileDialog { Title = "Godot 실행 파일 선택", Filter = "Godot 실행 파일 (godot*.exe)|godot*.exe|실행 파일 (*.exe)|*.exe" };
+        if (dialog.ShowDialog(this) == DialogResult.OK) godotPathBox.Text = Path.GetFullPath(dialog.FileName);
+    }
+
+    private void ChooseProject()
+    {
+        using var dialog = new FolderBrowserDialog { Description = "project.godot 파일이 있는 프로젝트 폴더를 선택하세요.", SelectedPath = Directory.Exists(projectRootBox.Text) ? projectRootBox.Text : AppContext.BaseDirectory };
+        if (dialog.ShowDialog(this) == DialogResult.OK) projectRootBox.Text = Path.GetFullPath(dialog.SelectedPath);
+    }
+
+    private void LaunchPlaytest(string scene)
+    {
+        string? workspaceForLaunch = null;
+        Process? processForLaunch = null;
+        bool processStarted = false;
+        try
+        {
+            if (playtestProcess is { HasExited: false }) throw new InvalidOperationException("이미 전투 테스트 프로세스가 실행 중입니다.");
+            if (playtestProcess is not null) { playtestProcess.Dispose(); playtestProcess = null; }
+            string root = ValidateProjectRoot(projectRootBox.Text);
+            string godot = ValidateGodotExecutable(godotPathBox.Text);
+            string sourceOverrides = Path.GetFullPath(currentPath);
+            if (!File.Exists(sourceOverrides)) throw new FileNotFoundException("현재 설정을 먼저 저장하세요.", sourceOverrides);
+            var saved = JsonSerializer.Deserialize<OverrideDocument>(File.ReadAllText(sourceOverrides, Encoding.UTF8), Program.JsonOptions) ?? throw new InvalidDataException("저장된 전투 설정이 비어 있습니다.");
+            Program.Validate(saved);
+            workspaceForLaunch = CreatePlaytestWorkspace(root, sourceOverrides);
+            playtestWorkspace = workspaceForLaunch;
+            playtestOutput.Clear();
+            var start = new ProcessStartInfo { FileName = godot, WorkingDirectory = workspaceForLaunch, UseShellExecute = false, CreateNoWindow = false, RedirectStandardOutput = true, RedirectStandardError = true };
+            start.ArgumentList.Add("--path"); start.ArgumentList.Add(workspaceForLaunch); start.ArgumentList.Add("--scene"); start.ArgumentList.Add(scene);
+            processForLaunch = new Process { StartInfo = start, EnableRaisingEvents = true };
+            playtestProcess = processForLaunch;
+            processForLaunch.OutputDataReceived += (_, e) => AppendPlaytestOutput(e.Data);
+            processForLaunch.ErrorDataReceived += (_, e) => AppendPlaytestOutput(e.Data);
+            processForLaunch.Exited += (_, _) =>
+            {
+                try { BeginInvoke((Action)(() => PlaytestExited())); } catch (InvalidOperationException) { }
+            };
+            processStarted = processForLaunch.Start();
+            if (!processStarted) throw new InvalidOperationException("Godot 프로세스를 시작하지 못했습니다.");
+            processForLaunch.BeginOutputReadLine(); processForLaunch.BeginErrorReadLine();
+            status.Text = $"실행 중: {scene} · 적용: 저장된 설정 {sourceOverrides}" + (documentDirty || invalidFields.Count > 0 ? " · 미저장 편집값은 적용되지 않음" : "") + $" · 임시 프로젝트 {playtestWorkspace}";
+        }
+        catch (Exception ex)
+        {
+            if (!processStarted)
+            {
+                if (ReferenceEquals(playtestProcess, processForLaunch)) playtestProcess = null;
+                processForLaunch?.Dispose();
+                if (workspaceForLaunch is not null)
+                {
+                    try { if (Directory.Exists(workspaceForLaunch)) Directory.Delete(workspaceForLaunch, true); } catch { }
+                    if (playtestWorkspace == workspaceForLaunch) playtestWorkspace = null;
+                }
+            }
+            ShowError("전투 테스트 실행 실패", ex);
+        }
+    }
+
+    private void AppendPlaytestOutput(string? line)
+    {
+        if (string.IsNullOrEmpty(line)) return;
+        lock (playtestOutput) { if (playtestOutput.Length < 20000) playtestOutput.AppendLine(line); }
+    }
+
+    private void PlaytestExited()
+    {
+        if (playtestProcess is null) return;
+        int code; try { code = playtestProcess.ExitCode; } catch (InvalidOperationException) { return; }
+        string output; lock (playtestOutput) output = playtestOutput.ToString();
+        status.Text = $"전투 테스트 종료 코드: {code}";
+        if (code != 0) MessageBox.Show(this, $"Godot가 종료 코드 {code}(으)로 종료되었습니다.\n\n{output}", "전투 테스트 오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        playtestProcess.Dispose(); playtestProcess = null;
+        if (playtestWorkspace is not null) { try { Directory.Delete(playtestWorkspace, true); } catch (Exception ex) { status.Text += $" · 임시 파일 정리 실패: {ex.Message}"; } playtestWorkspace = null; }
+    }
+
+    internal static string ValidateGodotExecutable(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) throw new InvalidDataException("Godot 실행 파일 경로를 지정하세요.");
+        string full = Path.GetFullPath(path);
+        if (!File.Exists(full) || !Path.GetExtension(full).Equals(".exe", StringComparison.OrdinalIgnoreCase) || !Path.GetFileName(full).StartsWith("godot", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("실행 파일은 존재하는 godot*.exe여야 합니다.");
+        return full;
+    }
+
+    internal static string ValidateProjectRoot(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) throw new InvalidDataException("Godot 프로젝트 폴더를 지정하세요.");
+        string full = Path.GetFullPath(path);
+        if (!Directory.Exists(full) || !File.Exists(Path.Combine(full, "project.godot")) || !File.Exists(Path.Combine(full, "scenes/game/main.tscn")) || !File.Exists(Path.Combine(full, "scenes/review/m6i_combat_test_arena.tscn")))
+            throw new InvalidDataException("project.godot와 게임/전투 연습장 씬이 있는 BeltScroll 프로젝트 폴더를 선택하세요.");
+        return full;
+    }
+
+    private static string CreatePlaytestWorkspace(string sourceRoot, string savedOverrides)
+    {
+        string workspace = Path.Combine(Path.GetTempPath(), "BeltScrollCombatPlaytest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(workspace);
+        try
+        {
+            var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".git", ".godot", ".projecthub", ".qa_logs", "dist", "temp", "bin", "obj", "tests", "docs", "editor" };
+            foreach (string entry in Directory.EnumerateFileSystemEntries(sourceRoot))
+            {
+                string name = Path.GetFileName(entry);
+                if ((File.GetAttributes(entry) & FileAttributes.ReparsePoint) != 0) continue;
+                if (Directory.Exists(entry)) { if (!excluded.Contains(name)) CopyDirectory(entry, Path.Combine(workspace, name), excluded); }
+                else File.Copy(entry, Path.Combine(workspace, name), true);
+            }
+            string overrideTarget = Path.Combine(workspace, "data", "editor", "overrides.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(overrideTarget)!);
+            File.Copy(savedOverrides, overrideTarget, true);
+            return workspace;
+        }
+        catch { try { Directory.Delete(workspace, true); } catch { } throw; }
+    }
+
+    private static void CopyDirectory(string source, string destination, HashSet<string> excluded)
+    {
+        Directory.CreateDirectory(destination);
+        foreach (string file in Directory.EnumerateFiles(source))
+        {
+            if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0) continue;
+            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), true);
+        }
+        foreach (string child in Directory.EnumerateDirectories(source))
+            if (!excluded.Contains(Path.GetFileName(child)) && (File.GetAttributes(child) & FileAttributes.ReparsePoint) == 0) CopyDirectory(child, Path.Combine(destination, Path.GetFileName(child)), excluded);
+    }
+
+    internal static void PlaytestPreparationSelfTest()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "BeltScrollPlaytestSelfTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        string workspace = "";
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "data", "editor"));
+            Directory.CreateDirectory(Path.Combine(root, "scenes", "game"));
+            Directory.CreateDirectory(Path.Combine(root, "scenes", "review"));
+            File.WriteAllText(Path.Combine(root, "project.godot"), "config/name=\"fixture\"", new UTF8Encoding(false));
+            File.WriteAllText(Path.Combine(root, "scenes", "game", "main.tscn"), "game", new UTF8Encoding(false));
+            File.WriteAllText(Path.Combine(root, "scenes", "review", "m6i_combat_test_arena.tscn"), "practice", new UTF8Encoding(false));
+            string original = "{\"schema_version\":1,\"characters\":[],\"enemies\":[],\"stages\":[]}";
+            string overrides = Path.Combine(root, "data", "editor", "overrides.json");
+            File.WriteAllText(overrides, original, new UTF8Encoding(false));
+            Directory.CreateDirectory(Path.Combine(root, ".git"));
+            File.WriteAllText(Path.Combine(root, ".git", "must-not-copy"), "excluded");
+            if (ValidateProjectRoot(root) != Path.GetFullPath(root)) throw new InvalidOperationException("Project root validation failed.");
+            workspace = CreatePlaytestWorkspace(root, overrides);
+            string staged = Path.Combine(workspace, "data", "editor", "overrides.json");
+            if (File.ReadAllText(staged, Encoding.UTF8) != original || File.ReadAllText(overrides, Encoding.UTF8) != original || File.Exists(Path.Combine(workspace, ".git", "must-not-copy")))
+                throw new InvalidOperationException("Playtest workspace did not isolate the saved settings from the source project.");
+            bool rejected = false;
+            try { ValidateProjectRoot(Path.GetTempPath()); } catch (InvalidDataException) { rejected = true; }
+            if (!rejected) throw new InvalidOperationException("An invalid project root was accepted.");
+        }
+        finally
+        {
+            if (workspace.Length > 0 && Directory.Exists(workspace)) Directory.Delete(workspace, true);
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
     private void LoadPath(string path)
     {
         var loaded = JsonSerializer.Deserialize<OverrideDocument>(File.ReadAllText(path, Encoding.UTF8), Program.JsonOptions) ?? throw new InvalidDataException("JSON 문서가 비어 있습니다.");
         Program.Validate(loaded);
         foreach (var stage in loaded.Stages) { var spawn = stage.Spawns.FirstOrDefault(s => s.ActorId == "Player"); if (spawn is not null) { stage.X = spawn.X; stage.Y = spawn.Y; } }
-        document = loaded; RefreshList();
+        document = loaded; documentDirty = false; RefreshList();
     }
     private void Save() => SaveTo(currentPath);
     private void SaveAs()
@@ -301,6 +483,7 @@ internal sealed class EditorForm : Form
     {
         try
         {
+            if (invalidFields.Count > 0) throw new InvalidDataException("입력 오류가 있는 편집값을 고친 뒤 저장하세요.");
             var output = JsonSerializer.Deserialize<OverrideDocument>(JsonSerializer.Serialize(document, Program.JsonOptions), Program.JsonOptions)!;
             for (int i = 0; i < output.Stages.Count; i++)
             {
@@ -322,7 +505,7 @@ internal sealed class EditorForm : Form
                 else File.Move(temp, full);
             }
             finally { if (File.Exists(temp)) File.Delete(temp); }
-            status.Text = $"저장 완료: {full}";
+            documentDirty = false; status.Text = $"저장 완료: {full}";
             return true;
         }
         catch (Exception ex) { ShowError("저장 실패", ex); return false; }
