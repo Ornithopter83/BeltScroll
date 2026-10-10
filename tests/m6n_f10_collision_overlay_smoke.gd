@@ -33,7 +33,7 @@ func _run() -> void:
 	_check(_count_shapes(player) == 6, "Player 몸체·기본 1~3타·Num4/5 실제 CollisionShape2D 6개를 찾음")
 	_check(_count_shapes(raider) == 3, "ForestRaider 몸체·공격·피격 영역 3개를 찾음")
 	_check(_count_shapes(boss) == 3, "RuinsWardenBoss 몸체·공격·피격 영역 3개를 찾음")
-	_check(_has_shape_type(player, "CapsuleShape2D") and _has_shape_type(player, "RectangleShape2D") and _has_shape_type(player, "CircleShape2D"), "캡슐·사각형·원 실제 shape 종류를 모두 식별")
+	_check(_has_shape_type(player, "CapsuleShape2D") and _has_shape_type(player, "CircleShape2D") and _has_shape_type(raider, "RectangleShape2D"), "플레이어 캡슐·주먹 원형·Raider 사각형 실제 shape 종류를 식별")
 	_check(raider.get_node_or_null("AttackArea") != null and boss.get_node_or_null("AttackArea") != null, "연습용 트리에 Raider와 보스 생성 완료")
 	for name in ["Hitbox1", "Hitbox2", "Hitbox3", "Skill1Hitbox", "Skill2Hitbox"]:
 		var area := player.get_node("Hitboxes/" + name) as Area2D
@@ -43,12 +43,16 @@ func _run() -> void:
 	first.monitoring = true
 	_check(first.monitoring, "기본 공격 활성화 상태를 실제 monitoring에서 읽음")
 	first.monitoring = false
+	var visual_root := player.get_node("VisualRoot") as Node2D
 	player.set("facing_direction", Vector2.RIGHT)
+	visual_root.scale.x = 1.0
 	player.call("_set_stage_hitbox", 1, true)
-	var right_facing_hitbox_x := first.position.x
+	var right_facing_hitbox_x := first.global_position.x - player.global_position.x
 	player.set("facing_direction", Vector2.LEFT)
+	visual_root.scale.x = -1.0
 	player.call("_set_stage_hitbox", 1, true)
-	_check(right_facing_hitbox_x > 0.0 and first.position.x < 0.0, "캐릭터 방향 전환에 따라 실제 기본 공격 영역 transform이 반전")
+	var left_facing_hitbox_x := first.global_position.x - player.global_position.x
+	_check(right_facing_hitbox_x > 0.0 and left_facing_hitbox_x < 0.0, "캐릭터 방향 전환에 따라 실제 Sprite 변환 기반 주먹 접촉 위치가 반전")
 	player.call("_set_stage_hitbox", 1, false)
 	var attack := raider.get_node("AttackArea") as Area2D
 	attack.monitoring = true

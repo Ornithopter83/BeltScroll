@@ -10,20 +10,20 @@
 radius = 16.0
 height = 40.0
 
-[sub_resource type="RectangleShape2D" id="HitboxShape_stage_1"]
-size = Vector2(60, 40)
+[sub_resource type="CircleShape2D" id="HitboxShape_stage_1"]
+radius = 13.0
 
-[sub_resource type="RectangleShape2D" id="HitboxShape_stage_2"]
-size = Vector2(78, 52)
+[sub_resource type="CircleShape2D" id="HitboxShape_stage_2"]
+radius = 14.0
 
-[sub_resource type="RectangleShape2D" id="HitboxShape_stage_3"]
-size = Vector2(100, 66)
+[sub_resource type="CircleShape2D" id="HitboxShape_stage_3"]
+radius = 15.0
 
-[sub_resource type="RectangleShape2D" id="HitboxShape_skill_1"]
-size = Vector2(108, 58)
+[sub_resource type="CircleShape2D" id="HitboxShape_skill_1"]
+radius = 16.0
 
 [sub_resource type="CircleShape2D" id="HitboxShape_skill_2"]
-radius = 64.0
+radius = 15.0
 
 [node name="Player" type="CharacterBody2D"]
 collision_layer = 1

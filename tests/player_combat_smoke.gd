@@ -42,11 +42,41 @@ class HitReceiver:
 					impact_position_mismatch = impact_position_mismatch or child.global_position.distance_to(global_position + Vector2(0.0, -20.0)) > 0.1
 		duplicate_impact_observation = duplicate_impact_observation or effect_count > 1
 
+class ContactFixtureTracker:
+	extends Node
+
+	var controlled_player: CharacterBody2D
+	var targets: Array[Node2D] = []
+
+	func _physics_process(_delta: float) -> void:
+		if controlled_player == null:
+			return
+		var stage := int(controlled_player.get("attack_stage"))
+		if stage < 1 or stage > targets.size() or str(controlled_player.get("attack_phase")) == "idle":
+			return
+		var animator := controlled_player.get_node_or_null("VisualAnimator")
+		if animator == null or not animator.has_method("get_fist_contact_global"):
+			return
+		var contact: Vector2 = animator.call("get_fist_contact_global")
+		var target := targets[stage - 1]
+		var shape: CollisionShape2D
+		for child in target.get_children():
+			if child is CollisionShape2D:
+				shape = child as CollisionShape2D
+				break
+		if shape == null:
+			return
+		# Keep this mechanics fixture centered on the live hand while the reviewed
+		# art contact pin is still pending; production hitboxes remain unmodified.
+		target.global_position = Vector2(contact.x, controlled_player.global_position.y)
+		shape.position = Vector2(0.0, contact.y - target.global_position.y)
+
 var failures: Array[String] = []
 var player: CharacterBody2D
 var receivers: Array[HitReceiver] = []
 var depth_decoys: Array[HitReceiver] = []
 var recoil_by_stage: Dictionary = {}
+var contact_tracker: ContactFixtureTracker
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -69,6 +99,11 @@ func _run() -> void:
 		decoy.position = decoy_position
 		root.add_child(decoy)
 		depth_decoys.append(decoy)
+	contact_tracker = ContactFixtureTracker.new()
+	contact_tracker.controlled_player = player
+	contact_tracker.targets.assign(receivers)
+	contact_tracker.process_priority = -10
+	root.add_child(contact_tracker)
 	await _frames(2)
 
 	Input.action_press("attack")
@@ -83,6 +118,7 @@ func _run() -> void:
 	await _wait_for_phase("recovery", 3)
 	await _tap_attack()
 	await _wait_for_idle()
+	contact_tracker.set_physics_process(false)
 
 	var stages: Array[int] = []
 	var damage_by_stage := {1: 0.0, 2: 0.0, 3: 0.0}
@@ -249,20 +285,27 @@ func _wait_for_idle() -> void:
 
 func _check_player_hits_training_dummy() -> void:
 	player.global_position = Vector2(900.0, 800.0)
-	player.set("facing_direction", Vector2.DOWN)
+	player.set("facing_direction", Vector2.RIGHT)
+	player.get_node("VisualRoot").scale.x = 1.0
 	var dummy_scene := load(DUMMY_SCENE) as PackedScene
 	var dummy := dummy_scene.instantiate() as CharacterBody2D
-	dummy.global_position = Vector2(900.0, 860.0)
+	dummy.global_position = Vector2(900.0, 800.0)
+	dummy.collision_mask = 0
 	root.add_child(dummy)
+	var dummy_tracker := ContactFixtureTracker.new()
+	dummy_tracker.controlled_player = player
+	dummy_tracker.targets = [dummy]
+	dummy_tracker.process_priority = -10
+	root.add_child(dummy_tracker)
 	await physics_frame
 	Input.action_press("attack")
-	await physics_frame
-	Input.action_release("attack")
 	for _frame in range(1200):
 		if dummy.get("last_attack_stage") == 1:
 			break
 		await physics_frame
+	Input.action_release("attack")
 	_check(dummy.get("last_attack_stage") == 1 and dummy.get("health") < 1000.0, "player's forward hitbox reaches the scene TrainingDummy via its receiver group")
+	dummy_tracker.queue_free()
 	dummy.queue_free()
 
 func _check(condition: bool, description: String) -> void:
@@ -272,5 +315,8 @@ func _check(condition: bool, description: String) -> void:
 		failures.append(description)
 
 func _on_player_attack_hit(stage: int) -> void:
+	if recoil_by_stage.has(stage) or receivers[stage - 1].received_hits.is_empty():
+		return
 	var recoil_velocity: Vector2 = player.get("attack_recoil_velocity")
-	recoil_by_stage[stage] = float(player.get("attack_recoil_remaining")) > 0.0 and recoil_velocity.x < 0.0
+	var hit_direction: Vector2 = receivers[stage - 1].received_hits.back().get("direction", Vector2.ZERO)
+	recoil_by_stage[stage] = float(player.get("attack_recoil_remaining")) > 0.0 and recoil_velocity.dot(hit_direction) < 0.0

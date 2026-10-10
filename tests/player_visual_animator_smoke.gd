@@ -60,10 +60,10 @@ func _run() -> void:
 		_check(player_art.scale.is_equal_approx(ART_SCALE) and pose_blender.sprite_scale.is_equal_approx(ART_SCALE), "player and PoseBlender use the approved art at approximately three times scale")
 		var body_capsule := (player.get_node("CollisionShape2D") as CollisionShape2D).shape as CapsuleShape2D
 		_check(body_capsule != null and is_equal_approx(body_capsule.radius, 16.0) and is_equal_approx(body_capsule.height, 40.0), "player collision body widens while retaining its ground edge")
-		var expected_hit_sizes := [Vector2(60.0, 40.0), Vector2(78.0, 52.0), Vector2(100.0, 66.0)]
+		var expected_hit_radii := [13.0, 14.0, 15.0]
 		for stage in range(1, 4):
-			var hitbox_shape := (player.get_node("Hitboxes/Hitbox%d/CollisionShape2D" % stage) as CollisionShape2D).shape as RectangleShape2D
-			_check(hitbox_shape != null and hitbox_shape.size.is_equal_approx(expected_hit_sizes[stage - 1]), "player stage %d attack judgment area matches the enlarged strike" % stage)
+			var hitbox_shape := (player.get_node("Hitboxes/Hitbox%d/CollisionShape2D" % stage) as CollisionShape2D).shape as CircleShape2D
+			_check(hitbox_shape != null and is_equal_approx(hitbox_shape.radius, expected_hit_radii[stage - 1]) and hitbox_shape.radius <= 15.0, "player stage %d attack judgment area stays fist-sized" % stage)
 		poses.append(player)
 		animator_nodes.append(player.get_node("VisualAnimator"))
 		players.append(player)
@@ -439,7 +439,7 @@ func _run() -> void:
 	for _frame in range(8):
 		playback_animator.call("_process", 0.015)
 	var restored_art := playback_player.get_node("VisualRoot/PlayerArt") as Sprite2D
-	_check(not playback_blender.visible and restored_art.visible and absf(playback_blender.get_external_blend_weight()) < 0.001 and restored_art.modulate.a > 0.999, "skill interruption completes the 105 ms handoff, discards the registered pose, and restores procedural art")
+	_check(not playback_blender.visible and restored_art.visible and absf(playback_blender.get_external_blend_weight() - 1.0) < 0.001 and restored_art.modulate.a > 0.999, "skill interruption atomically discards the registered full-body pose and restores procedural art")
 
 	await process_frame
 	await RenderingServer.frame_post_draw

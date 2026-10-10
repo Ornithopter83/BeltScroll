@@ -268,6 +268,58 @@ func is_pose_blender_dominant() -> bool:
 func get_pose_blender_weight() -> float:
 	return _pose_blender_weight
 
+## World-space fist contact from the currently visible Sprite2D. Coordinates
+## are authored against the 1254px pose drawings and transformed by the live
+## sprite/visual-root transforms, including the horizontal mirror.
+func get_fist_contact_global() -> Variant:
+	var sprite := _get_visible_combat_sprite()
+	if sprite == null or sprite.texture == null:
+		return null
+	var source_point := _fist_source_point()
+	if sprite.flip_h:
+		source_point.x = -source_point.x
+	var local_point := source_point * (Vector2(sprite.texture.get_size()) / Vector2(1254.0, 1254.0))
+	return sprite.to_global(local_point)
+
+func _get_visible_combat_sprite() -> Sprite2D:
+	if pose_blender != null and is_pose_blender_dominant():
+		var pose_sprite := pose_blender.get_current_sprite()
+		if pose_sprite != null:
+			return pose_sprite
+	return art if art != null and art.visible else null
+
+func _fist_source_point() -> Vector2:
+	var attack_phase := str(player.get("attack_phase"))
+	var skill_phase := str(player.get("skill_phase"))
+	if attack_phase in ["startup", "active", "recovery"]:
+		var stage := clampi(int(player.get("attack_stage")), 1, 3)
+		var progress := get_state_phase_progress()
+		match stage:
+			1:
+				# Straight punch extends into the drawn lead fist.
+				return Vector2(366.0, -205.0).lerp(Vector2(510.0, -253.0), _ease_out(progress))
+			2:
+				# The hook sweeps a shallow shoulder-height arc through contact.
+				return _quadratic_point(Vector2(330.0, -175.0), Vector2(505.0, -65.0), Vector2(440.0, -147.0), progress)
+			3:
+				# Rising punch travels up and forward into the raised fist drawing.
+				return Vector2(212.0, -320.0).lerp(Vector2(319.0, -491.0), _ease_in_out(progress))
+	if skill_phase in ["startup", "active", "recovery"]:
+		var skill := int(player.get("skill_id"))
+		var progress := get_state_phase_progress()
+		if skill == 1:
+			# Num4 tracks the advancing lead fist; the lunge displacement itself
+			# comes from the player's physical motion, never from the VFX center.
+			return Vector2(258.0, -286.0).lerp(Vector2(432.0, -250.0), _ease_out(progress))
+		# Num5 backfist follows an arc around the shoulder through the active spin.
+		var angle := lerpf(-0.75, 0.95, progress)
+		return Vector2(132.0, -322.0) + Vector2(cos(angle), sin(angle)) * 310.0
+	return Vector2(258.0, -286.0)
+
+func _quadratic_point(start: Vector2, control: Vector2, finish: Vector2, progress: float) -> Vector2:
+	var t := clampf(progress, 0.0, 1.0)
+	return start * (1.0 - t) * (1.0 - t) + control * 2.0 * (1.0 - t) * t + finish * t * t
+
 func _advance_facing_turn(delta: float, allow_turn: bool) -> bool:
 	var desired_sign := _applied_facing_sign
 	var facing: Vector2 = player.get("facing_direction")

@@ -20,6 +20,7 @@ signal skill_hit(skill_id: int)
 @onready var visual_root: Node2D = $VisualRoot
 @onready var attack_flash: Polygon2D = $VisualRoot/AttackFlash
 @onready var player_art: Sprite2D = $VisualRoot/PlayerArt
+@onready var visual_animator: Node = $VisualAnimator
 @onready var ground_shadow: Polygon2D = $GroundShadow
 @onready var camera: Camera2D = $Camera2D
 
@@ -37,8 +38,6 @@ const STARTUP := [0.075, 0.085, 0.10]
 const ACTIVE := [0.105, 0.12, 0.14]
 const RECOVERY := [0.20, 0.22, 0.28]
 const LUNGE := [34.0, 52.0, 76.0]
-const BASIC_ATTACK_CONTACT_X := [40.0, 52.0, 66.0]
-const BASIC_ATTACK_CONTACT_Y := [-39.0, -43.0, -47.0]
 const BASIC_ATTACK_DEPTH_TOLERANCE := 42.0
 const BLOCK_DAMAGE_MULTIPLIER := 0.25
 const BLOCK_KNOCKBACK_MULTIPLIER := 0.35
@@ -358,12 +357,24 @@ func _clear_attack_combo() -> void:
 func _set_stage_hitbox(stage: int, enabled: bool) -> void:
 	for index in range(1, COMBO_COUNT + 1):
 		var hitbox := get_node("Hitboxes/Hitbox%d" % index) as Area2D
-		hitbox.monitoring = enabled and index == stage
-		var facing_sign := _basic_attack_facing_sign()
-		hitbox.position = Vector2(BASIC_ATTACK_CONTACT_X[index - 1] * facing_sign, BASIC_ATTACK_CONTACT_Y[index - 1])
-		hitbox.rotation = 0.0
+		hitbox.monitoring = false
+		if enabled and index == stage:
+			hitbox.monitoring = _update_fist_hitbox(hitbox)
 		var shape_node := hitbox.get_node("CollisionShape2D") as CollisionShape2D
 		shape_node.position = Vector2.ZERO
+
+func _update_fist_hitbox(hitbox: Area2D) -> bool:
+	if visual_animator == null or not visual_animator.has_method("get_fist_contact_global"):
+		hitbox.monitoring = false
+		return false
+	var contact: Variant = visual_animator.call("get_fist_contact_global")
+	if typeof(contact) != TYPE_VECTOR2:
+		hitbox.monitoring = false
+		return false
+	var contact_global: Vector2 = contact
+	hitbox.global_position = contact_global
+	hitbox.global_rotation = 0.0
+	return true
 
 func _request_skill(requested_skill_id: int) -> void:
 	if requested_skill_id < 1 or requested_skill_id > 2:
@@ -390,14 +401,20 @@ func _request_skill(requested_skill_id: int) -> void:
 func _set_skill_hitbox_transform() -> void:
 	var lunge_hitbox := get_node("Hitboxes/Skill1Hitbox") as Area2D
 	var spin_hitbox := get_node("Hitboxes/Skill2Hitbox") as Area2D
-	lunge_hitbox.position = facing_direction * 52.0
-	lunge_hitbox.rotation = facing_direction.angle()
-	spin_hitbox.position = Vector2.ZERO
-	spin_hitbox.rotation = 0.0
+	_update_fist_hitbox(lunge_hitbox)
+	_update_fist_hitbox(spin_hitbox)
 
 func _set_skill_hitboxes(enabled: bool) -> void:
-	get_node("Hitboxes/Skill1Hitbox").monitoring = enabled and skill_id == 1
-	get_node("Hitboxes/Skill2Hitbox").monitoring = enabled and skill_id == 2
+	var lunge_hitbox := get_node("Hitboxes/Skill1Hitbox") as Area2D
+	var spin_hitbox := get_node("Hitboxes/Skill2Hitbox") as Area2D
+	lunge_hitbox.monitoring = false
+	spin_hitbox.monitoring = false
+	if not enabled:
+		return
+	if skill_id == 1:
+		lunge_hitbox.monitoring = _update_fist_hitbox(lunge_hitbox)
+	elif skill_id == 2:
+		spin_hitbox.monitoring = _update_fist_hitbox(spin_hitbox)
 
 func _update_skill(delta: float) -> void:
 	if skill_phase == "idle":
@@ -427,14 +444,19 @@ func _update_skill(delta: float) -> void:
 func _check_skill_hitbox() -> void:
 	var area_name := "Skill1Hitbox" if skill_id == 1 else "Skill2Hitbox"
 	var hitbox := get_node("Hitboxes/" + area_name) as Area2D
-	for target in hitbox.get_overlapping_bodies():
+	if not _update_fist_hitbox(hitbox):
+		return
+	for target in _query_fist_targets(hitbox):
 		if target == self or not target.is_in_group("hit_receivers") or not target.has_method("receive_hit"):
+			continue
+		var target_root := target as Node2D
+		if target_root == null or absf(target_root.global_position.y - global_position.y) > BASIC_ATTACK_DEPTH_TOLERANCE:
 			continue
 		var target_id := target.get_instance_id()
 		if _skill_hit_targets.has(target_id):
 			continue
 		_skill_hit_targets[target_id] = true
-		var direction := (target.global_position - global_position).normalized()
+		var direction := (target_root.global_position - global_position).normalized()
 		if direction == Vector2.ZERO:
 			direction = facing_direction
 		var combat_stage := 3 if skill_id == 1 else 2
@@ -473,12 +495,43 @@ func _interrupt_skill_for_guard() -> void:
 
 func _check_stage_hitbox(stage: int) -> void:
 	var hitbox := get_node("Hitboxes/Hitbox%d" % stage) as Area2D
-	for target in hitbox.get_overlapping_bodies():
+	if not _update_fist_hitbox(hitbox):
+		return
+	for target in _query_fist_targets(hitbox):
 		_apply_basic_attack_to(target, stage)
-	for target_area in hitbox.get_overlapping_areas():
-		var target := target_area.get_parent()
-		if target is Node2D:
-			_apply_basic_attack_to(target, stage)
+
+func _query_fist_targets(hitbox: Area2D) -> Array[Node]:
+	var targets: Array[Node] = []
+	var seen: Dictionary = {}
+	var shape_node := hitbox.get_node("CollisionShape2D") as CollisionShape2D
+	if shape_node == null or shape_node.shape == null or get_world_2d() == null:
+		return targets
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = shape_node.shape
+	query.transform = shape_node.global_transform
+	query.collision_mask = hitbox.collision_mask
+	query.collide_with_bodies = true
+	query.collide_with_areas = true
+	query.exclude = [get_rid()]
+	for result in get_world_2d().direct_space_state.intersect_shape(query, 64):
+		var collider := result.get("collider") as Node
+		var receiver := _find_hit_receiver(collider)
+		if receiver == null:
+			continue
+		var receiver_id := receiver.get_instance_id()
+		if seen.has(receiver_id):
+			continue
+		seen[receiver_id] = true
+		targets.append(receiver)
+	return targets
+
+func _find_hit_receiver(collider: Node) -> Node:
+	var current := collider
+	while current != null and current != self:
+		if current.is_in_group("hit_receivers") and current.has_method("receive_hit"):
+			return current
+		current = current.get_parent()
+	return null
 
 func _apply_basic_attack_to(target: Node, stage: int) -> void:
 	if target == self or not target.is_in_group("hit_receivers") or not target.has_method("receive_hit"):
@@ -578,7 +631,15 @@ func _set_attack_stage_visual(stage: int) -> void:
 	attack_flash.color = Color(1.0, 0.8, 0.25, 0.95)
 	var stage_index := stage - 1
 	attack_flash.visible = true
-	attack_flash.position = Vector2(BASIC_ATTACK_CONTACT_X[stage_index] * 0.72, -27.0 - stage_index * 3.0)
+	if visual_animator != null and visual_animator.has_method("get_fist_contact_global"):
+		var contact: Variant = visual_animator.call("get_fist_contact_global")
+		if typeof(contact) != TYPE_VECTOR2:
+			attack_flash.visible = false
+			return
+		var fist_contact: Vector2 = contact
+		attack_flash.position = visual_root.to_local(fist_contact)
+	else:
+		attack_flash.visible = false
 	attack_flash.scale = Vector2(1.0 + stage_index * 0.18, 1.0 + stage_index * 0.12)
 
 func receive_hit(hit: Dictionary) -> void:
