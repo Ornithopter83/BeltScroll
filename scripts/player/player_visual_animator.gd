@@ -53,6 +53,9 @@ var _turn_flip_applied := false
 var _skill1_dash_visual: Node2D
 var _skill2_spin_visual: Node2D
 var _art_base_modulate := Color.WHITE
+var _art_bounds_texture: Texture2D
+var _art_alpha_bounds := Rect2i()
+var _pose_sprites: Array[Sprite2D] = []
 
 ## These timing tables drive temporary transform poses only. They do not claim
 ## that missing walk/jump/hit/landing art has been approved as sprite frames.
@@ -109,15 +112,20 @@ func _ready() -> void:
 	pose_blender.set_ground_candidate("attack3", "contact", Vector2(0.80, 0.91))
 	if art == null or art.texture == null:
 		return
+	_art_bounds_texture = art.texture
+	_art_alpha_bounds = art.texture.get_image().get_used_rect()
+	for child in pose_blender.find_children("PoseSprite*", "Sprite2D", false, false):
+		var sprite := child as Sprite2D
+		if sprite != null:
+			_pose_sprites.append(sprite)
 	_base_position = art.position
 	_base_scale = art.scale
 	_base_rotation = art.rotation
 	_art_base_modulate = art.modulate
 	var texture_size := Vector2(art.texture.get_size())
-	var alpha_bounds := art.texture.get_image().get_used_rect()
 	var alpha_foot := Vector2(
-		float(alpha_bounds.position.x) + float(alpha_bounds.size.x) * 0.5,
-		float(alpha_bounds.end.y)
+		float(_art_alpha_bounds.position.x) + float(_art_alpha_bounds.size.x) * 0.5,
+		float(_art_alpha_bounds.end.y)
 	)
 	_idle_reference_from_center = (alpha_foot - texture_size * 0.5) * _base_scale
 	_combat_anchor = _base_position + _idle_reference_from_center.rotated(_base_rotation)
@@ -239,6 +247,7 @@ func _process(delta: float) -> void:
 	art.scale = _pose_scale
 	_keep_combat_anchor()
 	_update_approved_animation_pose(turning)
+	_align_pose_support_anchor()
 	_update_pose_source_blend(delta)
 
 func get_animation_state() -> String:
@@ -333,14 +342,14 @@ func get_state_frame_elapsed() -> float:
 func get_state_frame_status() -> String:
 	if _animation_state.begins_with("skill"):
 		return "temporary procedural skill motion; approved skill animation art unavailable"
-	if _animation_state.begins_with("attack"):
-		return get_pose_art_status()
-	if is_current_pose_temporary():
-		return "temporary transform frame; approved animation frame unavailable"
 	if get_state_frame_label() == "inbetween":
 		if pose_blender != null and pose_blender.get_current_pose_key() == "attack2_inbetween":
 			return pose_blender.get_pose_art_status()
 		return "approved contact keypose; temporary inbetween transform"
+	if _animation_state.begins_with("attack"):
+		return get_pose_art_status()
+	if is_current_pose_temporary():
+		return "temporary transform frame; approved animation frame unavailable"
 	return pose_blender.get_current_frame_status() if pose_blender != null else "approved contact keypose"
 
 func get_displayed_texture_path() -> String:
@@ -531,7 +540,10 @@ func _update_pose_source_blend(delta: float) -> void:
 	if not is_equal_approx(_pose_blender_weight, _pose_blender_target_weight):
 		_pose_blender_blend_elapsed = minf(POSE_SOURCE_BLEND_DURATION, _pose_blender_blend_elapsed + maxf(delta, 0.0))
 		var progress := clampf(_pose_blender_blend_elapsed / POSE_SOURCE_BLEND_DURATION, 0.0, 1.0)
-		_pose_blender_weight = lerpf(_pose_blender_blend_from, _pose_blender_target_weight, _ease_in_out(progress))
+		# Keep the layer opacity change proportional to elapsed render time. A
+		# cubic curve concentrates the 105 ms handoff into fewer visible steps
+		# when Window rendering runs below 60 fps.
+		_pose_blender_weight = lerpf(_pose_blender_blend_from, _pose_blender_target_weight, progress)
 	if progress_is_complete():
 		_pose_blender_weight = _pose_blender_target_weight
 	var weight := clampf(_pose_blender_weight, 0.0, 1.0)
@@ -541,6 +553,44 @@ func _update_pose_source_blend(delta: float) -> void:
 	var art_modulate := _art_base_modulate
 	art_modulate.a *= 1.0 - weight
 	art.modulate = art_modulate
+
+func _align_pose_support_anchor() -> void:
+	if pose_blender == null or art == null or art.texture == null:
+		return
+	if art.texture != _art_bounds_texture:
+		_art_bounds_texture = art.texture
+		_art_alpha_bounds = art.texture.get_image().get_used_rect()
+	if _art_alpha_bounds.size == Vector2i.ZERO:
+		return
+	var bounds := _art_alpha_bounds
+	var art_foot_local := Vector2(
+		float(bounds.position.x) + float(bounds.size.x) * 0.5,
+		float(bounds.end.y)
+	) - Vector2(art.texture.get_size()) * 0.5
+	if art.flip_h:
+		art_foot_local.x = -art_foot_local.x
+	var art_foot_global := art.to_global(art_foot_local)
+	for sprite in _pose_sprites:
+		if sprite == null or sprite.texture == null:
+			continue
+		var action := ""
+		for candidate_action in PlayerPoseBlender.APPROVED_ATTACK_POSES:
+			if sprite.texture.resource_path == str(PlayerPoseBlender.APPROVED_ATTACK_POSES[candidate_action]):
+				action = candidate_action
+				break
+		if action.is_empty():
+			continue
+		var support := pose_blender.get_ground_candidate(action, "contact")
+		if support.x < 0.0 or support.y < 0.0:
+			continue
+		var support_local := support * Vector2(sprite.texture.get_size()) - Vector2(sprite.texture.get_size()) * 0.5
+		if sprite.flip_h:
+			support_local.x = -support_local.x
+		var scaled_support := Vector2(support_local.x * sprite.scale.x, support_local.y * sprite.scale.y).rotated(sprite.rotation)
+		# The pose-specific shoe point is the intended planted support point. Keep
+		# it at the same world anchor as PlayerArt while preserving the outgoing
+		# and incoming sprites in the blender's internal crossfade.
+		sprite.position = pose_blender.to_local(art_foot_global) - scaled_support
 
 func progress_is_complete() -> bool:
 	return _pose_blender_blend_elapsed >= POSE_SOURCE_BLEND_DURATION
@@ -604,22 +654,22 @@ func _apply_skill_pose(facing_sign: float) -> void:
 				rotation_offset = facing_sign * 0.16 * (1.0 - return_blend)
 				scale_factor = Vector2(0.985, 1.015).lerp(Vector2.ONE, return_blend)
 	else:
-		# Num5 spin: wind up in the opposite direction, rotate the torso through
-		# a circular strike, then counter-rotate into a balanced recovery.
+		# Num5 backfist: keep the support pivot planted and counter-twist through
+		# the strike. The single full-body source cannot articulate the torso, so
+		# use a bounded lean instead of rotating the entire silhouette through a
+		# full turn and sending the legs upside down during recovery.
 		match phase:
 			"startup":
 				var windup := _ease_in_out(progress)
 				rotation_offset = facing_sign * 0.14 * windup
 				scale_factor = Vector2(1.0 - 0.02 * windup, 1.0 + 0.025 * windup)
 			"active":
-				# A full-body turn gives the radial strike a readable silhouette
-				# even though the current art bank has no spin-specific drawings.
-				rotation_offset = facing_sign * (0.82 - progress * TAU * 1.05)
+				rotation_offset = facing_sign * lerpf(0.14, -0.62, _ease_in_out(progress))
 				var pulse := sin(progress * PI)
 				scale_factor = Vector2(1.0 + 0.025 * pulse, 1.0 - 0.02 * pulse)
 			"recovery":
-				var unwind := 1.0 - _ease_in_out(progress)
-				rotation_offset = -facing_sign * 0.17 * unwind
+				var unwind := _ease_in_out(progress)
+				rotation_offset = facing_sign * lerpf(-0.62, 0.0, unwind)
 				scale_factor = Vector2(1.012, 0.988).lerp(Vector2.ONE, _ease_in_out(progress))
 	_skill_rotation = _base_rotation + rotation_offset
 	_skill_scale = _base_scale * scale_factor

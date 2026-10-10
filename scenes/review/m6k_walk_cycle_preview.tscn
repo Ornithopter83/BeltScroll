@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://tools/prepare_m6k_walk_candidate_preview.gd" id="1_preview"]
 
-[node name="M6KWalkCandidatePreview" type="Control"]
+[node name="M6LWalkCyclePreview" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0

@@ -67,9 +67,15 @@ func _update_silhouette_rotation(phase: String) -> void:
 	if not is_instance_valid(_player_art):
 		return
 	var animator_controls_pose := _player.get_node_or_null("VisualAnimator") != null
-	if not animator_controls_pose:
-		_player_art.rotation -= _silhouette_rotation_offset
-		_player_art.position -= _silhouette_position_offset
+	if animator_controls_pose:
+		# PlayerVisualAnimator owns the full PlayerArt transform when present.
+		# Re-applying this effect's previous offset here accumulates another turn
+		# every frame and can rotate the fighter upside down during recovery.
+		_silhouette_rotation_offset = 0.0
+		_silhouette_position_offset = Vector2.ZERO
+		return
+	_player_art.rotation -= _silhouette_rotation_offset
+	_player_art.position -= _silhouette_position_offset
 	_silhouette_rotation_offset = 0.0
 	_silhouette_position_offset = Vector2.ZERO
 	var base_rotation := _player_art.rotation

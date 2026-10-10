@@ -410,7 +410,9 @@ func _run() -> void:
 	_check(playback_blender.get_registered_frame_count("attack1", "contact") == 2, "synthetic attack contact frames register as an ordered pair")
 	_check(playback_blender.visible and playback_blender.get_current_registered_frame_label() == "contact A" and playback_blender.get_displayed_textures().size() == 1, "attack hitbox start immediately displays the first contact drawing")
 	playback_player.set("attack_phase_remaining", 0.0525)
-	playback_animator.call("_process", 0.0)
+	# Advance the real visual handoff clock while the controller clock is at the
+	# authored frame boundary; a zero-delta call cannot make PoseBlender dominant.
+	playback_animator.call("_process", 0.06)
 	_check(playback_animator.get_art_frame_label() == "contact B" and playback_blender.get_displayed_textures().size() == 1, "attack contact advances to its second synthetic drawing at the controller clock boundary")
 	_check(_blender_keeps_common_foot(playback_blender), "both synthetic attack frames retain their planted-foot anchor")
 	playback_player.set("attack_phase", "idle")
@@ -434,8 +436,10 @@ func _run() -> void:
 	_check(playback_animator.get_animation_state() == "skill1_contact" and playback_animator.get_art_frame_label() == "skill B", "skill contact advances on the skill controller's active timer")
 	playback_player.set("skill_phase", "idle")
 	playback_player.set("skill_id", 0)
-	playback_animator.call("_process", 0.0)
-	_check(not playback_blender.visible and (playback_player.get_node("VisualRoot/PlayerArt") as Sprite2D).visible, "skill interruption discards the registered pose and restores procedural art")
+	for _frame in range(8):
+		playback_animator.call("_process", 0.015)
+	var restored_art := playback_player.get_node("VisualRoot/PlayerArt") as Sprite2D
+	_check(not playback_blender.visible and restored_art.visible and absf(playback_blender.get_external_blend_weight()) < 0.001 and restored_art.modulate.a > 0.999, "skill interruption completes the 105 ms handoff, discards the registered pose, and restores procedural art")
 
 	await process_frame
 	await RenderingServer.frame_post_draw
