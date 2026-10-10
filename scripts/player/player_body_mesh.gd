@@ -2,7 +2,7 @@ extends RefCounted
 ## Deforms the existing approved drawing locally. No candidate art is registered.
 ## The same mapping supplies the glove point and the rendered texture vertices.
 
-const GRID := 32
+const GRID := 64
 var _meshes: Dictionary = {}
 var _sprite: Sprite2D
 var _state := "idle"
@@ -86,6 +86,22 @@ func sample_rendered_point(pixel: Vector2) -> Vector2:
 	else:
 		point = mesh.polygon[a] * (1.0 - fraction.y) + mesh.polygon[a+GRID+2] * fraction.x + mesh.polygon[a+GRID+1] * (fraction.y - fraction.x)
 	return point * 1254.0 / Vector2(_sprite.texture.get_size()) + Vector2(627,627)
+
+func get_walk_support_residual() -> float:
+	if _state != "walk" or _sprite == null or not is_instance_valid(_sprite) or _support_side < 0:
+		return -1.0
+	var foot := Vector2(395, 1040) if _support_side == 0 else Vector2(945, 1090)
+	var rendered := sample_rendered_point(foot)
+	var size := Vector2(_sprite.texture.get_size())
+	var rendered_global := _sprite.to_global((rendered - Vector2(627, 627)) * size / 1254.0)
+	return rendered_global.distance_to(_support_global)
+
+func get_walk_pelvis_lift() -> float:
+	if _state != "walk":
+		return 0.0
+	# Measure the interpolated rendered triangle, not the intended sine amplitude.
+	var pelvis := Vector2(660, 600)
+	return pelvis.y - sample_rendered_point(pelvis).y
 
 func map_point(pixel: Vector2) -> Vector2:
 	var result := pixel

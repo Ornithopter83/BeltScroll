@@ -145,6 +145,8 @@ func _draw_capsule(shape: CapsuleShape2D, color: Color) -> void:
 	for i in range(ARC_STEPS + 1):
 		var angle := -PI + PI * float(i) / ARC_STEPS
 		points.append(Vector2(cos(angle) * radius, -half_segment + sin(angle) * radius))
+	# Sweep the lower cap from the right tangent around the bottom to the left.
+	# PI..TAU would instead draw the upper half below its center.
 	for i in range(ARC_STEPS + 1):
 		var angle := PI * float(i) / ARC_STEPS
 		points.append(Vector2(cos(angle) * radius, half_segment + sin(angle) * radius))

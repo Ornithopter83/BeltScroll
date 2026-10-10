@@ -29,6 +29,11 @@ static func capture(tree: SceneTree) -> Dictionary:
 		result.video_sha256 = FileAccess.get_sha256(VIDEO_PATH).to_upper()
 	else:
 		result.video_sha256 = "MISSING"
+	# Reject the reference before creating a scene or overwriting review artifacts.
+	# A fresh gameplay capture cannot substitute for the requested source video.
+	if str(result.video_sha256) != EXPECTED_VIDEO_SHA256:
+		result.error = "Reference video SHA256 mismatch: expected %s, observed %s (%s). Existing review artifacts were not overwritten." % [EXPECTED_VIDEO_SHA256, result.video_sha256, video_abs]
+		return result
 	var packed := load(MAIN_SCENE) as PackedScene
 	if packed == null:
 		result.error = "Could not load the live main scene."

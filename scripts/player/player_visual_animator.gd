@@ -299,6 +299,19 @@ func is_pose_blender_dominant() -> bool:
 func get_pose_blender_weight() -> float:
 	return _pose_blender_weight
 
+## Read-only telemetry for the actual movement driven gait. It is derived from
+## the same stride and deformed support point used by the visible body mesh.
+func get_walk_motion_sample() -> Dictionary:
+	var phase_index := clampi(int(floor(fposmod(_stride_phase, TAU) / (PI * 0.5))), 0, 3)
+	var phase_names := ["left_contact", "left_passing", "right_contact", "right_passing"]
+	return {
+		"phase": phase_names[phase_index],
+		"stride": _stride_phase,
+		"support_side": "left" if _stride_phase < PI else "right",
+		"support_residual": _body_mesh.get_walk_support_residual(),
+		"pelvis_lift": _body_mesh.get_walk_pelvis_lift(),
+	}
+
 ## World-space fist contact from the currently visible Sprite2D. Coordinates
 ## are authored against the 1254px pose drawings and transformed by the live
 ## sprite/visual-root transforms, including the horizontal mirror.

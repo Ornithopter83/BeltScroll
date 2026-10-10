@@ -43,7 +43,9 @@ func _test_raider_rectangle(arena: Node2D) -> void:
 	var receive_area := raider.get_node("ReceiveArea") as Area2D
 	var receive_shape := (receive_area.get_node("CollisionShape2D") as CollisionShape2D).shape as CircleShape2D
 	_check(rect != null and rect.size == Vector2(78, 48), "Raider live AttackArea uses the authored 78×48 rectangle")
-	_check(receive_area.position.is_equal_approx(Vector2(0, -30)) and receive_shape.radius == 25.0, "Raider ReceiveArea covers the upper body hit lane")
+	# M6S moved the receiver from the old feet-level fixture to the rendered torso.
+	# Pin the current authored contract; actual damage is independently tested by M6U.
+	_check(receive_shape != null and receive_area.position.is_equal_approx(Vector2(0, -326)) and is_equal_approx(receive_shape.radius, 44.0), "Raider M6S ReceiveArea is the authored torso circle at (0,-326), radius 44")
 	_check(attack_area.position.is_equal_approx(Vector2(54.72, -30.0)), "Raider rectangle center follows the right-facing windup/contact placement")
 	var target := _receiver(arena, raider.global_position + Vector2(55, -30))
 	attack_area.monitoring = true
@@ -71,8 +73,8 @@ func _test_boss_slash_circle(arena: Node2D) -> void:
 	boss.call("_begin_attack", "slash")
 	var attack_area := boss.get_node("AttackArea") as Area2D
 	var receive_area := boss.get_node("ReceiveArea") as Area2D
-	var receive_shape := (receive_area.get_node("CollisionShape2D") as CollisionShape2D).shape as CircleShape2D
-	_check(receive_area.position.is_equal_approx(Vector2(0, -48)) and receive_shape.radius == 46.0, "Boss ReceiveArea aligns to the upper torso hit lane")
+	var receive_shape := (receive_area.get_node("CollisionShape2D") as CollisionShape2D).shape as CapsuleShape2D
+	_check(receive_shape != null and receive_area.position.is_equal_approx(Vector2(0, -320)) and is_equal_approx(receive_shape.radius, 45.0) and is_equal_approx(receive_shape.height, 160.0), "Boss M6S ReceiveArea is the authored torso capsule at (0,-320), radius 45, height 160")
 	var slash := (attack_area.get_node("CollisionShape2D") as CollisionShape2D).shape as CircleShape2D
 	_check(slash != null and is_equal_approx(slash.radius, 67.0), "Boss slash uses its live 67px circular shape")
 	_check(attack_area.position.is_equal_approx(Vector2(86, -47)), "Boss slash circle center faces forward at the telegraphed offset")
