@@ -192,13 +192,15 @@ static func _all_body_source_rows_exclusive(rows: PackedStringArray) -> bool:
 	return valid
 
 static func _effective_alpha(node: CanvasItem) -> float:
-	var alpha := 1.0
-	var cursor: Node = node
+	var mesh := node.get_node_or_null("ArticulatedBody") as Polygon2D
+	var source: CanvasItem = mesh if mesh != null and mesh.visible else node
+	var alpha := source.self_modulate.a
+	var cursor: Node = source
 	while cursor is CanvasItem:
 		var item := cursor as CanvasItem
 		if not item.visible:
 			return 0.0
-		alpha *= item.modulate.a * item.self_modulate.a
+		alpha *= item.modulate.a
 		cursor = cursor.get_parent()
 	return clampf(alpha, 0.0, 1.0)
 

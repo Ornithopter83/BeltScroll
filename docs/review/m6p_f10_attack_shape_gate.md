@@ -6,7 +6,7 @@
 - 상태 범위: monitoring 활성·비활성, 좌우 반전, 카메라 줌 1.35·스크롤, Raider·Boss KO, F10 OFF/ON 및 scene restart 뒤 OFF.
 - 구동 방식: Player 단계/스킬과 Boss 공격 단계는 스크립트 상태 설정으로 준비했다. 이 픽셀 게이트는 실제 전투 입력·피해 라우팅을 검증하지 않음.
 - F10 입력 한계: OFF/ON은 `44`회 overlay `_input` callback 직접 호출로 확인. 물리 키 입력이나 `Input.parse_input_event`를 통한 앱 입력 라우팅은 검증하지 않음.
-- 비교: 22 OFF/ON shape 상태, 88 외곽 기준점.
+- 비교: 22 OFF/ON shape 상태, 94 외곽 기준점.
 
 | 상태 | CollisionShape2D | 색 | 기준점 일치 | 결과 |
 |---|---|---|---:|---|
@@ -25,13 +25,13 @@
 | Raider ReceiveArea | /root/Main/YSortActors/ForestRaider1/ReceiveArea/CollisionShape2D | cyan | 4/4 | PASS |
 | Boss slash AttackArea 활성 | /root/Main/YSortActors/RuinsWardenBoss/AttackArea/CollisionShape2D | green | 4/4 | PASS |
 | Boss slash AttackArea 비활성 | /root/Main/YSortActors/RuinsWardenBoss/AttackArea/CollisionShape2D | red | 4/4 | PASS |
-| Boss slash ReceiveArea | /root/Main/YSortActors/RuinsWardenBoss/ReceiveArea/CollisionShape2D | cyan | 4/4 | PASS |
+| Boss slash ReceiveArea | /root/Main/YSortActors/RuinsWardenBoss/ReceiveArea/CollisionShape2D | cyan | 6/6 | PASS |
 | Boss slam AttackArea 활성 | /root/Main/YSortActors/RuinsWardenBoss/AttackArea/CollisionShape2D | green | 4/4 | PASS |
 | Boss slam AttackArea 비활성 | /root/Main/YSortActors/RuinsWardenBoss/AttackArea/CollisionShape2D | red | 4/4 | PASS |
-| Boss slam ReceiveArea | /root/Main/YSortActors/RuinsWardenBoss/ReceiveArea/CollisionShape2D | cyan | 4/4 | PASS |
+| Boss slam ReceiveArea | /root/Main/YSortActors/RuinsWardenBoss/ReceiveArea/CollisionShape2D | cyan | 6/6 | PASS |
 | Player 2타 좌우 반전 + 카메라 줌/스크롤 | /root/Main/YSortActors/Player/Hitboxes/Hitbox2/CollisionShape2D | green | 4/4 | PASS |
 | Raider KO ReceiveArea | /root/Main/YSortActors/ForestRaider1/ReceiveArea/CollisionShape2D | cyan | 4/4 | PASS |
-| Boss KO ReceiveArea | /root/Main/YSortActors/RuinsWardenBoss/ReceiveArea/CollisionShape2D | cyan | 4/4 | PASS |
+| Boss KO ReceiveArea | /root/Main/YSortActors/RuinsWardenBoss/ReceiveArea/CollisionShape2D | cyan | 6/6 | PASS |
 
 ## 실패
 

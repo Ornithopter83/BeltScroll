@@ -2,12 +2,13 @@ extends Node
 """Sprite-only pose layer driven by the owning Player's existing state."""
 
 const ANIMATION_BANK_SCRIPT := preload("res://scripts/player/player_animation_bank.gd")
+const BODY_MESH_SCRIPT := preload("res://scripts/player/player_body_mesh.gd")
 const SKILL1_DASH_VISUAL_SCRIPT := preload("res://scripts/effects/player_skill1_dash_visual.gd")
 const SKILL2_SPIN_VISUAL_SCRIPT := preload("res://scripts/effects/player_skill2_spin_visual.gd")
 
 const FOLLOW_SPEED := 16.0
 const WALK_SPEED_REFERENCE := 280.0
-const WALK_STRIDE_LENGTH := 76.0
+const WALK_STRIDE_LENGTH := 235.2
 const HIT_FLASH_DURATION := 0.12
 const TURN_DURATION := 0.13
 const TURN_WINDUP_DURATION := 0.04
@@ -34,6 +35,7 @@ var _combat_anchor := Vector2.ZERO
 var _idle_reference_from_center := Vector2.ZERO
 var _pose_rotation := 0.0
 var _pose_scale := Vector2.ONE
+var _pose_translation := Vector2.ZERO
 var _stride_phase := 0.0
 var _pose_blender_weight := 0.0
 var _pose_blender_target_weight := 0.0
@@ -56,6 +58,8 @@ var _art_base_modulate := Color.WHITE
 var _art_bounds_texture: Texture2D
 var _art_alpha_bounds := Rect2i()
 var _pose_sprites: Array[Sprite2D] = []
+var _pose_bounds: Dictionary = {}
+var _body_mesh := BODY_MESH_SCRIPT.new()
 
 ## These timing tables drive temporary transform poses only. They do not claim
 ## that missing walk/jump/hit/landing art has been approved as sprite frames.
@@ -149,18 +153,26 @@ func _process(delta: float) -> void:
 		_skill2_spin_visual.clear_effects()
 	var target_rotation := _base_rotation
 	var target_scale := _base_scale
+	_pose_translation = Vector2.ZERO
 	var jumping: bool = player.get("is_jumping") == true
 	if _was_jumping and not jumping:
 		_landing_remaining = 0.14
 	_was_jumping = jumping
 	_landing_remaining = maxf(0.0, _landing_remaining - maxf(delta, 0.0))
 	var next_state := _resolve_animation_state(jumping)
+	var previous_state := _animation_state
 	_update_animation_clock(next_state, delta)
-	if player.velocity.length() > 10.0 and next_state not in ["ko", "hit", "jump_rise", "jump_fall", "landing"] and not next_state.begins_with("skill"):
+	if previous_state == "walk" and (next_state.begins_with("attack") or next_state.begins_with("skill")):
+		_pose_rotation = _base_rotation
+		_pose_scale = _base_scale
+	if next_state == "walk" and previous_state != "walk":
+		_stride_phase = 0.0
+	if next_state == "walk" and player.velocity.length() > 10.0:
 		_advance_stride_phase(player.velocity.length(), delta)
 	var ordinary_motion: bool = next_state in ["idle", "walk"] and player.get("is_blocking") != true
 	var turning := _advance_facing_turn(delta, ordinary_motion)
-	var facing_sign := _applied_facing_sign
+	# VisualRoot performs the mirror once; pose transforms stay in artwork space.
+	var facing_sign := 1.0
 
 	if player.get("is_ko") == true:
 		# Temporary three-beat fall: stagger, collapse, then a stable side-down.
@@ -244,17 +256,36 @@ func _process(delta: float) -> void:
 
 	var pose_follow_speed := 42.0 if turning else FOLLOW_SPEED
 	var blend := 1.0 - exp(-pose_follow_speed * maxf(delta, 0.0))
+	# Combat is already interpolated by the controller phase progress and the
+	# local limb rig. A second render-delta filter made physical reach depend on
+	# how many Window frames happened during the short active phase.
+	if next_state.begins_with("attack") or next_state.begins_with("skill"):
+		blend = 1.0
 	_pose_rotation = lerpf(_pose_rotation, target_rotation, blend)
 	_pose_scale = _pose_scale.lerp(target_scale, blend)
 	art.rotation = _pose_rotation
 	art.scale = _pose_scale
 	_keep_combat_anchor()
+	art.position += _pose_translation
 	_update_approved_animation_pose(turning)
 	_align_pose_support_anchor()
 	_update_pose_source_blend(delta)
+	var body_phase := str(player.get("skill_phase")) if next_state.begins_with("skill") else str(player.get("attack_phase"))
+	var body_stage := int(player.get("skill_id")) if next_state.begins_with("skill") else int(player.get("attack_stage"))
+	_body_mesh.apply(_get_visible_combat_sprite(), next_state, body_phase, body_stage, get_state_phase_progress(), _stride_phase)
+	for area_name in ["Hitbox1", "Hitbox2", "Hitbox3", "Skill1Hitbox", "Skill2Hitbox"]:
+		var area := player.get_node("Hitboxes/" + area_name) as Area2D
+		if area.monitoring:
+			player.call("_update_fist_hitbox", area)
 
 func get_animation_state() -> String:
 	return _animation_state
+
+func sync_combat_pose_for_physics() -> void:
+	# Preserve missing-source failure semantics while resolving phase/facing
+	# changes that occurred between rendered frames. No animation time advances.
+	if _get_visible_combat_sprite() != null:
+		_process(0.0)
 
 func get_turn_progress() -> float:
 	return clampf(_turn_elapsed / TURN_DURATION, 0.0, 1.0) if _turn_elapsed < TURN_DURATION else 1.0
@@ -275,14 +306,20 @@ func get_fist_contact_global() -> Variant:
 	var sprite := _get_visible_combat_sprite()
 	if sprite == null or sprite.texture == null:
 		return null
-	var source_point := _fist_source_point()
+	var source_point := _body_mesh.sample_rendered_point(_fist_source_point() + Vector2(627, 627)) - Vector2(627, 627)
 	if sprite.flip_h:
 		source_point.x = -source_point.x
 	var local_point := source_point * (Vector2(sprite.texture.get_size()) / Vector2(1254.0, 1254.0))
 	return sprite.to_global(local_point)
 
+func get_articulated_point_global(pixel: Vector2) -> Variant:
+	var sprite := _get_visible_combat_sprite()
+	if sprite == null or sprite.texture == null:
+		return null
+	return sprite.to_global((_body_mesh.sample_rendered_point(pixel) - Vector2(627, 627)) * Vector2(sprite.texture.get_size()) / 1254.0)
+
 func _get_visible_combat_sprite() -> Sprite2D:
-	if pose_blender != null and is_pose_blender_dominant():
+	if pose_blender != null and pose_blender.is_visible_in_tree() and is_pose_blender_dominant():
 		var pose_sprite := pose_blender.get_current_sprite()
 		if pose_sprite != null:
 			return pose_sprite
@@ -291,30 +328,18 @@ func _get_visible_combat_sprite() -> Sprite2D:
 func _fist_source_point() -> Vector2:
 	var attack_phase := str(player.get("attack_phase"))
 	var skill_phase := str(player.get("skill_phase"))
-	if attack_phase in ["startup", "active", "recovery"]:
+	if attack_phase in ["startup", "active", "recovery", "combo_hold"]:
 		var stage := clampi(int(player.get("attack_stage")), 1, 3)
-		var progress := get_state_phase_progress()
 		match stage:
 			1:
-				# Straight punch extends into the drawn lead fist.
-				return Vector2(366.0, -205.0).lerp(Vector2(510.0, -253.0), _ease_out(progress))
+				return Vector2(510.0, -253.0)
 			2:
-				# The hook sweeps a shallow shoulder-height arc through contact.
-				return _quadratic_point(Vector2(330.0, -175.0), Vector2(505.0, -65.0), Vector2(440.0, -147.0), progress)
+				return Vector2(430.0, -160.0)
 			3:
-				# Rising punch travels up and forward into the raised fist drawing.
-				return Vector2(212.0, -320.0).lerp(Vector2(319.0, -491.0), _ease_in_out(progress))
+				return Vector2(319.0, -491.0)
 	if skill_phase in ["startup", "active", "recovery"]:
-		var skill := int(player.get("skill_id"))
-		var progress := get_state_phase_progress()
-		if skill == 1:
-			# Num4 tracks the advancing lead fist; the lunge displacement itself
-			# comes from the player's physical motion, never from the VFX center.
-			return Vector2(258.0, -286.0).lerp(Vector2(432.0, -250.0), _ease_out(progress))
-		# Num5 backfist follows an arc around the shoulder through the active spin.
-		var angle := lerpf(-0.75, 0.95, progress)
-		return Vector2(132.0, -322.0) + Vector2(cos(angle), sin(angle)) * 310.0
-	return Vector2(258.0, -286.0)
+		return Vector2(190.0, -254.0)
+	return Vector2(190.0, -254.0)
 
 func _quadratic_point(start: Vector2, control: Vector2, finish: Vector2, progress: float) -> Vector2:
 	var t := clampf(progress, 0.0, 1.0)
@@ -537,7 +562,10 @@ func _update_approved_animation_pose(turning := false) -> void:
 	var skill_phase := str(player.get("skill_phase"))
 	if _animation_state.begins_with("attack") and stage in [1, 2, 3] and attack_phase in ["startup", "active", "recovery", "combo_hold"]:
 		action = "attack%d" % stage
-		pose_phase = "contact" if attack_phase in ["active", "combo_hold"] else attack_phase
+		# Keep each attack's distinct approved contact drawing through startup,
+		# impact, link hold, and recovery. Missing phase art must not show the idle
+		# still while the attack state owns the body.
+		pose_phase = "contact"
 		if stage == 2 and attack_phase == "active" and _attack_phase_progress(stage - 1, attack_phase, float(player.get("attack_phase_remaining"))) < 0.42 and pose_blender.get_registered_frame_count(action, "inbetween") > 0:
 			pose_phase = "inbetween"
 		phase_duration = _attack_phase_duration(stage - 1, attack_phase)
@@ -655,13 +683,19 @@ func _align_pose_support_anchor() -> void:
 		var support := pose_blender.get_ground_candidate(action, "contact")
 		if support.x < 0.0 or support.y < 0.0:
 			continue
-		var support_local := support * Vector2(sprite.texture.get_size()) - Vector2(sprite.texture.get_size()) * 0.5
+		# Root represents the stance centre, not the lead shoe. Pinning the forward
+		# shoe to root used to put the actual hand behind the collision capsule.
+		var texture_key := sprite.texture.get_instance_id()
+		if not _pose_bounds.has(texture_key):
+			_pose_bounds[texture_key] = sprite.texture.get_image().get_used_rect()
+		var pose_bounds: Rect2i = _pose_bounds[texture_key]
+		var support_local := Vector2(float(pose_bounds.position.x) + float(pose_bounds.size.x) * 0.5, support.y * sprite.texture.get_height()) - Vector2(sprite.texture.get_size()) * 0.5
 		if sprite.flip_h:
 			support_local.x = -support_local.x
 		var scaled_support := Vector2(support_local.x * sprite.scale.x, support_local.y * sprite.scale.y).rotated(sprite.rotation)
-		# The pose-specific shoe point is the intended planted support point. Keep
-		# it at the same world anchor as PlayerArt while preserving the outgoing
-		# and incoming sprites in the blender's internal crossfade.
+		# Preserve drawing height at the shared stance centre. Individual shoes
+		# retain their authored lateral offsets instead of moving the whole body
+		# backwards to put the lead shoe at root.
 		sprite.position = pose_blender.to_local(art_foot_global) - scaled_support
 
 func progress_is_complete() -> bool:
@@ -680,8 +714,10 @@ func _locomotion_pose(facing_sign: float, speed: float) -> Vector3:
 	# the alpha-foot anchor is reapplied after the transform below.
 	var alternating_lean := stride * 0.046 * speed_weight * facing_sign
 	var torso_recoil := signf(cos(_stride_phase)) * 0.012 * speed_weight * facing_sign
-	var vertical_bounce := absf(stride) * 0.018 * speed_weight
-	var planted_compression := contact * 0.012 * speed_weight
+	# The two passing peaks between alternating contacts lift the pelvis through
+	# vertical stretch; alpha-foot re-anchoring keeps the support point planted.
+	var vertical_bounce := absf(stride) * 0.032 * speed_weight
+	var planted_compression := contact * 0.018 * speed_weight
 	return Vector3(alternating_lean + torso_recoil, 1.0 - planted_compression, 1.0 + vertical_bounce)
 
 func _approved_pose_is_displayed(action: String, phase: String) -> bool:
@@ -711,38 +747,44 @@ func _apply_skill_pose(facing_sign: float) -> void:
 		match phase:
 			"startup":
 				var brace := _ease_in_out(progress)
-				rotation_offset = facing_sign * 0.15 * brace
-				scale_factor = Vector2(1.0 - 0.025 * brace, 1.0 + 0.03 * brace)
+				rotation_offset = facing_sign * 0.18 * brace
+				scale_factor = Vector2(1.0 - 0.035 * brace, 1.0 + 0.045 * brace)
+				_pose_translation.x = -facing_sign * 5.0 * brace
 			"active":
 				var acceleration := _ease_in_out(progress)
-				rotation_offset = facing_sign * lerpf(0.22, 0.38, acceleration)
-				scale_factor = Vector2(1.015 + 0.035 * acceleration, 1.0 - 0.025 * acceleration)
+				rotation_offset = facing_sign * lerpf(0.08, 0.15, acceleration)
+				scale_factor = Vector2(1.02 + 0.045 * acceleration, 1.0 - 0.035 * acceleration)
+				_pose_translation.x = facing_sign * lerpf(7.0, 22.0, acceleration)
 				if float(player.get("attack_recoil_remaining")) > 0.0:
 					var recoil := clampf(float(player.get("attack_recoil_remaining")) / 0.08, 0.0, 1.0)
 					rotation_offset -= facing_sign * 0.30 * recoil
 					scale_factor *= Vector2(0.98, 1.02)
 			"recovery":
 				var return_blend := _ease_in_out(progress)
-				rotation_offset = facing_sign * 0.16 * (1.0 - return_blend)
-				scale_factor = Vector2(0.985, 1.015).lerp(Vector2.ONE, return_blend)
+				rotation_offset = facing_sign * 0.18 * (1.0 - return_blend)
+				scale_factor = Vector2(0.975, 1.025).lerp(Vector2.ONE, return_blend)
+				_pose_translation.x = facing_sign * 9.0 * (1.0 - return_blend)
 	else:
-		# Num5 backfist: keep the support pivot planted and counter-twist through
-		# the strike. The single full-body source cannot articulate the torso, so
-		# use a bounded lean instead of rotating the entire silhouette through a
-		# full turn and sending the legs upside down during recovery.
+		# Num5 backfist: counter-twist through the strike and step the upper-body
+		# silhouette through a bounded arc. The single full-body source cannot
+		# articulate the torso independently, so recovery unwinds before the legs
+		# rotate past a readable upright pose.
 		match phase:
 			"startup":
 				var windup := _ease_in_out(progress)
-				rotation_offset = facing_sign * 0.14 * windup
-				scale_factor = Vector2(1.0 - 0.02 * windup, 1.0 + 0.025 * windup)
+				rotation_offset = facing_sign * 0.16 * windup
+				scale_factor = Vector2(1.0 - 0.03 * windup, 1.0 + 0.04 * windup)
+				_pose_translation = Vector2(-facing_sign * 4.0, 2.0) * windup
 			"active":
-				rotation_offset = facing_sign * lerpf(0.14, -0.62, _ease_in_out(progress))
+				rotation_offset = facing_sign * lerpf(0.16, -0.32, _ease_in_out(progress))
 				var pulse := sin(progress * PI)
-				scale_factor = Vector2(1.0 + 0.025 * pulse, 1.0 - 0.02 * pulse)
+				scale_factor = Vector2(1.0 + 0.035 * pulse, 1.0 - 0.03 * pulse)
+				_pose_translation = Vector2(facing_sign * (9.0 + 9.0 * pulse), -3.0 * pulse)
 			"recovery":
 				var unwind := _ease_in_out(progress)
-				rotation_offset = facing_sign * lerpf(-0.62, 0.0, unwind)
+				rotation_offset = facing_sign * lerpf(-0.32, 0.0, unwind)
 				scale_factor = Vector2(1.012, 0.988).lerp(Vector2.ONE, _ease_in_out(progress))
+				_pose_translation = Vector2(facing_sign * 8.0 * (1.0 - unwind), -2.0 * (1.0 - unwind))
 	_skill_rotation = _base_rotation + rotation_offset
 	_skill_scale = _base_scale * scale_factor
 
@@ -769,34 +811,25 @@ func _apply_attack_pose(facing_sign: float) -> void:
 		"startup":
 			var progress := _attack_phase_progress(index, phase, remaining)
 			amount = _ease_in_out(progress)
-			rotation_offset = facing_sign * [0.045, 0.075, 0.12][index] * amount
-			scale_factor = Vector2(1.0 - [0.012, 0.018, 0.025][index] * amount, 1.0 + [0.01, 0.014, 0.018][index] * amount)
+			rotation_offset = facing_sign * [0.07, 0.11, 0.17][index] * amount
+			scale_factor = Vector2(1.0 - [0.02, 0.028, 0.04][index] * amount, 1.0 + [0.025, 0.035, 0.05][index] * amount)
+			_pose_translation = Vector2(-facing_sign * [5.0, 8.0, 11.0][index] * amount, 2.0 * amount)
 		"active":
 			var progress := _attack_phase_progress(index, phase, remaining)
 			var contact_blend := 1.0 if index != 1 else _ease_in_out(clampf(progress / 0.42, 0.0, 1.0))
-			rotation_offset = lerpf(facing_sign * [0.045, 0.075, 0.12][index], -facing_sign * [0.14, 0.24, 0.38][index], contact_blend)
-			scale_factor = Vector2.ONE.lerp(Vector2(1.0 + [0.015, 0.025, 0.035][index], 1.0 - [0.012, 0.02, 0.028][index]), contact_blend)
+			rotation_offset = lerpf(facing_sign * [0.07, 0.11, 0.17][index], -facing_sign * [0.19, 0.30, 0.25][index], contact_blend)
+			scale_factor = Vector2.ONE.lerp(Vector2(1.0 + [0.025, 0.04, 0.055][index], 1.0 - [0.02, 0.035, 0.05][index]), contact_blend)
+			_pose_translation = Vector2(facing_sign * [8.0, 12.0, 17.0][index] * contact_blend, -2.0 * contact_blend)
 		"recovery":
 			var recovery_progress := 1.0 - clampf(remaining / ATTACK_RECOVERY[index], 0.0, 1.0)
 			var return_blend := _ease_in_out(recovery_progress)
-			rotation_offset = -facing_sign * [0.14, 0.24, 0.38][index] * (1.0 - return_blend)
-			scale_factor = Vector2(1.0 + [0.015, 0.025, 0.035][index], 1.0 - [0.012, 0.02, 0.028][index]).lerp(Vector2.ONE, return_blend)
+			rotation_offset = -facing_sign * [0.19, 0.30, 0.25][index] * (1.0 - return_blend)
+			scale_factor = Vector2(1.0 + [0.025, 0.04, 0.055][index], 1.0 - [0.02, 0.035, 0.05][index]).lerp(Vector2.ONE, return_blend)
+			_pose_translation = Vector2(facing_sign * [11.0, 15.0, 20.0][index] * (1.0 - return_blend), 0.0)
 		"combo_hold":
-			rotation_offset = -facing_sign * [0.14, 0.24, 0.38][index]
-			scale_factor = Vector2(1.0 + [0.015, 0.025, 0.035][index], 1.0 - [0.012, 0.02, 0.028][index])
-	var gait_weight := 0.0
-	if player.velocity.length() > 10.0:
-		match phase:
-			"startup":
-				gait_weight = 1.0 - _ease_in_out(_attack_phase_progress(index, phase, remaining))
-			"active":
-				gait_weight = 1.0 - _ease_in_out(clampf(_attack_phase_progress(index, phase, remaining) / 0.18, 0.0, 1.0))
-			"recovery":
-				gait_weight = _ease_in_out(clampf((1.0 - remaining / ATTACK_RECOVERY[index]) / 0.55, 0.0, 1.0))
-	if gait_weight > 0.0:
-		var gait := _locomotion_pose(facing_sign, player.velocity.length())
-		rotation_offset += float(gait.x) * gait_weight
-		scale_factor *= Vector2.ONE.lerp(Vector2(gait.y, gait.z), gait_weight)
+			rotation_offset = 0.0
+			scale_factor = Vector2.ONE
+			_pose_translation = Vector2.ZERO
 	_attack_rotation = _base_rotation + rotation_offset
 	_attack_scale = _base_scale * scale_factor
 

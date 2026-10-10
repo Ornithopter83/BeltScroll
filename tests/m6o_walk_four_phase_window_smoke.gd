@@ -120,13 +120,15 @@ func _check_single_body(player: CharacterBody2D, label: String) -> void:
 func _is_effectively_visible(sprite: Sprite2D) -> bool:
 	if sprite == null or sprite.texture == null:
 		return false
-	var alpha := 1.0
-	var cursor: Node = sprite
+	var mesh := sprite.get_node_or_null("ArticulatedBody") as Polygon2D
+	var source: CanvasItem = mesh if mesh != null and mesh.visible else sprite
+	var alpha := source.self_modulate.a
+	var cursor: Node = source
 	while cursor is CanvasItem:
 		var item := cursor as CanvasItem
 		if not item.visible:
 			return false
-		alpha *= item.modulate.a * item.self_modulate.a
+		alpha *= item.modulate.a
 		cursor = cursor.get_parent()
 	return alpha > 0.001
 

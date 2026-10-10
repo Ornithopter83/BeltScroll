@@ -143,9 +143,10 @@ func _draw_capsule(shape: CapsuleShape2D, color: Color) -> void:
 	var half_segment := maxf(0.0, shape.height * 0.5 - radius)
 	var points := PackedVector2Array()
 	for i in range(ARC_STEPS + 1):
-		var angle := -PI * 0.5 + PI * float(i) / ARC_STEPS
+		var angle := -PI + PI * float(i) / ARC_STEPS
 		points.append(Vector2(cos(angle) * radius, -half_segment + sin(angle) * radius))
 	for i in range(ARC_STEPS + 1):
-		var angle := PI * 0.5 + PI * float(i) / ARC_STEPS
+		var angle := PI * float(i) / ARC_STEPS
 		points.append(Vector2(cos(angle) * radius, half_segment + sin(angle) * radius))
+	points.append(points[0])
 	_drawing.draw_polyline(points, color, 2.0, true)

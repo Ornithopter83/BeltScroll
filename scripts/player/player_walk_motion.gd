@@ -8,6 +8,9 @@ const WALK_RESOURCE_DIR := "res://assets/art/player"
 const REFERENCE_SPEED := 280.0
 const CONTACT_DURATION := 0.24
 const PASSING_DURATION := 0.18
+const PELVIS_LIFT_MAX := 10.0
+const PELVIS_SCALE_HEIGHT := 280.0
+@export var preview_enabled := false
 
 @onready var player: CharacterBody2D = get_parent() as CharacterBody2D
 @onready var animator: Node = player.get_node("VisualAnimator")
@@ -51,20 +54,25 @@ func _ready() -> void:
 	_load_available_frames()
 	_build_support_markers()
 	_update_status()
+	var ancestor: Node = player
+	while ancestor != null:
+		if ancestor.get_meta("debug_walk_preview", false) == true:
+			preview_enabled = true
+			break
+		ancestor = ancestor.get_parent()
 
 func _process(delta: float) -> void:
 	if not OS.is_debug_build() or player == null or animator == null:
 		return
-	var walking: bool = str(animator.call("get_animation_state")) == "walk" and player.velocity.length() > 10.0
+	var walking: bool = preview_enabled and str(animator.call("get_animation_state")) == "walk" and player.velocity.length() > 10.0
 	if not walking or _frames.is_empty():
 		_set_active(false)
 		return
 	_set_active(true)
 	var speed_ratio := maxf(player.velocity.length(), 1.0) / REFERENCE_SPEED
-	var duration := float(_frames[_frame_index]["duration"]) / speed_ratio
 	_elapsed += maxf(delta, 0.0)
-	if _elapsed >= duration:
-		_elapsed = fposmod(_elapsed, duration)
+	while _elapsed >= float(_frames[_frame_index]["duration"]) / speed_ratio:
+		_elapsed -= float(_frames[_frame_index]["duration"]) / speed_ratio
 		_frame_index = (_frame_index + 1) % _frames.size()
 		_apply_frame()
 	_update_status()
@@ -110,6 +118,9 @@ func get_support_anchor_local() -> Vector2:
 func get_current_support_side() -> String:
 	return str(_frames[_frame_index]["support"]) if not _frames.is_empty() else "missing"
 
+func get_current_pelvis_lift() -> float:
+	return float(_frames[_frame_index].get("pelvis_lift", 0.0)) if not _frames.is_empty() and _active else 0.0
+
 func _set_active(active: bool) -> void:
 	if _active == active:
 		return
@@ -128,7 +139,8 @@ func _apply_frame() -> void:
 		return
 	var frame: Dictionary = _frames[_frame_index]
 	_sprite.texture = frame["texture"] as Texture2D
-	_sprite.scale = art.scale.abs()
+	var pelvis_lift := float(frame.get("pelvis_lift", 0.0))
+	_sprite.scale = art.scale.abs() * Vector2(1.0, 1.0 + pelvis_lift / PELVIS_SCALE_HEIGHT)
 	var texture_size := Vector2(_sprite.texture.get_size())
 	var anchor := Vector2(float(frame["anchor_x"]), float(frame["anchor_y"])) * texture_size
 	var support_side := str(frame["support"])
@@ -149,18 +161,18 @@ func _cache_idle_anchor() -> void:
 func _load_available_frames() -> void:
 	var contact := _load_debug_texture(LEFT_CONTACT_PATH)
 	if contact != null:
-		_frames.append({"phase": "left_contact", "support": "left", "path": LEFT_CONTACT_PATH, "texture": contact, "duration": CONTACT_DURATION, "anchor_x": 0.4864, "anchor_y": 0.94})
+		_frames.append({"phase": "left_contact", "support": "left", "path": LEFT_CONTACT_PATH, "texture": contact, "duration": CONTACT_DURATION, "anchor_x": 0.4864, "anchor_y": 0.94, "pelvis_lift": 0.0})
 	var passing := _load_debug_texture(LEFT_PASSING_PATH)
 	if passing != null:
-		_frames.append({"phase": "passing", "support": "left", "path": LEFT_PASSING_PATH, "texture": passing, "duration": PASSING_DURATION, "anchor_x": 0.4944, "anchor_y": 0.94})
+		_frames.append({"phase": "passing", "support": "left", "path": LEFT_PASSING_PATH, "texture": passing, "duration": PASSING_DURATION, "anchor_x": 0.4944, "anchor_y": 0.94, "pelvis_lift": PELVIS_LIFT_MAX})
 	var right_contact := _load_debug_texture(RIGHT_CONTACT_PATH)
 	if right_contact != null:
-		_frames.append({"phase": "right_contact", "support": "right", "path": RIGHT_CONTACT_PATH, "texture": right_contact, "duration": CONTACT_DURATION, "anchor_x": 0.5136, "anchor_y": 0.94})
+		_frames.append({"phase": "right_contact", "support": "right", "path": RIGHT_CONTACT_PATH, "texture": right_contact, "duration": CONTACT_DURATION, "anchor_x": 0.5136, "anchor_y": 0.94, "pelvis_lift": 0.0})
 	var right_passing_path := _find_optional_right_passing()
 	if not right_passing_path.is_empty():
 		var right_passing := _load_debug_texture(right_passing_path)
 		if right_passing != null:
-			_frames.append({"phase": "right_passing", "support": "right", "path": right_passing_path, "texture": right_passing, "duration": PASSING_DURATION, "anchor_x": 0.5056, "anchor_y": 0.94})
+			_frames.append({"phase": "right_passing", "support": "right", "path": right_passing_path, "texture": right_passing, "duration": PASSING_DURATION, "anchor_x": 0.5056, "anchor_y": 0.94, "pelvis_lift": PELVIS_LIFT_MAX})
 	var side_offset := 6.0
 	_support_anchors = {
 		"left": _base_art_anchor + Vector2(-side_offset, 0.0),
@@ -237,5 +249,5 @@ func _update_status() -> void:
 	var cycle_status := "4-PHASE CANDIDATE" if _has_phase("right_passing") else "3-PHASE · RIGHT PASSING MISSING"
 	var support := str(_frames[_frame_index].get("support", "missing")) if not _frames.is_empty() else "missing"
 	var anchor_gap := Vector2(_support_anchors.get("left", Vector2.ZERO)).distance_to(Vector2(_support_anchors.get("right", Vector2.ZERO)))
-	var pelvis_note := "pelvis height: inspect silhouette"
+	var pelvis_note := "DEBUG pelvis lift: %.1f px" % get_current_pelvis_lift()
 	_status_label.text = "DEBUG · %s · SUPPORT %s\n%s · LEFT/RIGHT ANCHOR GAP %.1f px · %s · UNAPPROVED" % [phase_name, support.to_upper(), cycle_status, anchor_gap, pelvis_note]

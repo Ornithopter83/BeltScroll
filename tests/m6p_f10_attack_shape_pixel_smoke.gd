@@ -57,8 +57,8 @@ func _run() -> void:
 	_raider.set_physics_process(false)
 	_raider.set_process(false)
 	_boss.global_position = Vector2(770, 780)
-	_boss.set_physics_process(false)
 	_boss.set_combat_active(true)
+	_boss.set_physics_process(false)
 	_camera = _player.get_node("Camera2D") as Camera2D
 	_camera.position_smoothing_enabled = false
 	_camera.make_current()
@@ -129,6 +129,8 @@ func _run() -> void:
 	# KO via production hit handling leaves receive shapes present but inactive.
 	_raider.call("receive_hit", _fatal_hit())
 	_boss.call("receive_hit", _fatal_hit())
+	# KO resumes production physics and would move the boss during OFF/ON pairs.
+	_boss.set_physics_process(false)
 	await _settle()
 	await _capture_shape_pair("Raider KO ReceiveArea", raider_receive, false)
 	await _capture_shape_pair("Boss KO ReceiveArea", boss_receive, false)
@@ -149,6 +151,11 @@ func _capture_shape_pair(title: String, shape_node: CollisionShape2D, expected_a
 	if shape_node == null or not is_instance_valid(shape_node):
 		_check(false, title + ": CollisionShape2D exists")
 		return
+	# Upper-body receive shapes must be in view before pixel assertions. The
+	# production camera frames the feet; center this inspection on the full shape.
+	var saved_camera_position := _camera.position
+	_camera.global_position = shape_node.global_position
+	_camera.force_update_scroll()
 	_set_overlay(false)
 	await _settle()
 	_check(not bool(_overlay.get("enabled")), "%s: OFF callback state is active before reference capture" % title)
@@ -182,6 +189,8 @@ func _capture_shape_pair(title: String, shape_node: CollisionShape2D, expected_a
 	_check(_game.get_node("CombatHUD").visible, "%s: combat HUD remains visible" % title)
 	_rows.append("| %s | %s | %s | %d/%d | %s |" % [title, shape_node.get_path(), color_name, matched, points.size(), "PASS" if points_ok else "FAIL"])
 	_set_overlay(false)
+	_camera.position = saved_camera_position
+	_camera.force_update_scroll()
 
 func _expected_color(shape_node: CollisionShape2D) -> String:
 	var collider := shape_node.get_parent() as CollisionObject2D

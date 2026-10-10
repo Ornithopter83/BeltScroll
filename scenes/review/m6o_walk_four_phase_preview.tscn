@@ -3,5 +3,6 @@
 [ext_resource type="PackedScene" path="res://scenes/game/main.tscn" id="1_game"]
 
 [node name="M6OWalkFourPhasePreview" type="Node2D"]
+metadata/debug_walk_preview = true
 
 [node name="Gameplay" parent="." instance=ExtResource("1_game")]

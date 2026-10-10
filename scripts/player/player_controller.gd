@@ -39,6 +39,8 @@ const ACTIVE := [0.105, 0.12, 0.14]
 const RECOVERY := [0.20, 0.22, 0.28]
 const LUNGE := [34.0, 52.0, 76.0]
 const BASIC_ATTACK_DEPTH_TOLERANCE := 42.0
+const SKILL1_CONTACT_REACH := 140.0
+const BASIC_FIST_CONTACT_REACH := 160.0
 const BLOCK_DAMAGE_MULTIPLIER := 0.25
 const BLOCK_KNOCKBACK_MULTIPLIER := 0.35
 const BLOCK_HITSTUN_MULTIPLIER := 0.5
@@ -355,6 +357,8 @@ func _clear_attack_combo() -> void:
 	_set_attack_stage_visual(0)
 
 func _set_stage_hitbox(stage: int, enabled: bool) -> void:
+	if enabled:
+		visual_animator.call("sync_combat_pose_for_physics")
 	for index in range(1, COMBO_COUNT + 1):
 		var hitbox := get_node("Hitboxes/Hitbox%d" % index) as Area2D
 		hitbox.monitoring = false
@@ -372,8 +376,11 @@ func _update_fist_hitbox(hitbox: Area2D) -> bool:
 		hitbox.monitoring = false
 		return false
 	var contact_global: Vector2 = contact
+	# The renderer owns the authored glove point. Never move the collision shape
+	# independently of that point to manufacture reach.
 	hitbox.global_position = contact_global
 	hitbox.global_rotation = 0.0
+	attack_flash.position = visual_root.to_local(contact_global)
 	return true
 
 func _request_skill(requested_skill_id: int) -> void:
@@ -405,6 +412,8 @@ func _set_skill_hitbox_transform() -> void:
 	_update_fist_hitbox(spin_hitbox)
 
 func _set_skill_hitboxes(enabled: bool) -> void:
+	if enabled:
+		visual_animator.call("sync_combat_pose_for_physics")
 	var lunge_hitbox := get_node("Hitboxes/Skill1Hitbox") as Area2D
 	var spin_hitbox := get_node("Hitboxes/Skill2Hitbox") as Area2D
 	lunge_hitbox.monitoring = false
@@ -442,6 +451,7 @@ func _update_skill(delta: float) -> void:
 				_cancel_skill()
 
 func _check_skill_hitbox() -> void:
+	visual_animator.call("sync_combat_pose_for_physics")
 	var area_name := "Skill1Hitbox" if skill_id == 1 else "Skill2Hitbox"
 	var hitbox := get_node("Hitboxes/" + area_name) as Area2D
 	if not _update_fist_hitbox(hitbox):
@@ -451,6 +461,8 @@ func _check_skill_hitbox() -> void:
 			continue
 		var target_root := target as Node2D
 		if target_root == null or absf(target_root.global_position.y - global_position.y) > BASIC_ATTACK_DEPTH_TOLERANCE:
+			continue
+		if (target_root.global_position.x - global_position.x) * _basic_attack_facing_sign() < 0.0:
 			continue
 		var target_id := target.get_instance_id()
 		if _skill_hit_targets.has(target_id):
@@ -476,11 +488,28 @@ func _check_skill_hitbox() -> void:
 
 func _apply_skill_motion() -> void:
 	if skill_id == 1 and skill_phase == "startup":
-		velocity = facing_direction * (SKILL_LUNGE / SKILL_STARTUP[0])
+		var remaining_lunge: float = SKILL_LUNGE
+		var target_distance := _nearest_forward_receiver_distance()
+		if target_distance < INF:
+			remaining_lunge = minf(remaining_lunge, maxf(0.0, target_distance - SKILL1_CONTACT_REACH))
+		velocity = facing_direction * (remaining_lunge / SKILL_STARTUP[0])
 	elif skill_id == 1 and skill_phase == "active":
 		velocity = facing_direction * (SKILL_LUNGE * 0.25 / SKILL_ACTIVE[0])
 	else:
 		velocity = Vector2.ZERO
+
+func _nearest_forward_receiver_distance() -> float:
+	var nearest := INF
+	var direction_sign := _basic_attack_facing_sign()
+	for receiver in get_tree().get_nodes_in_group("hit_receivers"):
+		if receiver == self or not receiver is Node2D or not receiver.has_method("receive_hit"):
+			continue
+		var target := receiver as Node2D
+		var offset := target.global_position - global_position
+		if absf(offset.y) > BASIC_ATTACK_DEPTH_TOLERANCE or offset.x * direction_sign <= 0.0:
+			continue
+		nearest = minf(nearest, absf(offset.x))
+	return nearest
 
 func _cancel_skill() -> void:
 	_set_skill_hitboxes(false)
@@ -494,6 +523,7 @@ func _interrupt_skill_for_guard() -> void:
 	_cancel_skill()
 
 func _check_stage_hitbox(stage: int) -> void:
+	visual_animator.call("sync_combat_pose_for_physics")
 	var hitbox := get_node("Hitboxes/Hitbox%d" % stage) as Area2D
 	if not _update_fist_hitbox(hitbox):
 		return
@@ -538,6 +568,8 @@ func _apply_basic_attack_to(target: Node, stage: int) -> void:
 		return
 	var target_root := target as Node2D
 	if target_root == null or absf(target_root.global_position.y - global_position.y) > BASIC_ATTACK_DEPTH_TOLERANCE:
+		return
+	if (target_root.global_position.x - global_position.x) * _basic_attack_facing_sign() < 0.0:
 		return
 	var target_id := target.get_instance_id()
 	if _hit_targets.has(target_id):
@@ -618,10 +650,14 @@ func _clear_combat_impacts() -> void:
 	_combat_impacts.clear()
 
 func _apply_attack_lunge() -> void:
+	var remaining_lunge: float = LUNGE[attack_stage - 1]
+	var target_distance := _nearest_forward_receiver_distance()
+	if target_distance < INF:
+		remaining_lunge = minf(remaining_lunge, maxf(0.0, target_distance - BASIC_FIST_CONTACT_REACH))
 	if attack_phase == "startup":
-		velocity = facing_direction * (LUNGE[attack_stage - 1] / STARTUP[attack_stage - 1])
+		velocity = facing_direction * (remaining_lunge / STARTUP[attack_stage - 1])
 	elif attack_phase == "active":
-		velocity = facing_direction * (LUNGE[attack_stage - 1] * 0.4 / ACTIVE[attack_stage - 1])
+		velocity = facing_direction * (remaining_lunge * 0.4 / ACTIVE[attack_stage - 1])
 
 func _set_attack_stage_visual(stage: int) -> void:
 	if stage == 0:
