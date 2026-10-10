@@ -8,7 +8,6 @@ const SKILL2_SPIN_VISUAL_SCRIPT := preload("res://scripts/effects/player_skill2_
 const FOLLOW_SPEED := 16.0
 const WALK_SPEED_REFERENCE := 280.0
 const WALK_STRIDE_LENGTH := 76.0
-const POSE_SOURCE_BLEND_DURATION := 0.105
 const HIT_FLASH_DURATION := 0.12
 const TURN_DURATION := 0.13
 const TURN_WINDUP_DURATION := 0.04
@@ -26,6 +25,7 @@ const SKILL_TEMPORARY_MOTION_FRAMES := 6
 @onready var art: Sprite2D = player.get_node("VisualRoot/PlayerArt") as Sprite2D
 @onready var visual_root: Node2D = player.get_node("VisualRoot") as Node2D
 @onready var pose_blender: PlayerPoseBlender = player.get_node("VisualRoot/PoseBlender") as PlayerPoseBlender
+@onready var walk_motion: Node = player.get_node_or_null("WalkMotion")
 
 var _base_position := Vector2.ZERO
 var _base_scale := Vector2.ONE
@@ -38,7 +38,7 @@ var _stride_phase := 0.0
 var _pose_blender_weight := 0.0
 var _pose_blender_target_weight := 0.0
 var _pose_blender_blend_from := 0.0
-var _pose_blender_blend_elapsed := POSE_SOURCE_BLEND_DURATION
+var _pose_blender_blend_elapsed := 0.0
 var _landing_remaining := 0.0
 var _was_jumping := false
 var _animation_state := "idle"
@@ -88,6 +88,9 @@ const TEMPORARY_STATE_DURATIONS := {
 }
 
 func _ready() -> void:
+	# WalkMotion updates its candidate state first; this node resolves the one
+	# full-body source that may render for the upcoming frame.
+	set_process_priority(2)
 	_skill1_dash_visual = SKILL1_DASH_VISUAL_SCRIPT.new()
 	_skill1_dash_visual.name = "Skill1DashVisual"
 	player.add_child.call_deferred(_skill1_dash_visual)
@@ -545,21 +548,30 @@ func _set_pose_blender_target(weight: float) -> void:
 func _update_pose_source_blend(delta: float) -> void:
 	if pose_blender == null or art == null:
 		return
-	if not is_equal_approx(_pose_blender_weight, _pose_blender_target_weight):
-		_pose_blender_blend_elapsed = minf(POSE_SOURCE_BLEND_DURATION, _pose_blender_blend_elapsed + maxf(delta, 0.0))
-		var progress := clampf(_pose_blender_blend_elapsed / POSE_SOURCE_BLEND_DURATION, 0.0, 1.0)
-		# Keep the layer opacity change proportional to elapsed render time. A
-		# cubic curve concentrates the 105 ms handoff into fewer visible steps
-		# when Window rendering runs below 60 fps.
-		_pose_blender_weight = lerpf(_pose_blender_blend_from, _pose_blender_target_weight, progress)
-	if progress_is_complete():
-		_pose_blender_weight = _pose_blender_target_weight
-	var weight := clampf(_pose_blender_weight, 0.0, 1.0)
-	pose_blender.visible = weight > 0.001 or _pose_blender_target_weight > 0.0
-	art.visible = weight < 0.999
-	pose_blender.set_external_blend_weight(weight)
+	# A full-body drawing is an exclusive source. Changing state is an atomic
+	# silhouette swap; opacity is never used to blend separate bodies.
+	_pose_blender_weight = _pose_blender_target_weight
+	_pose_blender_blend_from = _pose_blender_weight
+	_pose_blender_blend_elapsed = 0.0
+	var pose_selected := _pose_blender_target_weight >= 0.5
+	var walk_sprite: Sprite2D
+	var debug_walk_selected := false
+	if walk_motion != null and walk_motion.has_method("get_candidate_sprite"):
+		walk_sprite = walk_motion.call("get_candidate_sprite") as Sprite2D
+		debug_walk_selected = (
+			OS.is_debug_build()
+			and _animation_state == "walk"
+			and walk_motion.has_method("is_candidate_active")
+			and bool(walk_motion.call("is_candidate_active"))
+			and walk_sprite != null
+			and walk_sprite.texture != null
+		)
+	if walk_sprite != null:
+		walk_sprite.visible = debug_walk_selected
+	pose_blender.visible = pose_selected and not debug_walk_selected
+	art.visible = not pose_selected and not debug_walk_selected
+	pose_blender.set_external_blend_weight(1.0)
 	var art_modulate := _art_base_modulate
-	art_modulate.a *= 1.0 - weight
 	art.modulate = art_modulate
 
 func _align_pose_support_anchor() -> void:
@@ -601,7 +613,7 @@ func _align_pose_support_anchor() -> void:
 		sprite.position = pose_blender.to_local(art_foot_global) - scaled_support
 
 func progress_is_complete() -> bool:
-	return _pose_blender_blend_elapsed >= POSE_SOURCE_BLEND_DURATION
+	return true
 
 func _advance_stride_phase(speed: float, delta: float) -> void:
 	# A full cycle is one left/right step pair. Cadence follows traveled distance,

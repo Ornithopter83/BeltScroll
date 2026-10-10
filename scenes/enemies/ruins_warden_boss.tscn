@@ -7,7 +7,7 @@ radius = 31.0
 height = 78.0
 
 [sub_resource type="CircleShape2D" id="BossReceive"]
-radius = 54.0
+radius = 46.0
 
 [sub_resource type="CircleShape2D" id="BossSlashAttack"]
 radius = 67.0
@@ -83,7 +83,7 @@ monitoring = false
 shape = SubResource("BossSlashAttack")
 
 [node name="ReceiveArea" type="Area2D" parent="."]
-position = Vector2(0, -39)
+position = Vector2(0, -48)
 collision_layer = 2
 collision_mask = 1
 monitoring = false

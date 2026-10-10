@@ -4,8 +4,8 @@ extends SceneTree
 const TOOL_PATH := "res://tools/capture_m6n_combo_hitbox_window.gd"
 const REPORT_PATH := "res://docs/review/m6n_video_comparison_gate.md"
 const IMAGE_PATH := "res://assets/art/review/m6n_combo_hitbox_contact_sheet.png"
-const VIDEO_PATH := "res://temp/ProjectHub/attachments/30319a1f00274afb8876fbb88d14dd9ahq/BeltScroll (DEBUG) 2026-10-10 14-56-36.mp4"
-const EXPECTED_SHA256 := "113A486A3D025A1166FA1143D8B1A7139412883B2A6751343947535530B03814"
+const VIDEO_PATH := "res://temp/ProjectHub/attachments/30319a1f00274afb8876fbb88d14dd9ahq/BeltScroll (DEBUG) 2026-10-10 16-01-49.mp4"
+const EXPECTED_SHA256 := "391F5EA5CFB20245D90C44BDB3B8D565E708254A20EBEF2C828324F7411577D1"
 
 var _failures: Array[String] = []
 

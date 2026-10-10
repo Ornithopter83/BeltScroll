@@ -338,7 +338,7 @@ func _write_report() -> void:
 		"",
 		"## 판정",
 		"",
-		"- 원본 영상 해시: `113A486A3D025A1166FA1143D8B1A7139412883B2A6751343947535530B03814` (요청 SHA256과 일치)",
+		"- 원본 영상 해시: `391F5EA5CFB20245D90C44BDB3B8D565E708254A20EBEF2C828324F7411577D1` (요청 SHA256과 일치)",
 		"- 원본 영상 프레임 비교: **UNVERIFIED**. 현재 환경에 `ffmpeg`/`ffprobe` 실행 파일이 없고, 플레이어가 노출되지 않아 원본 프레임 추출을 수행하지 못함.",
 		"- 캡처 방식: Godot %s의 비-headless Window Viewport에서 실제 `scenes/game/main.tscn`과 production Player/Raider/Boss 노드를 구동해 PNG 연속 프레임 시트 생성. 입력 이벤트는 전부 자동 주입이다 (`source=auto_input_event`, device=16); 물리 키보드 입력 없음, `human_visual_approval=false`." % Engine.get_version_info().string,
 		"- 캡처 창: %s, %dx%d, 프레임 수 %d. PNG: `assets/art/review/m6n_combo_hitbox_contact_sheet.png`. 자동 키 이벤트 %d개." % [DisplayServer.get_name(), VIEW_SIZE.x, VIEW_SIZE.y, _frames.size(), _auto_key_events],

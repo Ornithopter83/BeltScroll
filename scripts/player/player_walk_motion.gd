@@ -72,6 +72,14 @@ func _process(delta: float) -> void:
 func get_current_frame_path() -> String:
 	return str(_frames[_frame_index]["path"]) if not _frames.is_empty() and _active else ""
 
+## The VisualAnimator owns every full-body visibility decision. WalkMotion only
+## reports whether its debug candidate is ready to be selected.
+func is_candidate_active() -> bool:
+	return _active and _sprite != null and not _frames.is_empty()
+
+func get_candidate_sprite() -> Sprite2D:
+	return _sprite
+
 func get_current_phase() -> String:
 	return _current_phase if _active else "inactive"
 
@@ -106,11 +114,9 @@ func _set_active(active: bool) -> void:
 	if _active == active:
 		return
 	_active = active
-	_sprite.visible = active
 	_status_label.visible = active
 	_left_anchor_marker.visible = active
 	_right_anchor_marker.visible = active
-	art.visible = not active
 	if active:
 		_elapsed = 0.0
 		_frame_index = 0

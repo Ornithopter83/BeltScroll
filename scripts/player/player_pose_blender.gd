@@ -1,6 +1,6 @@
 extends Node2D
 class_name PlayerPoseBlender
-"""Independent two-Sprite2D pose crossfader. No Player scene wiring is implied."""
+"""Single-visible-Sprite pose selector. No Player scene wiring is implied."""
 
 const SAFE_IDLE_PATH := "res://assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png"
 const APPROVED_ATTACK_POSES := {
@@ -23,6 +23,7 @@ const EXTENDED_POSES := {
 var common_foot_anchor: Vector2:
 	get: return common_combat_anchor
 	set(value): common_combat_anchor = value
+## Retained for scene compatibility. Full-body pose changes are now atomic.
 @export_range(0.01, 0.25, 0.005) var crossfade_duration := 0.075
 
 var _sprites: Array[Sprite2D] = []
@@ -68,8 +69,7 @@ func _ready() -> void:
 	visible = false
 	set_external_blend_weight(_external_blend_weight)
 
-## Lets an owning animator crossfade this whole pose layer against another
-## Sprite2D while preserving the blender's own two-sprite pose transition.
+## Compatibility hook for callers that control the pose layer as a whole.
 func set_external_blend_weight(weight: float) -> void:
 	_external_blend_weight = clampf(weight, 0.0, 1.0)
 	var layer_modulate := _base_modulate
@@ -198,17 +198,10 @@ func set_timed_pose(action: String, phase: String, phase_elapsed: float, phase_d
 			frame_start = time_cursor - float(frames[index].get("duration", 0.0))
 			break
 	_clear_sequence()
-	# Keep authored frames within one phase on their scheduled boundaries. A short
-	# eased transition is allowed at a phase boundary so startup/contact/recovery
-	# do not snap between silhouettes; a contact with no requested fade stays exact.
-	var same_phase := _current_key == key
-	var frame_changed := _current_registered_frame != frame_index
-	var selection_fade := transition_duration
-	if phase == "contact" and not same_phase:
-		selection_fade = minf(maxf(transition_duration, 0.0), 0.035)
-	elif same_phase and frame_changed:
-		selection_fade = 0.0
-	_select_pose(action, phase, selection_fade, frame_index)
+	# Authored frame durations still decide the exact replacement boundary;
+	# transition_duration remains accepted for API compatibility but never fades
+	# one full-body silhouette into another.
+	_select_pose(action, phase, transition_duration, frame_index)
 	_current_registered_frame_elapsed = clampf(phase_time - frame_start, 0.0, get_current_registered_frame_duration())
 	_current_registered_frame_effective_duration = float(frames[frame_index].get("duration", 0.0)) * (1.0 if loop else phase_duration / maxf(total_duration, 0.001))
 	return true
@@ -375,9 +368,7 @@ func get_pose_art_status() -> String:
 	return "approved " + phase_name + " drawing; " + get_current_frame_status()
 
 func get_transition_progress() -> float:
-	if not _transitioning or _active_transition_duration <= 0.0:
-		return 1.0
-	return clampf(_transition_elapsed / _active_transition_duration, 0.0, 1.0)
+	return 1.0
 
 func get_displayed_textures() -> Array[Texture2D]:
 	var result: Array[Texture2D] = []
@@ -390,18 +381,6 @@ func _process(delta: float) -> void:
 	# A later independent bank load starts a fresh replacement batch.
 	_replacement_batch_keys.clear()
 	_advance_sequence(delta)
-	if not _transitioning:
-		return
-	_transition_elapsed = minf(_transition_elapsed + maxf(delta, 0.0), _active_transition_duration)
-	var blend := 1.0 if _active_transition_duration <= 0.0 else clampf(_transition_elapsed / _active_transition_duration, 0.0, 1.0)
-	var eased_blend := blend * blend * (3.0 - 2.0 * blend)
-	_sprites[_transition_from].modulate.a = 1.0 - eased_blend
-	_sprites[_transition_to].modulate.a = eased_blend
-	if blend >= 1.0:
-		_sprites[_transition_from].visible = false
-		_sprites[_transition_from].modulate.a = 0.0
-		_sprites[_transitioning_index()].modulate.a = 1.0
-		_transitioning = false
 
 func _advance_sequence(delta: float) -> void:
 	if _sequence_phases.is_empty() or _sequence_durations.is_empty():
@@ -456,39 +435,27 @@ func _request_texture(key: String, texture: Texture2D, immediate := false, trans
 		_transitioning = false
 		_current_key = "idle"
 		return
-	if _current_key == key and _sprites[_transitioning_index()].texture == texture and not immediate:
+	var source := _transitioning_index()
+	if _current_key == key and _sprites[source].texture == texture:
+		for index in range(_sprites.size()):
+			_sprites[index].visible = index == source
+			_sprites[index].modulate.a = 1.0 if index == source else 0.0
+		_transitioning = false
 		return
-	var source := _transition_to if _transitioning and _sprites[_transition_to].modulate.a >= _sprites[_transition_from].modulate.a else _transition_from
-	if not _transitioning:
-		source = 0 if _sprites[0].visible else 1
 	var target := 1 - source
-	if _sprites[source].texture == texture and not immediate:
-		if _transitioning:
-			_sprites[target].visible = false
-			_sprites[target].modulate.a = 0.0
-			_sprites[source].visible = true
-			_sprites[source].modulate.a = 1.0
-			_transitioning = false
-		_current_key = key
-		return
 	_sprites[target].texture = texture
-	_sprites[target].modulate = Color(1.0, 1.0, 1.0, 0.0)
-	_sprites[target].visible = true
+	_sprites[target].modulate = Color.WHITE
 	_place_sprite(_sprites[target])
-	if _sprites[source].visible:
-		_sprites[source].modulate.a = 1.0
-	_transition_from = source
+	# Swap the sole visible contour synchronously on the phase/frame boundary.
+	_sprites[target].visible = true
+	_sprites[source].visible = false
+	_sprites[source].modulate.a = 0.0
+	_transition_from = target
 	_transition_to = target
 	_transition_elapsed = 0.0
-	_active_transition_duration = crossfade_duration if transition_duration < 0.0 else maxf(transition_duration, 0.0)
+	_active_transition_duration = 0.0
+	_transitioning = false
 	_current_key = key
-	if immediate or not _sprites[source].visible or _active_transition_duration <= 0.0:
-		_sprites[source].visible = false
-		_sprites[source].modulate.a = 0.0
-		_sprites[target].modulate.a = 1.0
-		_transitioning = false
-	else:
-		_transitioning = true
 
 func _pose_key(action: String, phase: String) -> String:
 	if not ["attack1", "attack2", "attack3"].has(action) and not (EXTENDED_POSES.has(action) and phase in EXTENDED_POSES[action]):

@@ -38,6 +38,7 @@ func _run() -> void:
 	var animator: Node = player.get_node("VisualAnimator")
 	var motion: Node2D = player.get_node("WalkMotion") as Node2D
 	var art := player.get_node("VisualRoot/PlayerArt") as Sprite2D
+	var walk_sprite := motion.call("get_candidate_sprite") as Sprite2D
 	_check(player.get_node_or_null("VisualRoot/DebugLeftSupportAnchor") != null and player.get_node_or_null("VisualRoot/DebugRightSupportAnchor") != null, "Window preview shows separate left and right support markers")
 	var has_right_passing := _has_right_passing_resource()
 	_check(OS.is_debug_build() and motion.get_available_phase_names().size() == (4 if has_right_passing else 3), "available independent originals run in DEBUG with four phases when the optional drawing exists")
@@ -48,15 +49,21 @@ func _run() -> void:
 	player.velocity = Vector2(280.0, 0.0)
 	animator.call("_process", STEP)
 	motion.call("_process", STEP)
+	animator.call("_process", STEP)
 	_check(motion.get_current_phase() == "left_contact" and motion.get_current_frame_path() == LEFT_CONTACT, "left contact is displayed first from its independent PNG")
-	_check(not art.visible, "DEBUG candidate display owns the walk state")
+	_check(_is_effectively_visible(walk_sprite) and not art.visible, "DEBUG candidate display owns the walk state")
+	_check_single_body(player, "walk candidate")
 	var left_anchor: Vector2 = motion.get_support_anchor_local()
 	motion.call("_process", 0.25)
+	animator.call("_process", 0.25)
 	_check(motion.get_current_phase() == "passing" and motion.get_current_frame_path() == LEFT_PASSING, "left passing is an independent second original")
 	_check(motion.get_support_anchor_local().distance_to(left_anchor) < 0.01, "same left support stays on its own anchor through passing")
+	_check_single_body(player, "left passing")
 	motion.call("_process", 0.19)
+	animator.call("_process", 0.19)
 	_check(motion.get_current_phase() == "right_contact" and motion.get_current_frame_path() == RIGHT_CONTACT, "right contact is played as the third original")
 	_check(motion.get_current_support_side() == "right", "support side changes from left to right at contact")
+	_check_single_body(player, "right contact")
 	var right_anchor: Vector2 = motion.get_support_anchor_local()
 	_check(right_anchor.distance_to(left_anchor) > 10.0, "right support uses a distinct anchor instead of the left anchor")
 	_check(is_equal_approx(float(motion.call("get_current_frame_duration")), 0.24), "contact timing is 0.24 seconds at reference speed")
@@ -74,21 +81,54 @@ func _run() -> void:
 	player.set("attack_stage", 1)
 	player.set("attack_phase", "active")
 	player.set("attack_phase_remaining", 0.08)
-	animator.call("_process", STEP)
 	motion.call("_process", STEP)
+	animator.call("_process", STEP)
 	_check(animator.get_animation_state() == "attack1_contact", "combo contact takes ownership from walking")
-	_check(motion.get_current_phase() == "inactive" and art.visible, "walk overlay yields its display on attack handoff")
+	_check(not _is_effectively_visible(walk_sprite), "walk candidate is hidden on the attack handoff frame")
+	_check_single_body(player, "attack1 active")
+	motion.call("_process", STEP)
+	animator.call("_process", STEP)
+	_check(motion.get_current_phase() == "inactive", "walk candidate state stops after attack handoff")
+	_check_single_body(player, "attack1 active after walk deactivation")
 	player.set("attack_phase", "idle")
 	player.set("attack_stage", 0)
 	player.velocity = Vector2(280.0, 0.0)
 	animator.call("_process", STEP)
 	motion.call("_process", STEP)
+	animator.call("_process", STEP)
 	_check(animator.get_animation_state() == "walk" and motion.get_current_phase() == "left_contact", "walk resumes cleanly after combo handoff")
+	_check_single_body(player, "walk return")
 
 	await RenderingServer.frame_post_draw
 	var frame_image := root.get_texture().get_image()
 	_check(frame_image != null and not frame_image.is_empty(), "preview renders a readable Window frame")
 	_finish()
+
+func _check_single_body(player: CharacterBody2D, label: String) -> void:
+	var count := 0
+	var art := player.get_node("VisualRoot/PlayerArt") as Sprite2D
+	var walk_motion := player.get_node("WalkMotion")
+	var walk_sprite := walk_motion.call("get_candidate_sprite") as Sprite2D
+	var sources: Array[Sprite2D] = [art, walk_sprite]
+	for node in player.get_node("VisualRoot/PoseBlender").find_children("PoseSprite*", "Sprite2D", false, false):
+		sources.append(node as Sprite2D)
+	for sprite in sources:
+		if sprite != null and sprite.texture != null and _is_effectively_visible(sprite):
+			count += 1
+	_check(count == 1, "%s has exactly one effectively visible full-body sprite (got %d)" % [label, count])
+
+func _is_effectively_visible(sprite: Sprite2D) -> bool:
+	if sprite == null or sprite.texture == null:
+		return false
+	var alpha := 1.0
+	var cursor: Node = sprite
+	while cursor is CanvasItem:
+		var item := cursor as CanvasItem
+		if not item.visible:
+			return false
+		alpha *= item.modulate.a * item.self_modulate.a
+		cursor = cursor.get_parent()
+	return alpha > 0.001
 
 func _has_right_passing_resource() -> bool:
 	var directory := DirAccess.open("res://assets/art/player")

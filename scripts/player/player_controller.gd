@@ -37,8 +37,9 @@ const STARTUP := [0.075, 0.085, 0.10]
 const ACTIVE := [0.105, 0.12, 0.14]
 const RECOVERY := [0.20, 0.22, 0.28]
 const LUNGE := [34.0, 52.0, 76.0]
-const ATTACK_RANGE := [55.0, 72.0, 92.0]
-const ATTACK_REACH_SCALE := 1.25
+const BASIC_ATTACK_CONTACT_X := [40.0, 52.0, 66.0]
+const BASIC_ATTACK_CONTACT_Y := [-39.0, -43.0, -47.0]
+const BASIC_ATTACK_DEPTH_TOLERANCE := 42.0
 const BLOCK_DAMAGE_MULTIPLIER := 0.25
 const BLOCK_KNOCKBACK_MULTIPLIER := 0.35
 const BLOCK_HITSTUN_MULTIPLIER := 0.5
@@ -358,8 +359,11 @@ func _set_stage_hitbox(stage: int, enabled: bool) -> void:
 	for index in range(1, COMBO_COUNT + 1):
 		var hitbox := get_node("Hitboxes/Hitbox%d" % index) as Area2D
 		hitbox.monitoring = enabled and index == stage
-		hitbox.position = facing_direction * (ATTACK_RANGE[index - 1] * ATTACK_REACH_SCALE * 0.58)
-		hitbox.rotation = facing_direction.angle()
+		var facing_sign := _basic_attack_facing_sign()
+		hitbox.position = Vector2(BASIC_ATTACK_CONTACT_X[index - 1] * facing_sign, BASIC_ATTACK_CONTACT_Y[index - 1])
+		hitbox.rotation = 0.0
+		var shape_node := hitbox.get_node("CollisionShape2D") as CollisionShape2D
+		shape_node.position = Vector2.ZERO
 
 func _request_skill(requested_skill_id: int) -> void:
 	if requested_skill_id < 1 or requested_skill_id > 2:
@@ -470,30 +474,43 @@ func _interrupt_skill_for_guard() -> void:
 func _check_stage_hitbox(stage: int) -> void:
 	var hitbox := get_node("Hitboxes/Hitbox%d" % stage) as Area2D
 	for target in hitbox.get_overlapping_bodies():
-		if target == self or not target.is_in_group("hit_receivers") or not target.has_method("receive_hit"):
-			continue
-		var target_id := target.get_instance_id()
-		if _hit_targets.has(target_id):
-			continue
-		_hit_targets[target_id] = true
-		var direction := (target.global_position - global_position).normalized()
-		if direction == Vector2.ZERO:
-			direction = facing_direction
-		var hit := {
-			"damage": _basic_attack_damage(stage),
-			"direction": direction,
-			"knockback": KNOCKBACK[stage - 1],
-			"hit_stun": 0.14 + stage * 0.055,
-			"attack_stage": stage,
-		}
-		target.receive_hit(hit)
-		_start_attack_recoil(direction, ATTACK_RECOIL_DURATION[stage - 1], ATTACK_RECOIL_SPEED[stage - 1])
-		if not _attack_hit_emitted:
-			_attack_hit_emitted = true
-			attack_hit.emit(stage)
-		_spawn_combat_impact(target, stage, direction, 0, float(hit["hit_stun"]))
-		_trigger_hit_stop(HIT_STOP[stage - 1])
-		_add_camera_trauma(CAMERA_TRAUMA[stage - 1])
+		_apply_basic_attack_to(target, stage)
+	for target_area in hitbox.get_overlapping_areas():
+		var target := target_area.get_parent()
+		if target is Node2D:
+			_apply_basic_attack_to(target, stage)
+
+func _apply_basic_attack_to(target: Node, stage: int) -> void:
+	if target == self or not target.is_in_group("hit_receivers") or not target.has_method("receive_hit"):
+		return
+	var target_root := target as Node2D
+	if target_root == null or absf(target_root.global_position.y - global_position.y) > BASIC_ATTACK_DEPTH_TOLERANCE:
+		return
+	var target_id := target.get_instance_id()
+	if _hit_targets.has(target_id):
+		return
+	_hit_targets[target_id] = true
+	var direction := (target_root.global_position - global_position).normalized()
+	if direction == Vector2.ZERO:
+		direction = Vector2(_basic_attack_facing_sign(), 0.0)
+	var hit := {
+		"damage": _basic_attack_damage(stage),
+		"direction": direction,
+		"knockback": KNOCKBACK[stage - 1],
+		"hit_stun": 0.14 + stage * 0.055,
+		"attack_stage": stage,
+	}
+	target.call("receive_hit", hit)
+	_start_attack_recoil(direction, ATTACK_RECOIL_DURATION[stage - 1], ATTACK_RECOIL_SPEED[stage - 1])
+	if not _attack_hit_emitted:
+		_attack_hit_emitted = true
+		attack_hit.emit(stage)
+	_spawn_combat_impact(target_root, stage, direction, 0, float(hit["hit_stun"]))
+	_trigger_hit_stop(HIT_STOP[stage - 1])
+	_add_camera_trauma(CAMERA_TRAUMA[stage - 1])
+
+func _basic_attack_facing_sign() -> float:
+	return -1.0 if facing_direction.x < 0.0 else 1.0
 
 func _basic_attack_damage(stage: int) -> int:
 	return maxi(0, attack_damage) + maxi(0, stage - 1)
@@ -561,7 +578,7 @@ func _set_attack_stage_visual(stage: int) -> void:
 	attack_flash.color = Color(1.0, 0.8, 0.25, 0.95)
 	var stage_index := stage - 1
 	attack_flash.visible = true
-	attack_flash.position = Vector2(ATTACK_RANGE[stage_index] * ATTACK_REACH_SCALE * 0.45, -5)
+	attack_flash.position = Vector2(BASIC_ATTACK_CONTACT_X[stage_index] * 0.72, -27.0 - stage_index * 3.0)
 	attack_flash.scale = Vector2(1.0 + stage_index * 0.18, 1.0 + stage_index * 0.12)
 
 func receive_hit(hit: Dictionary) -> void:
