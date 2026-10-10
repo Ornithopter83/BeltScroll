@@ -73,9 +73,16 @@ internal static class Program
         ApplicationConfiguration.Initialize();
         string? acceptanceDir = null;
         bool runtimeRoundtrip = args.Any(a => a.Equals("--runtime-roundtrip", StringComparison.OrdinalIgnoreCase));
+        bool playtestAcceptance = args.Any(a => a.Equals("--playtest-gui-acceptance", StringComparison.OrdinalIgnoreCase));
+        string? playtestGodot = null;
+        string? playtestRoot = null;
         for (int i = 0; i < args.Length; i++)
-            if (args[i].Equals("--gui-acceptance", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length) acceptanceDir = Path.GetFullPath(args[++i]);
-        using var form = new EditorForm(acceptanceDir, runtimeRoundtrip);
+        {
+            if ((args[i].Equals("--gui-acceptance", StringComparison.OrdinalIgnoreCase) || args[i].Equals("--playtest-gui-acceptance", StringComparison.OrdinalIgnoreCase)) && i + 1 < args.Length) acceptanceDir = Path.GetFullPath(args[++i]);
+            else if (args[i].Equals("--godot", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length) playtestGodot = Path.GetFullPath(args[++i]);
+            else if (args[i].Equals("--project-root", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length) playtestRoot = Path.GetFullPath(args[++i]);
+        }
+        using var form = new EditorForm(acceptanceDir, runtimeRoundtrip, playtestAcceptance, playtestGodot, playtestRoot);
         Application.Run(form);
         return form.ExitCode;
     }
@@ -144,6 +151,8 @@ internal static class Program
 
 internal sealed class EditorForm : Form
 {
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
     private readonly ComboBox category = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 130 };
     private readonly ListBox items = new() { Dock = DockStyle.Fill };
     private readonly Panel fields = new() { Dock = DockStyle.Fill, AutoScroll = true };
@@ -159,17 +168,28 @@ internal sealed class EditorForm : Form
     private readonly HashSet<string> invalidFields = new(StringComparer.Ordinal);
     private readonly string? acceptanceDir;
     private readonly bool runtimeRoundtrip;
+    private readonly bool playtestAcceptance;
+    private readonly Dictionary<string, Button> playtestButtons = new(StringComparer.Ordinal);
+    private string? acceptanceGodot;
+    private string? acceptanceProjectRoot;
+    private int playtestAcceptanceStep;
+    private DateTime playtestStepStarted;
     private System.Windows.Forms.Timer? acceptanceTimer;
     private int acceptanceStep;
     private Process? playtestProcess;
     private string? playtestWorkspace;
+    private int? lastPlaytestExitCode;
+    private string? lastPlaytestWorkspace;
     private readonly StringBuilder playtestOutput = new();
     internal int ExitCode { get; private set; }
 
-    public EditorForm(string? acceptanceDir = null, bool runtimeRoundtrip = false)
+    public EditorForm(string? acceptanceDir = null, bool runtimeRoundtrip = false, bool playtestAcceptance = false, string? playtestGodot = null, string? playtestProjectRoot = null)
     {
         this.acceptanceDir = acceptanceDir;
         this.runtimeRoundtrip = runtimeRoundtrip;
+        this.playtestAcceptance = playtestAcceptance;
+        acceptanceGodot = playtestGodot;
+        acceptanceProjectRoot = playtestProjectRoot;
         Text = "BeltScroll 에디터"; Width = 1120; Height = 780; MinimumSize = new Size(900, 600); StartPosition = FormStartPosition.CenterScreen;
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3, Padding = new Padding(8) };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 290)); root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -193,18 +213,25 @@ internal sealed class EditorForm : Form
         playtestBar.Controls.Add(new Label { Text = "프로젝트 루트", AutoSize = true, Padding = new Padding(2, 7, 0, 0) }); playtestBar.Controls.Add(projectRootBox);
         var chooseProject = new Button { Text = "찾기…", AutoSize = true }; chooseProject.Click += (_, _) => ChooseProject(); playtestBar.Controls.Add(chooseProject);
         foreach (var (label, scene) in new[] { ("게임 전투 테스트", "res://scenes/game/main.tscn"), ("전투 연습장 실행", "res://scenes/review/m6i_combat_test_arena.tscn") })
-        { var b = new Button { Text = label, AutoSize = true }; b.Click += (_, _) => LaunchPlaytest(scene); playtestBar.Controls.Add(b); }
+        { var b = new Button { Text = label, AutoSize = true }; b.Click += (_, _) => LaunchPlaytest(scene); playtestButtons[scene] = b; playtestBar.Controls.Add(b); }
         root.Controls.Add(playtestBar, 0, 1); root.SetColumnSpan(playtestBar, 2); Controls.Add(root);
         category.SelectedIndexChanged += (_, _) => RefreshList(); items.SelectedIndexChanged += (_, _) => SelectItem();
         BuildFields(); RefreshList();
+        FormClosed += (_, _) => CleanupPlaytestOnEditorClose();
         if (acceptanceDir is not null)
         {
             Directory.CreateDirectory(acceptanceDir);
             currentPath = Path.Combine(acceptanceDir, "overrides.json");
             string fixture = Path.Combine(acceptanceDir, "source-overrides.json");
-            if (!File.Exists(fixture)) File.WriteAllText(fixture, """{"schema_version":1,"characters":[{"id":"Player","max_health":5,"walk_speed":280,"custom_runtime_key":{"korean":"보존"}}],"enemies":[{"id":"Raider","name":"적","max_health":10}],"stages":[{"id":"AcceptanceStage","name":"인수 스테이지","left":10,"top":20,"right":1000,"bottom":900,"spawns":[{"actor_id":"Player","x":960,"y":780,"custom_spawn_field":"preserve"}],"custom_stage_field":{"enabled":true}}],"custom_document_field":"preserve"}""", new UTF8Encoding(false));
+            if (!File.Exists(fixture)) File.WriteAllText(fixture, """{"schema_version":1,"characters":[{"id":"Player","max_health":5,"walk_speed":280,"custom_runtime_key":{"korean":"보존"}}],"enemies":[{"id":"ForestRaider","name":"숲 레이더","max_health":10}],"stages":[{"id":"AcceptanceStage","name":"인수 스테이지","left":10,"top":20,"right":1000,"bottom":900,"spawns":[{"actor_id":"Player","x":960,"y":780,"custom_spawn_field":"preserve"}],"custom_stage_field":{"enabled":true}}],"custom_document_field":"preserve"}""", new UTF8Encoding(false));
             LoadPath(fixture);
             currentPath = Path.Combine(acceptanceDir, "overrides.json");
+            if (playtestAcceptance)
+            {
+                if (string.IsNullOrWhiteSpace(acceptanceGodot) || string.IsNullOrWhiteSpace(acceptanceProjectRoot)) throw new InvalidDataException("Playtest acceptance requires --godot and --project-root.");
+                godotPathBox.Text = acceptanceGodot;
+                projectRootBox.Text = acceptanceProjectRoot;
+            }
             acceptanceTimer = new System.Windows.Forms.Timer { Interval = 180 };
             acceptanceTimer.Tick += (_, _) => RunAcceptanceStep();
             Shown += (_, _) => acceptanceTimer.Start();
@@ -326,6 +353,8 @@ internal sealed class EditorForm : Form
             Program.Validate(saved);
             workspaceForLaunch = CreatePlaytestWorkspace(root, sourceOverrides);
             playtestWorkspace = workspaceForLaunch;
+            lastPlaytestExitCode = null;
+            lastPlaytestWorkspace = workspaceForLaunch;
             playtestOutput.Clear();
             var start = new ProcessStartInfo { FileName = godot, WorkingDirectory = workspaceForLaunch, UseShellExecute = false, CreateNoWindow = false, RedirectStandardOutput = true, RedirectStandardError = true };
             start.ArgumentList.Add("--path"); start.ArgumentList.Add(workspaceForLaunch); start.ArgumentList.Add("--scene"); start.ArgumentList.Add(scene);
@@ -335,16 +364,20 @@ internal sealed class EditorForm : Form
             processForLaunch.ErrorDataReceived += (_, e) => AppendPlaytestOutput(e.Data);
             processForLaunch.Exited += (_, _) =>
             {
-                try { BeginInvoke((Action)(() => PlaytestExited())); } catch (InvalidOperationException) { }
+                try { BeginInvoke((Action)(() => PlaytestExited())); } catch (ObjectDisposedException) { } catch (InvalidOperationException) { }
             };
             processStarted = processForLaunch.Start();
             if (!processStarted) throw new InvalidOperationException("Godot 프로세스를 시작하지 못했습니다.");
             processForLaunch.BeginOutputReadLine(); processForLaunch.BeginErrorReadLine();
+            processForLaunch.Refresh();
+            if (processForLaunch.HasExited) throw new InvalidOperationException($"Godot가 창을 표시하기 전에 종료되었습니다 (코드 {processForLaunch.ExitCode}).");
             status.Text = $"실행 중: {scene} · 적용: 저장된 설정 {sourceOverrides}" + (documentDirty || invalidFields.Count > 0 ? " · 미저장 편집값은 적용되지 않음" : "") + $" · 임시 프로젝트 {playtestWorkspace}";
         }
         catch (Exception ex)
         {
-            if (!processStarted)
+            bool exitedBeforeLaunchCompleted = !processStarted;
+            if (processStarted) { try { exitedBeforeLaunchCompleted = processForLaunch!.HasExited; } catch { exitedBeforeLaunchCompleted = true; } }
+            if (exitedBeforeLaunchCompleted)
             {
                 if (ReferenceEquals(playtestProcess, processForLaunch)) playtestProcess = null;
                 processForLaunch?.Dispose();
@@ -369,10 +402,28 @@ internal sealed class EditorForm : Form
         if (playtestProcess is null) return;
         int code; try { code = playtestProcess.ExitCode; } catch (InvalidOperationException) { return; }
         string output; lock (playtestOutput) output = playtestOutput.ToString();
+        lastPlaytestExitCode = code;
+        lastPlaytestWorkspace = playtestWorkspace;
         status.Text = $"전투 테스트 종료 코드: {code}";
-        if (code != 0) MessageBox.Show(this, $"Godot가 종료 코드 {code}(으)로 종료되었습니다.\n\n{output}", "전투 테스트 오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        if (code != 0 && acceptanceDir is null) MessageBox.Show(this, $"Godot가 종료 코드 {code}(으)로 종료되었습니다.\n\n{output}", "전투 테스트 오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
         playtestProcess.Dispose(); playtestProcess = null;
         if (playtestWorkspace is not null) { try { Directory.Delete(playtestWorkspace, true); } catch (Exception ex) { status.Text += $" · 임시 파일 정리 실패: {ex.Message}"; } playtestWorkspace = null; }
+    }
+
+    private void CleanupPlaytestOnEditorClose()
+    {
+        if (playtestProcess is { } process)
+        {
+            try { if (!process.HasExited) { process.Kill(true); process.WaitForExit(5000); } } catch { }
+            try { process.Dispose(); } catch { }
+            playtestProcess = null;
+        }
+        if (playtestWorkspace is not null)
+        {
+            try { if (Directory.Exists(playtestWorkspace)) Directory.Delete(playtestWorkspace, true); }
+            catch (Exception ex) { if (acceptanceDir is not null) File.WriteAllText(Path.Combine(acceptanceDir, "playtest-cleanup-error.txt"), ex.ToString(), new UTF8Encoding(false)); }
+            playtestWorkspace = null;
+        }
     }
 
     internal static string ValidateGodotExecutable(string path)
@@ -516,6 +567,7 @@ internal sealed class EditorForm : Form
     {
         try
         {
+            if (playtestAcceptance) { RunPlaytestAcceptanceStep(); return; }
             if (runtimeRoundtrip) { RunRuntimeRoundtripAcceptance(); return; }
             acceptanceStep++;
             switch (acceptanceStep)
@@ -523,7 +575,7 @@ internal sealed class EditorForm : Form
                 case 1: category.SelectedIndex = 0; items.SelectedIndex = 0; if (items.Items.Count != 1 || selected is null || selected.Name is not null) throw new Exception("Partial record did not load with missing name."); break;
                 case 2: ((Button)FindButton("새 항목")).PerformClick(); if (selected is null || document.Characters.Count != 2) throw new Exception("Character create failed."); break;
                 case 3: ((Button)FindButton("복제")).PerformClick(); var idBox = (TextBox)editors["Id"]; idBox.Text = "acceptance_character_clone"; var health = (TextBox)editors["MaxHealth"]; health.Text = "7"; if (selected?.Id != "acceptance_character_clone" || selected.MaxHealth != 7) throw new Exception("Character clone/edit failed."); ((Button)FindButton("삭제")).PerformClick(); if (document.Characters.Any(x => x.Id == "acceptance_character_clone")) throw new Exception("Character clone delete failed."); items.SelectedItem = document.Characters.Single(x => x.Id.StartsWith("character_", StringComparison.Ordinal)); ((Button)FindButton("삭제")).PerformClick(); if (document.Characters.Count != 1) throw new Exception("Created character delete failed."); break;
-                case 4: category.SelectedIndex = 1; items.SelectedItem = document.Enemies.Single(x => x.Id == "Raider"); ((Button)FindButton("복제")).PerformClick(); ((TextBox)editors["Id"]).Text = "acceptance_enemy_clone"; ((TextBox)editors["MaxHealth"]).Text = "17"; if (selected?.Id != "acceptance_enemy_clone" || selected.MaxHealth != 17) throw new Exception("Enemy clone/edit failed."); ((Button)FindButton("삭제")).PerformClick(); if (document.Enemies.Count != 1) throw new Exception("Enemy clone delete failed."); ((Button)FindButton("새 항목")).PerformClick(); if (document.Enemies.Count != 2) throw new Exception("Enemy create failed."); ((Button)FindButton("삭제")).PerformClick(); if (document.Enemies.Count != 1) throw new Exception("Created enemy delete failed."); break;
+                case 4: category.SelectedIndex = 1; items.SelectedItem = document.Enemies.Single(); ((Button)FindButton("복제")).PerformClick(); ((TextBox)editors["Id"]).Text = "acceptance_enemy_clone"; ((TextBox)editors["MaxHealth"]).Text = "17"; if (selected?.Id != "acceptance_enemy_clone" || selected.MaxHealth != 17) throw new Exception("Enemy clone/edit failed."); ((Button)FindButton("삭제")).PerformClick(); if (document.Enemies.Count != 1) throw new Exception("Enemy clone delete failed."); ((Button)FindButton("새 항목")).PerformClick(); if (document.Enemies.Count != 2) throw new Exception("Enemy create failed."); ((Button)FindButton("삭제")).PerformClick(); if (document.Enemies.Count != 1) throw new Exception("Created enemy delete failed."); break;
                 case 5: category.SelectedIndex = 2; var stage = document.Stages.Single(x => x.Id == "AcceptanceStage"); items.SelectedItem = stage; if (stage.X != 960 || stage.Y != 780) throw new Exception("Stage Player placement did not load."); ((Button)FindButton("복제")).PerformClick(); ((TextBox)editors["Id"]).Text = "acceptance_stage_clone"; ((TextBox)editors["X"]).Text = "961"; ((TextBox)editors["Y"]).Text = "781"; if (selected?.Id != "acceptance_stage_clone" || selected.X != 961 || selected.Y != 781) throw new Exception("Stage clone/edit failed."); if (!SaveTo(currentPath)) throw new Exception("Stage save failed."); ((Button)FindButton("삭제")).PerformClick(); if (document.Stages.Any(x => x.Id == "acceptance_stage_clone")) throw new Exception("Stage clone delete failed."); ((Button)FindButton("새 항목")).PerformClick(); if (document.Stages.Count != 2) throw new Exception("Stage create failed."); ((Button)FindButton("삭제")).PerformClick(); if (document.Stages.Count != 1) throw new Exception("Created stage delete failed."); break;
                 case 6: category.SelectedIndex = 0; var player = document.Characters.Single(x => x.Id == "Player"); items.SelectedItem = player; if (!SaveTo(currentPath)) throw new Exception("Could not establish the preexisting save fixture."); string priorPath = currentPath; byte[] priorContent = File.ReadAllBytes(currentPath); string priorBackupPath = currentPath + ".bak"; bool hadPriorBackup = File.Exists(priorBackupPath); byte[] priorBackup = hadPriorBackup ? File.ReadAllBytes(priorBackupPath) : []; ((TextBox)editors["MaxHealth"]).Text = "0"; string rejectedPath = Path.Combine(acceptanceDir!, "failed-save", "should-not-exist.json"); if (SaveAsTo(rejectedPath) || currentPath != priorPath || File.Exists(rejectedPath)) throw new Exception("Failed Save As changed the active path or created a file."); bool backupChanged = File.Exists(priorBackupPath) != hadPriorBackup || (hadPriorBackup && !File.ReadAllBytes(priorBackupPath).SequenceEqual(priorBackup)); if (SaveTo(currentPath) || !status.Text.StartsWith("오류:") || !File.ReadAllBytes(currentPath).SequenceEqual(priorContent) || backupChanged) throw new Exception("Rejected overwrite changed the prior file or backup."); ((TextBox)editors["MaxHealth"]).Text = "6"; if (!SaveTo(currentPath)) throw new Exception("Corrected value did not save."); break;
                 case 7: File.WriteAllText(Path.Combine(acceptanceDir!, "malformed.json"), "{invalid", new UTF8Encoding(false)); var before = document; try { LoadPath(Path.Combine(acceptanceDir!, "malformed.json")); throw new Exception("Malformed JSON was accepted."); } catch (JsonException) { if (!ReferenceEquals(before, document)) throw new Exception("Malformed load replaced the current document."); } break;
@@ -531,7 +583,124 @@ internal sealed class EditorForm : Form
                 case 9: CaptureAcceptance(); WriteAcceptanceReport(true, "WinForms message loop verified character, enemy, and stage create/clone/edit/delete; range rejection; malformed JSON rejection; save/reopen/backup; source field and stage placement preservation; normal close."); acceptanceTimer!.Stop(); ExitCode = 0; Close(); break;
             }
         }
-        catch (Exception ex) { acceptanceTimer?.Stop(); ExitCode = 1; WriteAcceptanceReport(false, ex.ToString()); try { CaptureAcceptance(); } catch { } Close(); }
+        catch (Exception ex) { acceptanceTimer?.Stop(); ExitCode = 1; if (playtestAcceptance) WritePlaytestAcceptanceReport(false, ex.ToString()); else WriteAcceptanceReport(false, ex.ToString()); try { CaptureAcceptance(); } catch { } Close(); }
+    }
+
+    private void RunPlaytestAcceptanceStep()
+    {
+        var gameScene = "res://scenes/game/main.tscn";
+        var arenaScene = "res://scenes/review/m6i_combat_test_arena.tscn";
+        switch (playtestAcceptanceStep)
+        {
+            case 0:
+                category.SelectedIndex = 0;
+                var player = document.Characters.Single(x => x.Id == "Player");
+                SelectForEdit("characters", player);
+                ((TextBox)editors["MaxHealth"]).Text = "11";
+                category.SelectedIndex = 1;
+                var raider = document.Enemies.Single(x => x.Id == "ForestRaider");
+                SelectForEdit("enemies", raider);
+                ((TextBox)editors["MaxHealth"]).Text = "23";
+                if (!SaveTo(currentPath)) throw new InvalidOperationException("Saved Player/ForestRaider fixture could not be written.");
+                category.SelectedIndex = 0; SelectForEdit("characters", player);
+                ((TextBox)editors["MaxHealth"]).Text = "77";
+                if (!documentDirty) throw new InvalidOperationException("Unsaved edit marker was not set.");
+                playtestStepStarted = DateTime.UtcNow;
+                playtestButtons[gameScene].PerformClick();
+                if (!status.Text.Contains("미저장 편집값은 적용되지 않음", StringComparison.Ordinal) || !status.Text.Contains(currentPath, StringComparison.Ordinal)) throw new InvalidOperationException("Launch status did not distinguish the saved settings path from unsaved edits.");
+                playtestAcceptanceStep = 1;
+                break;
+            case 1:
+                if (playtestProcess is null) throw new InvalidOperationException("Godot exited before a process window could be inspected.");
+                playtestProcess.Refresh();
+                if (playtestProcess.HasExited) throw new InvalidOperationException($"Godot exited before its window appeared (code {playtestProcess.ExitCode}).");
+                if (DateTime.UtcNow - playtestStepStarted > TimeSpan.FromSeconds(30)) throw new TimeoutException("Godot process window did not become available within 30 seconds.");
+                if (playtestProcess.MainWindowHandle == IntPtr.Zero || !IsWindowVisible(playtestProcess.MainWindowHandle)) return;
+                VerifyStagedCombatValues(playtestWorkspace!);
+                VerifyPlaytestRuntimeValues(playtestWorkspace!, gameScene);
+                if (!playtestProcess.CloseMainWindow()) throw new InvalidOperationException("Godot window did not accept a close request.");
+                playtestStepStarted = DateTime.UtcNow;
+                playtestAcceptanceStep = 2;
+                break;
+            case 2:
+                if (playtestProcess is not null)
+                {
+                    if (DateTime.UtcNow - playtestStepStarted > TimeSpan.FromSeconds(15)) throw new TimeoutException("Godot did not exit after its window was closed.");
+                    return;
+                }
+                if (lastPlaytestExitCode != 0) throw new InvalidOperationException($"Game playtest exited abnormally (code {lastPlaytestExitCode?.ToString() ?? "unknown"}).");
+                if (playtestWorkspace is not null || (lastPlaytestWorkspace is not null && Directory.Exists(lastPlaytestWorkspace))) throw new IOException("Game playtest temporary project was not removed after exit.");
+                playtestButtons[arenaScene].PerformClick();
+                playtestStepStarted = DateTime.UtcNow;
+                playtestAcceptanceStep = 3;
+                break;
+            case 3:
+                if (playtestProcess is null) throw new InvalidOperationException("Godot exited before the arena window could be inspected.");
+                playtestProcess.Refresh();
+                if (playtestProcess.HasExited) throw new InvalidOperationException($"Godot exited before the arena window appeared (code {playtestProcess.ExitCode}).");
+                if (DateTime.UtcNow - playtestStepStarted > TimeSpan.FromSeconds(30)) throw new TimeoutException("Combat arena window did not become available within 30 seconds.");
+                if (playtestProcess.MainWindowHandle == IntPtr.Zero || !IsWindowVisible(playtestProcess.MainWindowHandle)) return;
+                VerifyStagedCombatValues(playtestWorkspace!);
+                VerifyPlaytestRuntimeValues(playtestWorkspace!, arenaScene);
+                if (!playtestProcess.CloseMainWindow()) throw new InvalidOperationException("Combat arena window did not accept a close request.");
+                playtestStepStarted = DateTime.UtcNow;
+                playtestAcceptanceStep = 4;
+                break;
+            case 4:
+                if (playtestProcess is not null)
+                {
+                    if (DateTime.UtcNow - playtestStepStarted > TimeSpan.FromSeconds(15)) throw new TimeoutException("Godot did not exit after its window was closed.");
+                    return;
+                }
+                if (lastPlaytestExitCode != 0) throw new InvalidOperationException($"Combat arena exited abnormally (code {lastPlaytestExitCode?.ToString() ?? "unknown"}).");
+                if (playtestWorkspace is not null || (lastPlaytestWorkspace is not null && Directory.Exists(lastPlaytestWorkspace))) throw new IOException("Temporary playtest project was not cleaned up after exit.");
+                CaptureAcceptance();
+                WritePlaytestAcceptanceReport(true, "Both WinForms launch buttons started visible Godot windows. Headless probes confirmed the saved Player and ForestRaider health values on live scene instances for both scenes; each GUI process exited with code 0 and the unsaved Player edit remained unapplied.");
+                acceptanceTimer!.Stop(); ExitCode = 0; Close();
+                break;
+        }
+    }
+
+    private static void VerifyStagedCombatValues(string workspace)
+    {
+        string path = Path.Combine(workspace, "data", "editor", "overrides.json");
+        var staged = JsonSerializer.Deserialize<OverrideDocument>(File.ReadAllText(path, Encoding.UTF8), Program.JsonOptions) ?? throw new InvalidDataException("Staged overrides are empty.");
+        Program.Validate(staged);
+        if (staged.Characters.Single(x => x.Id == "Player").MaxHealth != 11 || staged.Enemies.Single(x => x.Id == "ForestRaider").MaxHealth != 23)
+            throw new InvalidDataException("The isolated project does not contain the saved Player/ForestRaider values.");
+    }
+
+    private void VerifyPlaytestRuntimeValues(string workspace, string scene)
+    {
+        string probe = Path.Combine(acceptanceProjectRoot!, "tests", "m6j_editor_runtime_apply_probe.gd");
+        if (!File.Exists(probe)) throw new FileNotFoundException("Runtime actor verification probe is missing.", probe);
+        var start = new ProcessStartInfo { FileName = acceptanceGodot!, WorkingDirectory = workspace, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+        start.ArgumentList.Add("--headless");
+        start.ArgumentList.Add("--path"); start.ArgumentList.Add(workspace);
+        start.ArgumentList.Add("--script"); start.ArgumentList.Add(probe);
+        start.ArgumentList.Add("--"); start.ArgumentList.Add(scene); start.ArgumentList.Add("11"); start.ArgumentList.Add("23");
+        using var process = Process.Start(start) ?? throw new InvalidOperationException("Godot runtime actor verification process did not start.");
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+        if (!process.WaitForExit(30000))
+        {
+            try { process.Kill(true); process.WaitForExit(5000); } catch { }
+            throw new TimeoutException("Godot runtime actor verification timed out after 30 seconds.");
+        }
+        string stdout = stdoutTask.GetAwaiter().GetResult();
+        string stderr = stderrTask.GetAwaiter().GetResult();
+        string probeName = scene.Contains("m6i_combat_test_arena", StringComparison.Ordinal) ? "arena" : "game";
+        File.WriteAllText(Path.Combine(acceptanceDir!, probeName + "-runtime-probe.stdout.txt"), stdout, new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(acceptanceDir!, probeName + "-runtime-probe.stderr.txt"), stderr, new UTF8Encoding(false));
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException($"Saved combat values did not reach the live actors for {scene} (exit {process.ExitCode}).\n{stdout}\n{stderr}");
+    }
+
+    private void WritePlaytestAcceptanceReport(bool passed, string details)
+    {
+        var report = new { product = "BeltScrollEditor", mode = "--playtest-gui-acceptance", verificationClass = "automated_gui", passed, details, actualOsMouseInput = false, humanInputReview = "not_performed", buttonResults = new[] { new { button = "게임 전투 테스트", scene = "res://scenes/game/main.tscn" }, new { button = "전투 연습장 실행", scene = "res://scenes/review/m6i_combat_test_arena.tscn" } }, savedValues = new { PlayerMaxHealth = 11, ForestRaiderMaxHealth = 23 }, runtimeActorValuesVerified = passed, unsavedPlayerMaxHealth = 77, processExitCode = lastPlaytestExitCode, temporaryWorkspaceCleaned = playtestWorkspace is null && (lastPlaytestWorkspace is null || !Directory.Exists(lastPlaytestWorkspace)), workingDirectory = Environment.CurrentDirectory, screenshot = Path.Combine(acceptanceDir!, "gui-capture.png"), exitCode = passed ? 0 : 1 };
+        File.WriteAllText(Path.Combine(acceptanceDir!, "playtest-gui-acceptance.json"), JsonSerializer.Serialize(report, Program.JsonOptions), new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(acceptanceDir!, "exit-code.txt"), (passed ? "0" : "1") + Environment.NewLine, new UTF8Encoding(false));
     }
     private void RunRuntimeRoundtripAcceptance()
     {

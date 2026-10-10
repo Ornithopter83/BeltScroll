@@ -17,11 +17,11 @@ z_index = -1
 y_sort_enabled = true
 
 [node name="Player" parent="YSortActors" instance=ExtResource("1_player")]
-position = Vector2(690, 780)
+position = Vector2(610, 780)
 arena_bounds = Rect2(260, 722, 1400, 258)
 
 [node name="ForestRaider" parent="YSortActors" instance=ExtResource("2_raider")]
-position = Vector2(1030, 780)
+position = Vector2(1190, 780)
 arena_bounds = Rect2(160, 100, 1600, 880)
 notice_range = 1200.0
 
@@ -31,8 +31,8 @@ layer = 10
 [node name="Panel" type="PanelContainer" parent="TestHUD"]
 offset_left = 28.0
 offset_top = 24.0
-offset_right = 560.0
-offset_bottom = 394.0
+offset_right = 850.0
+offset_bottom = 510.0
 
 [node name="Margin" type="MarginContainer" parent="TestHUD/Panel"]
 theme_override_constants/margin_left = 18
@@ -45,28 +45,37 @@ theme_override_constants/separation = 7
 
 [node name="Title" type="Label" parent="TestHUD/Panel/Margin/Rows"]
 theme_override_font_sizes/font_size = 24
-text = "전투 연습장 · M6I"
+text = "전투 연습장 · M6J 반복 시험"
 
 [node name="Controls" type="Label" parent="TestHUD/Panel/Margin/Rows"]
-text = "WASD 이동  ·  J 기본 공격  ·  Num4 돌진  ·  Num5 회전\n상대 공격을 맞아 경직과 넉백도 확인하세요."
+text = "WASD 이동(좌우 + 위아래 깊이) · J 기본 공격 · 키패드 Num3 가드\n키패드 Num4 돌진 / Num5 회전 스킬 · 방향과 거리를 바꿔 판정 확인 · R 재시작"
+
+[node name="PositionStatus" type="Label" parent="TestHUD/Panel/Margin/Rows"]
+text = "방향/간격: Raider 오른쪽 · X 580px · 깊이 0px(같은 라인)"
 
 [node name="AttackStatus" type="Label" parent="TestHUD/Panel/Margin/Rows"]
-text = "기본 공격: 대기"
+text = "Player 기본 공격: 대기"
 
 [node name="SkillStatus" type="Label" parent="TestHUD/Panel/Margin/Rows"]
-text = "스킬: 대기"
+text = "스킬 활성/판정: 대기"
 
 [node name="CooldownStatus" type="Label" parent="TestHUD/Panel/Margin/Rows"]
-text = "쿨다운: Num4 0.00초 · Num5 0.00초"
+text = "쿨다운: Num4 돌진 0.00초 · Num5 회전 0.00초"
 
 [node name="HitstunStatus" type="Label" parent="TestHUD/Panel/Margin/Rows"]
-text = "플레이어 경직: 0.00초"
+text = "경직: Player 0.00초 · Raider 0.00초"
 
 [node name="HealthStatus" type="Label" parent="TestHUD/Panel/Margin/Rows"]
-text = "체력: 플레이어 5 / 5 · 레이더 3 / 3"
+text = "HP: Player 5 / 5 · Raider 3 / 3"
 
 [node name="RaiderStatus" type="Label" parent="TestHUD/Panel/Margin/Rows"]
-text = "레이더 공격: 대기"
+text = "Raider 반격: 대기"
+
+[node name="RecordStatus" type="Label" parent="TestHUD/Panel/Margin/Rows"]
+text = "시험 기록: 0회 · 성공 0 / 실패 0 · 공격·스킬 적중 0 / 시도 0 · 빗나감 0 · 최근 대기"
+
+[node name="EventStatus" type="Label" parent="TestHUD/Panel/Margin/Rows"]
+text = "최근 전투 이벤트: 전투를 시작하세요."
 
 [node name="ResetHint" type="Label" parent="TestHUD/Panel/Margin/Rows"]
-text = "R: 연습장 재시작"
+text = "R: 전투 장면 초기화 · 시험 결과와 적중 기록은 이 실행 세션 동안 유지"
