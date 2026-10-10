@@ -50,6 +50,7 @@ const CAMERA_TRAUMA := [0.12, 0.22, 0.34]
 # Keep an early combo tap alive through the longest basic attack phase. The
 # buffer is consumed only when recovery opens the next stage.
 const INPUT_BUFFER_TIME := 0.60
+const COMBO_LINK_WINDOW := 0.45
 const COMBAT_IMPACT_SCENE := preload("res://scenes/vfx/combat_impact.tscn")
 const GROUND_DUST_SCENE := preload("res://scenes/vfx/ground_dust.tscn")
 const GROUND_DUST_STEP_DISTANCE := 72.0
@@ -79,6 +80,7 @@ var attack_progress := 0.0
 var attack_phase := "idle"
 var attack_phase_remaining := 0.0
 var attack_buffer_remaining := 0.0
+var combo_link_remaining := 0.0
 var attack_elapsed := 0.0
 var hitstun_remaining := 0.0
 var hit_flash_remaining := 0.0
@@ -138,6 +140,8 @@ func _physics_process(delta: float) -> void:
 		if absf(facing_direction.x) > 0.1:
 			visual_root.scale.x = -1.0 if facing_direction.x < 0.0 else 1.0
 
+	if Input.is_action_pressed("block") and attack_phase == "combo_hold":
+		_clear_attack_combo()
 	is_blocking = Input.is_action_pressed("block") and hitstun_remaining <= 0.0 and attack_phase == "idle" and skill_phase == "idle" and not is_jumping
 	if Input.is_action_pressed("block") and skill_phase != "idle":
 		_interrupt_skill_for_guard()
@@ -267,6 +271,8 @@ func _request_attack() -> void:
 		return
 	if attack_phase == "idle":
 		_begin_attack(1)
+	elif attack_phase == "combo_hold" and attack_stage < COMBO_COUNT:
+		_begin_attack(attack_stage + 1)
 	else:
 		attack_buffer_remaining = INPUT_BUFFER_TIME
 
@@ -277,6 +283,7 @@ func _begin_attack(stage: int) -> void:
 	attack_phase = "startup"
 	attack_phase_remaining = STARTUP[attack_stage - 1]
 	attack_elapsed = 0.0
+	combo_link_remaining = 0.0
 	attack_progress = 0.0
 	_attack_origin = global_position
 	_hit_targets.clear()
@@ -288,6 +295,13 @@ func _begin_attack(stage: int) -> void:
 func _update_attack(delta: float) -> void:
 	if attack_phase == "idle":
 		attack_flash.visible = false
+		return
+	if attack_phase == "combo_hold":
+		_set_all_basic_hitboxes(false)
+		combo_link_remaining = maxf(0.0, combo_link_remaining - delta)
+		attack_phase_remaining = combo_link_remaining
+		if combo_link_remaining <= 0.0:
+			_clear_attack_combo()
 		return
 	var remaining_delta := delta
 	while remaining_delta > 0.0 and attack_phase != "idle":
@@ -312,16 +326,33 @@ func _update_attack(delta: float) -> void:
 				attack_phase = "recovery"
 				attack_phase_remaining = RECOVERY[stage_index]
 			"recovery":
-				_set_attack_stage_visual(0)
+				_set_all_basic_hitboxes(false)
 				if attack_buffer_remaining > 0.0 and attack_stage < COMBO_COUNT:
 					attack_buffer_remaining = 0.0
 					_begin_attack(attack_stage + 1)
+				elif attack_stage < COMBO_COUNT:
+					attack_phase = "combo_hold"
+					combo_link_remaining = COMBO_LINK_WINDOW
+					attack_phase_remaining = combo_link_remaining
+					attack_progress = 1.0
+					_set_attack_stage_visual(attack_stage)
 				else:
-					attack_phase = "idle"
-					attack_stage = 0
-					attack_progress = 0.0
-					attack_buffer_remaining = 0.0
-					attack_flash.visible = false
+					_clear_attack_combo()
+
+func _set_all_basic_hitboxes(enabled: bool) -> void:
+	for index in range(1, COMBO_COUNT + 1):
+		_set_stage_hitbox(index, enabled and index == attack_stage)
+
+func _clear_attack_combo() -> void:
+	_set_all_basic_hitboxes(false)
+	attack_phase = "idle"
+	attack_stage = 0
+	attack_progress = 0.0
+	attack_phase_remaining = 0.0
+	attack_buffer_remaining = 0.0
+	combo_link_remaining = 0.0
+	attack_elapsed = 0.0
+	_set_attack_stage_visual(0)
 
 func _set_stage_hitbox(stage: int, enabled: bool) -> void:
 	for index in range(1, COMBO_COUNT + 1):
@@ -336,8 +367,10 @@ func _request_skill(requested_skill_id: int) -> void:
 	var index := requested_skill_id - 1
 	if is_ko or hitstun_remaining > 0.0 or is_blocking or Input.is_action_pressed("block") or is_jumping:
 		return
-	if skill_phase != "idle" or attack_phase != "idle" or skill_cooldowns[index] > 0.0:
+	if skill_phase != "idle" or (attack_phase != "idle" and attack_phase != "combo_hold") or skill_cooldowns[index] > 0.0:
 		return
+	if attack_phase == "combo_hold":
+		_clear_attack_combo()
 	skill_id = requested_skill_id
 	skill_phase = "startup"
 	skill_phase_remaining = SKILL_STARTUP[index]
@@ -561,13 +594,7 @@ func receive_hit(hit: Dictionary) -> void:
 	velocity = direction * incoming_knockback
 	hitstun_remaining = maxf(hitstun_remaining, incoming_hitstun)
 	is_blocking = false
-	attack_phase = "idle"
-	attack_stage = 0
-	attack_progress = 0.0
-	attack_buffer_remaining = 0.0
-	for index in range(1, COMBO_COUNT + 1):
-		_set_stage_hitbox(index, false)
-	_set_attack_stage_visual(0)
+	_clear_attack_combo()
 	hit_flash_remaining = maxf(hit_flash_remaining, HIT_FLASH_DURATION)
 	player_art.modulate = HIT_FLASH_COLOR
 	_add_camera_trauma(0.14 + int(hit["attack_stage"]) * 0.04)
@@ -586,16 +613,8 @@ func _enter_ko() -> void:
 	jump_vertical_velocity = 0.0
 	jump_height_offset = 0.0
 	is_jumping = false
-	attack_phase = "idle"
+	_clear_attack_combo()
 	_cancel_skill()
-	attack_stage = 0
-	attack_progress = 0.0
-	attack_phase_remaining = 0.0
-	attack_buffer_remaining = 0.0
-	attack_elapsed = 0.0
-	for index in range(1, COMBO_COUNT + 1):
-		_set_stage_hitbox(index, false)
-	_set_attack_stage_visual(0)
 
 func _update_hit_flash(delta: float) -> void:
 	if is_ko:

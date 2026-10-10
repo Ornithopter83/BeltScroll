@@ -213,6 +213,19 @@ func set_timed_pose(action: String, phase: String, phase_elapsed: float, phase_d
 	_current_registered_frame_effective_duration = float(frames[frame_index].get("duration", 0.0)) * (1.0 if loop else phase_duration / maxf(total_duration, 0.001))
 	return true
 
+## Pins a registered phase to its final reviewed frame. Used by combo_link hold
+## so the contact drawing stays visible after the active damage window closes.
+func hold_phase_end_pose(action: String, phase: String, transition_duration := 0.0) -> bool:
+	var frames: Array = _registered_frames.get(_pose_key(action, phase), [])
+	if frames.is_empty():
+		return false
+	var duration := 0.0
+	for frame in frames:
+		duration += float(frame.get("duration", 0.0))
+	if duration <= 0.0:
+		return false
+	return set_timed_pose(action, phase, duration, duration, transition_duration, false)
+
 func get_registered_frame_count(action: String, phase: String) -> int:
 	var key := _pose_key(action, phase)
 	if not _registered_frames.has(key):

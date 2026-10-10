@@ -1,9 +1,10 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/player_controller.gd" id="1_controller"]
 [ext_resource type="Texture2D" path="res://assets/art/player/elven_fighter_reference_v8_clean_candidate_1254x1254.png" id="2_player_art"]
 [ext_resource type="Script" path="res://scripts/player/player_visual_animator.gd" id="3_visual_animator"]
 [ext_resource type="Script" path="res://scripts/player/player_pose_blender.gd" id="4_pose_blender"]
+[ext_resource type="Script" path="res://scripts/player/player_walk_motion.gd" id="5_walk_motion"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_body"]
 radius = 16.0
@@ -54,6 +55,9 @@ crossfade_duration = 0.06
 
 [node name="VisualAnimator" type="Node" parent="."]
 script = ExtResource("3_visual_animator")
+
+[node name="WalkMotion" type="Node2D" parent="."]
+script = ExtResource("5_walk_motion")
 
 [node name="AttackFlash" type="Polygon2D" parent="VisualRoot"]
 visible = false

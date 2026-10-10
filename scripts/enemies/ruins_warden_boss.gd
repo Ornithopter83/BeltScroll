@@ -152,14 +152,19 @@ func _begin_attack(kind: String) -> void:
 
 func _check_attack_targets() -> void:
 	for target in attack_area.get_overlapping_bodies():
-		_apply_attack_to(target)
+		if _is_target_in_attack_depth(target):
+			_apply_attack_to(target)
 	for target in attack_area.get_overlapping_areas():
 		if target is Area2D and target.get_parent() is CharacterBody2D:
-			_apply_attack_to(target.get_parent())
-	var player := _find_player()
-	if player != null and attack_area.global_position.distance_to(player.global_position) <= (125.0 if attack_kind == SLAM else 112.0):
-		if absf(player.global_position.y - global_position.y) <= (105.0 if attack_kind == SLAM else 66.0):
-			_apply_attack_to(player)
+			if _is_target_in_attack_depth(target.get_parent()):
+				_apply_attack_to(target.get_parent())
+
+func _is_target_in_attack_depth(target: Node) -> bool:
+	var target_2d := target as Node2D
+	if target_2d == null:
+		return false
+	var max_depth := 105.0 if attack_kind == SLAM else 66.0
+	return absf(target_2d.global_position.y - global_position.y) <= max_depth
 
 func _apply_attack_to(target: Node) -> void:
 	if target == self or not target.is_in_group("hit_receivers") or not target.has_method("receive_hit"):

@@ -387,7 +387,8 @@ func is_current_pose_temporary() -> bool:
 		return not _approved_pose_is_displayed("hit", "reaction")
 	if _animation_state.begins_with("attack") and pose_blender != null and is_pose_blender_dominant():
 		var stage := int(player.get("attack_stage"))
-		var phase := "contact" if str(player.get("attack_phase")) == "active" else str(player.get("attack_phase"))
+		var raw_phase := str(player.get("attack_phase"))
+		var phase := "contact" if raw_phase in ["active", "combo_hold"] else raw_phase
 		var expected_key := "attack%d_%s" % [stage, phase]
 		if pose_blender.get_current_pose_key() == expected_key and pose_blender.get_current_frame_status().begins_with("approved"):
 			return false
@@ -424,8 +425,8 @@ func _resolve_animation_state(jumping: bool) -> String:
 		return "skill%d_%s" % [skill_id, "contact" if skill_phase == "active" else skill_phase]
 	var phase := str(player.get("attack_phase"))
 	var stage := clampi(int(player.get("attack_stage")), 1, 3)
-	if phase in ["startup", "active", "recovery"]:
-		return "attack%d_%s" % [stage, "contact" if phase == "active" else phase]
+	if phase in ["startup", "active", "recovery", "combo_hold"]:
+		return "attack%d_%s" % [stage, "contact" if phase in ["active", "combo_hold"] else phase]
 	if jumping:
 		return "jump_rise" if float(player.get("jump_vertical_velocity")) < -1.0 else "jump_fall"
 	if _landing_remaining > 0.0:
@@ -445,8 +446,12 @@ func _update_animation_clock(next_state: String, delta: float) -> void:
 		# The combat controller owns this timer. Deriving elapsed time from its
 		# remaining value keeps pose keys and the real hitbox window in lockstep,
 		# including hit-stop and variable render frame rates.
+		var phase := str(player.get("attack_phase"))
 		var phase_remaining := maxf(0.0, float(player.get("attack_phase_remaining")))
-		_state_elapsed = clampf(duration - phase_remaining, 0.0, duration)
+		if phase == "combo_hold":
+			_state_elapsed = duration
+		else:
+			_state_elapsed = clampf(duration - phase_remaining, 0.0, duration)
 	elif _animation_state.begins_with("skill"):
 		# The skill controller owns this timer; use it directly so visual frames
 		# stay aligned with startup, active hitbox, and recovery transitions.
@@ -475,13 +480,13 @@ func _update_approved_animation_pose(turning := false) -> void:
 	var stage := int(player.get("attack_stage"))
 	var attack_phase := str(player.get("attack_phase"))
 	var skill_phase := str(player.get("skill_phase"))
-	if _animation_state.begins_with("attack") and stage in [1, 2, 3] and attack_phase in ["startup", "active", "recovery"]:
+	if _animation_state.begins_with("attack") and stage in [1, 2, 3] and attack_phase in ["startup", "active", "recovery", "combo_hold"]:
 		action = "attack%d" % stage
-		pose_phase = "contact" if attack_phase == "active" else attack_phase
+		pose_phase = "contact" if attack_phase in ["active", "combo_hold"] else attack_phase
 		if stage == 2 and attack_phase == "active" and _attack_phase_progress(stage - 1, attack_phase, float(player.get("attack_phase_remaining"))) < 0.42 and pose_blender.get_registered_frame_count(action, "inbetween") > 0:
 			pose_phase = "inbetween"
 		phase_duration = _attack_phase_duration(stage - 1, attack_phase)
-		phase_elapsed = maxf(0.0, phase_duration - float(player.get("attack_phase_remaining")))
+		phase_elapsed = phase_duration if attack_phase == "combo_hold" else maxf(0.0, phase_duration - float(player.get("attack_phase_remaining")))
 		if pose_phase == "startup":
 			fade_duration = [0.060, 0.105, 0.115][stage - 1]
 		elif pose_phase == "contact":
@@ -524,7 +529,10 @@ func _update_approved_animation_pose(turning := false) -> void:
 		_set_pose_blender_target(0.0)
 		return
 	pose_blender.sync_from_art(art)
-	pose_blender.set_timed_pose(action, pose_phase, phase_elapsed, maxf(phase_duration, 0.001), fade_duration, looping)
+	if attack_phase == "combo_hold" and action.begins_with("attack") and pose_phase == "contact":
+		pose_blender.hold_phase_end_pose(action, pose_phase, 0.0)
+	else:
+		pose_blender.set_timed_pose(action, pose_phase, phase_elapsed, maxf(phase_duration, 0.001), fade_duration, looping)
 	_set_pose_blender_target(1.0)
 
 func _set_pose_blender_target(weight: float) -> void:
@@ -709,6 +717,9 @@ func _apply_attack_pose(facing_sign: float) -> void:
 			var return_blend := _ease_in_out(recovery_progress)
 			rotation_offset = -facing_sign * [0.14, 0.24, 0.38][index] * (1.0 - return_blend)
 			scale_factor = Vector2(1.0 + [0.015, 0.025, 0.035][index], 1.0 - [0.012, 0.02, 0.028][index]).lerp(Vector2.ONE, return_blend)
+		"combo_hold":
+			rotation_offset = -facing_sign * [0.14, 0.24, 0.38][index]
+			scale_factor = Vector2(1.0 + [0.015, 0.025, 0.035][index], 1.0 - [0.012, 0.02, 0.028][index])
 	var gait_weight := 0.0
 	if player.velocity.length() > 10.0:
 		match phase:
@@ -733,7 +744,7 @@ func _attack_phase_duration(index: int, phase: String) -> float:
 	# Gameplay owns these phase boundaries. Registered frame durations are mapped
 	# across this live window, so adding reviewed art cannot shift startup, the
 	# active hitbox, or recovery away from the controller's timers.
-	return ATTACK_STARTUP[index] if phase == "startup" else (ATTACK_ACTIVE[index] if phase == "active" else ATTACK_RECOVERY[index])
+	return ATTACK_STARTUP[index] if phase == "startup" else (ATTACK_ACTIVE[index] if phase in ["active", "combo_hold"] else ATTACK_RECOVERY[index])
 
 func _ease_in_out(value: float) -> float:
 	var t := clampf(value, 0.0, 1.0)
