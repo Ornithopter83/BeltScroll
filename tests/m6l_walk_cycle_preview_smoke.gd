@@ -38,7 +38,7 @@ func _run() -> void:
 		_check(source.contains("not lower.contains(\"_safe\")"), "safe-matte derivatives do not crowd the stride review sequence", failures)
 		_check(source.contains("KEY_SPACE") and source.contains("KEY_LEFT") and source.contains("KEY_RIGHT"), "preview supports pause, resume, and manual frame stepping", failures)
 		_check(source.contains("_detect_duplicate_drawings") and source.contains("FAIL · 동일 원화 중복"), "identical stride drawings produce a visible FAIL", failures)
-		_check(source.contains("same_run_lead") and source.contains("FAIL · 같은 전진 보폭 phase 반복"), "visually repeated run-stride phase is judged FAIL", failures)
+		_check(source.contains("same_run_lead") and source.contains("FAIL · 같은 전진 보폭 phase 반복") and source.contains("_stride_phase_failures"), "visually repeated run-stride phase is judged and shown as FAIL", failures)
 		_check(source.contains("manifest") and source.contains("allowlist") and source.contains("Player 연결 없음"), "preview declares its isolated integration boundary", failures)
 		_check(not source.contains("RESOURCE 보폭 후보") and not source.contains("has_resource_candidate"), "acquired opposite stride is not misreported as a missing RESOURCE", failures)
 	if FileAccess.file_exists(OPPOSITE_PATH) and preview_script != null:
@@ -56,12 +56,29 @@ func _run() -> void:
 			safe_derivative_found = safe_derivative_found or str(candidate.get("path", "")).to_lower().contains("_safe")
 		_check(not safe_derivative_found, "review sequence stays on stride drawings rather than safe-matte derivatives", failures)
 		var opposite_loaded := false
+		var loaded_texture_count := 0
 		for candidate in candidates:
+			if not bool(candidate.get("missing", true)) and candidate.get("texture") is Texture2D:
+				loaded_texture_count += 1
 			if str(candidate.get("path", "")) == OPPOSITE_PATH:
 				opposite_loaded = not bool(candidate.get("missing", true))
+		_check(loaded_texture_count >= LEGACY_FILES.size() + 1, "real candidate PNGs load as drawable textures", failures)
 		_check(opposite_loaded, "acquired opposite stride is loaded as an independent review frame", failures)
+		var phase_failures: Array = preview.get("_stride_phase_failures")
+		var phase_duplicate_count := 0
+		for candidate in candidates:
+			if bool(candidate.get("phase_duplicate", false)):
+				phase_duplicate_count += 1
+		_check(phase_duplicate_count >= 2 and not phase_failures.is_empty() and str(phase_failures[0]).contains("같은 전진 보폭 phase 반복"), "runtime duplicate phase markers feed the visible FAIL summary", failures)
 		preview.call("_unhandled_key_input", _key_event(KEY_SPACE))
 		_check(not bool(preview.get("_playing")), "Space pauses the continuous preview", failures)
+		preview.call("_unhandled_key_input", _key_event(KEY_SPACE))
+		_check(bool(preview.get("_playing")), "Space resumes the continuous preview", failures)
+		var advancing_index := int(preview.get("_frame_index"))
+		preview.call("_process", 0.19)
+		_check(int(preview.get("_frame_index")) == posmod(advancing_index + 1, candidates.size()), "continuous playback advances a frame after one cadence", failures)
+		preview.call("_unhandled_key_input", _key_event(KEY_SPACE))
+		_check(not bool(preview.get("_playing")), "Space pauses again before manual stepping", failures)
 		var paused_index := int(preview.get("_frame_index"))
 		preview.call("_unhandled_key_input", _key_event(KEY_RIGHT))
 		_check(not bool(preview.get("_playing")) and int(preview.get("_frame_index")) == posmod(paused_index + 1, candidates.size()), "Right advances one frame while paused", failures)

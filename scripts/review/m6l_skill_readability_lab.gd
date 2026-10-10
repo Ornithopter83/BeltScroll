@@ -19,9 +19,14 @@ const GOLD := Color("#ffd68a")
 var _players: Array[CharacterBody2D] = []
 var _dummies: Array[CharacterBody2D] = []
 var _status_labels: Array[Label] = []
+var _skill_name_labels: Array[Control] = []
 var _result_label: Label
 var _review_overlay: SkillLabOverlay
 var _last_action := "준비 · Num4와 Num5를 차례로 또는 함께 재생하세요."
+var _paused := false
+var _effects_visible := true
+var _names_visible := true
+var _hitbox_outline_visible := true
 
 func _ready() -> void:
 	get_viewport().size = Vector2i(1920, 1080)
@@ -68,9 +73,10 @@ func _build_hud() -> void:
 	add_child(layer)
 	var title := _make_label(layer, Vector2(32.0, 18.0), Vector2(1856.0, 42.0), "M6L · NUM4 돌진 / NUM5 제자리 회전 — 기술 가독성 비교장", 27, Color.WHITE)
 	title.add_theme_color_override("font_shadow_color", Color.BLACK)
-	_make_label(layer, Vector2(34.0, 64.0), Vector2(1848.0, 48.0), "Num4 4 / 키패드4 · Num5 5 / 키패드5 · Space 함께 재생 · R 초기화 · X 취소 · H 피격 중단 · K KO · 각 Player의 실기술 상태와 실제 히트박스를 관찰", 17, Color("#d4e2e8"))
-	_make_label(layer, Vector2(38.0, 116.0), Vector2(880.0, 36.0), "NUM4 · 직선 돌진   |   전진 거리 · 주먹 방향 · 직선 Skill1Hitbox", 21, CYAN)
-	_make_label(layer, Vector2(998.0, 116.0), Vector2(880.0, 36.0), "NUM5 · 제자리 회전   |   지지축 · 상체 비틀기 · 원형 Skill2Hitbox", 21, PINK)
+	_skill_name_labels.append(title)
+	_make_label(layer, Vector2(34.0, 64.0), Vector2(1848.0, 48.0), "4/5 또는 키패드4/5 재생 · Space 함께 재생 · P 일시정지/재개 · R 초기화 · X 취소 · E 이펙트 · N 기술명 · B 판정 외곽선 · 1 거리 · 2 몸통 방향 · 3 주먹 경로 · 0 회전축", 16, Color("#d4e2e8"))
+	_skill_name_labels.append(_make_label(layer, Vector2(38.0, 116.0), Vector2(880.0, 36.0), "NUM4 · 직선 돌진   |   전진 거리 · 주먹 방향 · 직선 Skill1Hitbox", 21, CYAN))
+	_skill_name_labels.append(_make_label(layer, Vector2(998.0, 116.0), Vector2(880.0, 36.0), "NUM5 · 제자리 회전   |   지지축 · 상체 비틀기 · 원형 Skill2Hitbox", 21, PINK))
 	_status_labels.append(_make_label(layer, Vector2(40.0, 160.0), Vector2(860.0, 30.0), "Num4 대기", 17, Color.WHITE))
 	_status_labels.append(_make_label(layer, Vector2(1000.0, 160.0), Vector2(860.0, 30.0), "Num5 대기", 17, Color.WHITE))
 	_result_label = _make_label(layer, Vector2(36.0, 874.0), Vector2(1844.0, 30.0), _last_action, 17, GOLD)
@@ -100,6 +106,8 @@ func _build_hud() -> void:
 		var candidate_name := "Num4 돌진 접촉 후보" if index == 0 else "Num5 회전 백핸드 후보"
 		caption.text = "참고 · %s\n%s" % [candidate_name, ART_CANDIDATES[index].get_file()]
 		panel.add_child(caption)
+		_skill_name_labels.append(caption)
+	_update_visibility()
 
 func _make_label(parent: Node, at: Vector2, size: Vector2, value: String, font_size: int, color: Color) -> Label:
 	var label := Label.new()
@@ -130,7 +138,49 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		_interrupt_players(false)
 	elif code == KEY_K:
 		_interrupt_players(true)
+	elif code == KEY_P:
+		_set_paused(not _paused)
+	elif code == KEY_E:
+		_effects_visible = not _effects_visible
+		_update_visibility()
+		_last_action = "이펙트 %s" % ("표시" if _effects_visible else "숨김")
+	elif code == KEY_N:
+		_names_visible = not _names_visible
+		_update_visibility()
+	elif code == KEY_B:
+		_hitbox_outline_visible = not _hitbox_outline_visible
+		_update_visibility()
+	elif code in [KEY_1, KEY_2, KEY_3, KEY_0]:
+		_review_overlay.toggle_guide(code)
 	get_viewport().set_input_as_handled()
+	_refresh_readout()
+
+func _set_paused(paused: bool) -> void:
+	_paused = paused
+	get_tree().paused = paused
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	_last_action = "재생 일시정지" if paused else "재생 재개"
+	_refresh_readout()
+
+func _update_visibility() -> void:
+	for player in _players:
+		for effect_name in ["Skill1DashVisual", "Skill2SpinVisual"]:
+			var effect := player.get_node_or_null(effect_name) as CanvasItem
+			if effect != null:
+				# The production VFX updates its own visible flag every frame; alpha
+				# modulation hides it without fighting that runtime state.
+				effect.modulate.a = 1.0 if _effects_visible else 0.0
+	for label in _skill_name_labels:
+		label.visible = _names_visible
+	_update_impact_visibility()
+	if _review_overlay != null:
+		_review_overlay.hitbox_outline_visible = _hitbox_outline_visible
+		_review_overlay.queue_redraw()
+
+func _update_impact_visibility() -> void:
+	for impact in get_tree().get_nodes_in_group("combat_impacts"):
+		if impact is CanvasItem:
+			(impact as CanvasItem).modulate.a = 1.0 if _effects_visible else 0.0
 
 func _play_skill(index: int, skill_id: int) -> void:
 	var player := _players[index]
@@ -147,6 +197,8 @@ func _play_skill(index: int, skill_id: int) -> void:
 	_refresh_readout()
 
 func _physics_process(delta: float) -> void:
+	if _paused:
+		return
 	for player in _players:
 		var cooldowns: Array = player.get("skill_cooldowns")
 		for index in range(cooldowns.size()):
@@ -160,6 +212,7 @@ func _physics_process(delta: float) -> void:
 		player.call("_update_skill", delta)
 		player.call("_update_hit_flash", delta)
 		player.call("_update_camera_trauma", delta)
+	_update_impact_visibility()
 	_refresh_readout()
 	_review_overlay.queue_redraw()
 
@@ -180,6 +233,8 @@ func _interrupt_players(force_ko: bool) -> void:
 	_refresh_readout()
 
 func _reset_lab() -> void:
+	if _paused:
+		_set_paused(false)
 	for index in range(_players.size()):
 		var player := _players[index]
 		player.call("_cancel_skill")
@@ -242,12 +297,27 @@ class SkillLabOverlay:
 	extends Node2D
 	var lab: Node2D
 	var _alpha_foot_y: Array[float] = []
+	var _start_positions: Array[Vector2] = []
+	var guide_distance_visible := true
+	var guide_torso_visible := true
+	var guide_fist_visible := true
+	var guide_pivot_visible := true
+	var hitbox_outline_visible := true
 	func _ready() -> void:
 		var players: Array = lab.call("get_review_players")
 		for player: CharacterBody2D in players:
 			var art := player.get_node("VisualRoot/PlayerArt") as Sprite2D
 			var bounds := art.texture.get_image().get_used_rect()
 			_alpha_foot_y.append(float(bounds.end.y) - float(art.texture.get_height()) * 0.5)
+			_start_positions.append(player.global_position)
+
+	func toggle_guide(key: int) -> void:
+		match key:
+			KEY_1: guide_distance_visible = not guide_distance_visible
+			KEY_2: guide_torso_visible = not guide_torso_visible
+			KEY_3: guide_fist_visible = not guide_fist_visible
+			KEY_0: guide_pivot_visible = not guide_pivot_visible
+		queue_redraw()
 
 	func _draw() -> void:
 		if lab == null:
@@ -261,24 +331,38 @@ class SkillLabOverlay:
 			var art := player.get_node("VisualRoot/PlayerArt") as Sprite2D
 			var foot := art.to_global(Vector2(0.0, _alpha_foot_y[index]))
 			var shoulder := art.to_global(Vector2(0.0, -55.0))
-			draw_line(to_local(anchor + Vector2(0.0, -208.0)), to_local(anchor), Color("#ffd68a", 0.52), 1.4, true)
-			draw_line(to_local(anchor + Vector2(-40.0, 0.0)), to_local(anchor + Vector2(40.0, 0.0)), Color("#ffd68a", 0.9), 2.0, true)
-			draw_line(to_local(anchor + Vector2(0.0, -16.0)), to_local(anchor + Vector2(0.0, 18.0)), Color("#ffd68a", 0.9), 2.0, true)
-			draw_circle(to_local(anchor), 5.0, Color("#ffd68a"))
-			draw_circle(to_local(foot), 6.0, Color.WHITE)
-			draw_line(to_local(anchor + facing * 24.0 + Vector2(0.0, -208.0)), to_local(anchor + facing * 132.0 + Vector2(0.0, -208.0)), Color(color, 0.58), 2.0, true)
-			draw_circle(to_local(shoulder), 5.0, Color("#ffd68a", 0.95))
+			if guide_pivot_visible:
+				draw_line(to_local(anchor + Vector2(0.0, -208.0)), to_local(anchor), Color("#ffd68a", 0.52), 1.4, true)
+				draw_line(to_local(anchor + Vector2(-40.0, 0.0)), to_local(anchor + Vector2(40.0, 0.0)), Color("#ffd68a", 0.9), 2.0, true)
+				draw_line(to_local(anchor + Vector2(0.0, -16.0)), to_local(anchor + Vector2(0.0, 18.0)), Color("#ffd68a", 0.9), 2.0, true)
+				draw_circle(to_local(anchor), 5.0, Color("#ffd68a"))
+			if guide_pivot_visible:
+				draw_circle(to_local(foot), 6.0, Color.WHITE)
+			if guide_distance_visible:
+				var origin := _start_positions[index]
+				draw_line(to_local(origin), to_local(anchor), Color(color, 0.72), 2.0, true)
+				draw_string(ThemeDB.fallback_font, to_local((origin + anchor) * 0.5 + Vector2(0.0, -14.0)), "전진 %.0f px" % absf(anchor.x - origin.x), HORIZONTAL_ALIGNMENT_CENTER, -1, 14, color)
+			if guide_torso_visible:
+				var torso := Vector2.UP.rotated(art.rotation) * 38.0
+				draw_line(to_local(shoulder - torso), to_local(shoulder + torso), Color(GOLD, 0.95), 3.0, true)
+				draw_circle(to_local(shoulder), 5.0, Color("#ffd68a", 0.95))
+				draw_line(to_local(anchor + facing * 24.0 + Vector2(0.0, -208.0)), to_local(anchor + facing * 132.0 + Vector2(0.0, -208.0)), Color(color, 0.58), 2.0, true)
 			var skill_id := index + 1
 			var hitbox := player.get_node("Hitboxes/Skill%dHitbox" % skill_id) as Area2D
-			_draw_hitbox(hitbox, color, hitbox.monitoring)
-			if index == 0:
+			if hitbox_outline_visible:
+				_draw_hitbox(hitbox, color, hitbox.monitoring)
+			if guide_fist_visible and index == 0:
 				var fist_from := anchor + Vector2(34.0, -218.0)
 				var fist_to := anchor + Vector2(176.0, -218.0)
 				draw_line(to_local(fist_from), to_local(fist_to), Color("#72e8ee", 0.9), 4.0, true)
 				draw_circle(to_local(fist_to), 8.0, Color.WHITE)
-			else:
-				draw_circle(to_local(anchor + Vector2(0.0, -8.0)), 8.0, Color("#ff82bf", 0.95))
-				draw_line(to_local(anchor + Vector2(-35.0, -8.0)), to_local(anchor + Vector2(35.0, -8.0)), Color("#ffd68a", 0.8), 2.0, true)
+			elif guide_fist_visible:
+				# Small arc is a body/fist motion reference only; the actual circular
+				# Skill2Hitbox outline has its own independent visibility control.
+				var fist_center := anchor + Vector2(0.0, -142.0)
+				draw_arc(to_local(fist_center), 34.0, -0.50, 0.50, 20, Color(PINK, 0.9), 3.0, true)
+				var fist_tip := fist_center + Vector2(34.0, 0.0).rotated(art.rotation)
+				draw_circle(to_local(fist_tip), 6.0, Color.WHITE)
 
 	func _draw_hitbox(area: Area2D, color: Color, active: bool) -> void:
 		var collision := area.get_node_or_null("CollisionShape2D") as CollisionShape2D
