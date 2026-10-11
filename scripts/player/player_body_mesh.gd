@@ -106,49 +106,109 @@ func get_walk_pelvis_lift() -> float:
 func map_point(pixel: Vector2) -> Vector2:
 	var result := pixel
 	if _state == "walk":
-		# Independent ankle and knee movement; the support half is stationary in
-		# local combat space while the other leg lifts and passes it.
+		# Keep the support shoe fixed. The free leg swings from the hip and bends
+		# at the knee; a broad, smooth falloff keeps the 64x64 skin from creasing.
 		var left_support := _stride < PI
-		var passing := sin(fposmod(_stride, PI))
-		var leg := smoothstep(640.0, 1030.0, pixel.y)
-		var left_weight := 1.0 - smoothstep(610.0, 710.0, pixel.x)
-		var swing_weight := 1.0 - left_weight if left_support else left_weight
-		result += _support_offset * leg * (1.0 - swing_weight)
-		result.x += (-1.0 if left_support else 1.0) * passing * 225.0 * leg * swing_weight
-		result.y -= passing * 90.0 * leg * swing_weight
-		# Pelvis and shoulders rise while the planted ankle remains at its anchor.
-		result.y -= passing * 18.0 * (1.0 - leg)
+		var cycle := fposmod(_stride, TAU)
+		var swing := sin(cycle)
+		var lift := maxf(0.0, swing)
+		var leg_weight := smoothstep(640.0, 760.0, pixel.y)
+		var upper_body_weight := 1.0 - smoothstep(570.0, 735.0, pixel.y)
+		var swing_side_weight := _smooth_capsule_weight(pixel, Vector2(500.0, 840.0), Vector2(395.0, 1040.0), 150.0)
+		var opposite_side_weight := _smooth_capsule_weight(pixel, Vector2(790.0, 850.0), Vector2(945.0, 1090.0), 155.0)
+		var free_weight := (opposite_side_weight if left_support else swing_side_weight) * leg_weight
+		var foot_sign := -1.0 if left_support else 1.0
+		var hip := Vector2(760.0, 700.0) if left_support else Vector2(650.0, 700.0)
+		var knee := Vector2(900.0, 910.0) if left_support else Vector2(330.0, 900.0)
+		var ankle := Vector2(945.0, 1090.0) if left_support else Vector2(395.0, 1040.0)
+		var hip_turn := swing * 0.20
+		var knee_turn := lift * 0.26
+		var leg_pose := _rotate_delta(pixel, hip, hip_turn) * _segment_weight(pixel, hip, knee, 135.0)
+		leg_pose += _rotate_delta(pixel, knee, knee_turn) * _segment_weight(pixel, knee, ankle, 125.0)
+		result += leg_pose * free_weight
+		result += Vector2(foot_sign * 28.0 * swing, -42.0 * lift) * free_weight
+		# The other leg counter-swings from the hip while retaining a quiet ankle.
+		var support_hip := Vector2(760.0, 700.0) if left_support else Vector2(650.0, 700.0)
+		var support_knee := Vector2(900.0, 910.0) if left_support else Vector2(330.0, 900.0)
+		var support_weight := (1.0 - free_weight) * leg_weight
+		result += _rotate_delta(pixel, support_hip, -swing * 0.035) * _segment_weight(pixel, support_hip, support_knee, 145.0) * support_weight
+		# Anchoring correction fades out above the ankle, avoiding a stretched shin.
+		result += _support_offset * smoothstep(850.0, 1080.0, pixel.y) * (1.0 - free_weight)
+		# Hip bounce, shoulder counter-roll, and head/hair lag read at game scale.
+		result.y -= 12.0 * absf(swing) * upper_body_weight
+		var waist := Vector2(650.0, 650.0)
+		var torso_weight := smoothstep(430.0, 510.0, pixel.y) * (1.0 - smoothstep(690.0, 775.0, pixel.y))
+		result += _rotate_delta(pixel, waist, -swing * 0.018) * torso_weight
+		# Arms counter-swing across the shoulder line to balance the free leg.
+		var lead_shoulder := Vector2(720.0, 410.0)
+		var guard_shoulder := Vector2(555.0, 440.0)
+		result += _rotate_delta(pixel, lead_shoulder, -swing * 0.035) * _smooth_capsule_weight(pixel, lead_shoulder, Vector2(1035.0, 395.0), 105.0)
+		result += _rotate_delta(pixel, guard_shoulder, swing * 0.045) * _smooth_capsule_weight(pixel, guard_shoulder, Vector2(490.0, 505.0), 100.0)
+		var head_weight := 1.0 - smoothstep(220.0, 370.0, pixel.y)
+		var head_pivot := Vector2(660.0, 325.0)
+		result += _rotate_delta(pixel, head_pivot, -swing * 0.025) * head_weight
+		# Ponytail mass sits behind the skull; it trails by a small delayed arc.
+		var pony_weight := _smooth_capsule_weight(pixel, Vector2(555.0, 215.0), Vector2(390.0, 300.0), 105.0)
+		result += Vector2(-swing * 11.0, swing * 7.0) * pony_weight
 	elif _state.begins_with("attack"):
-		var extension := _progress if _phase == "startup" else (0.65 if _phase == "combo_hold" else (1.0 if _phase == "active" else 1.0 - 0.35 * _progress))
+		var extension := _progress if _phase == "startup" else (0.78 if _phase == "combo_hold" else (1.0 if _phase == "active" else 1.0 - 0.28 * _progress))
+		var torso_weight := smoothstep(430.0, 500.0, pixel.y) * (1.0 - smoothstep(625.0, 710.0, pixel.y)) * smoothstep(470.0, 560.0, pixel.x) * (1.0 - smoothstep(820.0, 930.0, pixel.x))
+		var waist := Vector2(650.0, 610.0)
+		var lean := 0.0
 		if _stage == 1:
-			var weight := smoothstep(790.0, 1080.0, pixel.x) * (1.0 - smoothstep(490.0, 570.0, pixel.y))
-			var contact_shift := Vector2(-95.0 + (25.0 * _progress if _phase == "active" else 25.0), 55.0)
-			result += (contact_shift + Vector2(-160.0, 35.0) * (1.0 - extension)) * weight
+			# Straight punch: shoulder advances first, elbow opens on the hit.
+			var shoulder := Vector2(720.0, 410.0)
+			var elbow := Vector2(875.0, 452.0)
+			var arm_weight := _smooth_capsule_weight(pixel, shoulder, Vector2(1040.0, 395.0), 122.0)
+			var cock := (1.0 - extension) * 0.075
+			var drive := extension * (0.045 if _phase == "active" else 0.035)
+			result += _rotate_delta(pixel, shoulder, cock - drive) * arm_weight
+			result += _rotate_delta(pixel, elbow, -0.045 * (1.0 - extension) + 0.035 * extension) * _smooth_capsule_weight(pixel, elbow, Vector2(1040.0, 395.0), 120.0)
+			result += Vector2(16.0 * extension, 2.0) * arm_weight
+			lean = -0.035 * extension
 		elif _stage == 2:
-			var weight := smoothstep(840.0, 1040.0, pixel.x) * (1.0 - smoothstep(510.0, 580.0, pixel.y))
-			result += Vector2(-110.0, -55.0) * (1.0 - extension) * weight
-			if _phase == "active":
-				result += Vector2(15.0 * _progress, 20.0 * sin(_progress * PI)) * weight
+			# Cross-body second strike folds at the elbow on windup, then opens.
+			var shoulder := Vector2(715.0, 420.0)
+			var elbow := Vector2(830.0, 465.0)
+			var arm_weight := _smooth_capsule_weight(pixel, shoulder, Vector2(1000.0, 375.0), 130.0)
+			result += _rotate_delta(pixel, shoulder, 0.04 * (1.0 - extension) - 0.035 * extension) * arm_weight
+			result += _rotate_delta(pixel, elbow, 0.04 * (1.0 - extension) - 0.025 * extension) * _smooth_capsule_weight(pixel, elbow, Vector2(1000.0, 375.0), 135.0)
+			result += Vector2(-18.0 * (1.0 - extension), -5.0 * (1.0 - extension)) * arm_weight
+			lean = -0.045 * extension
 		else:
-			var angle := 1.08 * (1.0 - _progress) if _phase == "active" else (1.08 if _phase == "startup" else 0.0)
-			if _phase == "recovery":
-				angle = 1.08 * _progress
-			elif _phase == "combo_hold":
-				angle = 1.08
-			var shoulder := Vector2(780.0, 410.0)
-			var weight := smoothstep(770.0, 900.0, pixel.x) * (1.0 - smoothstep(350.0, 460.0, pixel.y))
-			result += ((pixel - shoulder).rotated(angle) - (pixel - shoulder)) * weight
+			# Overhead third strike rotates through the shoulder with a separate
+			# forearm arc; the chest only counter-turns a few degrees.
+			var swing := 0.06 * (1.0 - _progress) if _phase == "active" else (0.06 if _phase in ["startup", "combo_hold"] else 0.06 * _progress)
+			var shoulder := Vector2(720.0, 410.0)
+			var elbow := Vector2(860.0, 365.0)
+			result += _rotate_delta(pixel, shoulder, -swing) * _smooth_capsule_weight(pixel, shoulder, Vector2(1040.0, 390.0), 138.0)
+			result += _rotate_delta(pixel, elbow, swing * 0.025) * _smooth_capsule_weight(pixel, elbow, Vector2(1040.0, 390.0), 140.0)
+			lean = 0.04 * swing
+		result += _rotate_delta(pixel, waist, lean) * torso_weight
+		result += Vector2(12.0 * extension, -5.0 * extension) * torso_weight
 	elif _state.begins_with("skill"):
-		var weight := smoothstep(730.0, 805.0, pixel.x) * smoothstep(330.0, 350.0, pixel.y) * (1.0 - smoothstep(450.0, 530.0, pixel.y))
+		var weight := _smooth_capsule_weight(pixel, Vector2(850.0, 490.0), Vector2(1000.0, 390.0), 165.0)
 		var extension := _progress if _phase == "startup" else (1.0 if _phase == "active" else 1.0 - _progress)
 		if _stage == 1:
-			result += Vector2(65.0 + (20.0 * _progress if _phase == "active" else 0.0), 24.0) * extension * weight
+			result += Vector2(24.0 + (8.0 * _progress if _phase == "active" else 0.0), 8.0) * extension * weight
 		else:
 			var arc := sin(_progress * PI) if _phase == "active" else 0.0
 			var elbow := Vector2(850.0, 490.0)
-			var angle := 0.9 * arc + 0.2 * _progress if _phase == "active" else (-0.25 * _progress if _phase == "startup" else 0.2 * (1.0 - _progress))
+			var angle := 0.10 * arc + 0.025 * _progress if _phase == "active" else (-0.045 * _progress if _phase == "startup" else 0.025 * (1.0 - _progress))
 			result += ((pixel - elbow).rotated(angle) - (pixel - elbow)) * weight
 			var torso_weight := smoothstep(390.0,450.0,pixel.y) * (1.0-smoothstep(610.0,670.0,pixel.y)) * smoothstep(450.0,560.0,pixel.x) * (1.0-smoothstep(800.0,890.0,pixel.x))
 			var waist := Vector2(660.0,600.0)
-			result += ((pixel-waist).rotated(-0.12*arc)-(pixel-waist)) * torso_weight
+			result += ((pixel-waist).rotated(-0.05*arc)-(pixel-waist)) * torso_weight
 	return result
+
+func _rotate_delta(point: Vector2, pivot: Vector2, angle: float) -> Vector2:
+	return (point - pivot).rotated(angle) - (point - pivot)
+
+func _segment_weight(point: Vector2, start: Vector2, finish: Vector2, radius: float) -> float:
+	return _smooth_capsule_weight(point, start, finish, radius)
+
+func _smooth_capsule_weight(point: Vector2, start: Vector2, finish: Vector2, radius: float) -> float:
+	var segment := finish - start
+	var t := clampf((point - start).dot(segment) / maxf(segment.length_squared(), 0.001), 0.0, 1.0)
+	var distance := point.distance_to(start + segment * t)
+	return 1.0 - smoothstep(radius * 0.55, radius, distance)

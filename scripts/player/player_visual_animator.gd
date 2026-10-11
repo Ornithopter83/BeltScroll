@@ -762,21 +762,21 @@ func _apply_skill_pose(facing_sign: float) -> void:
 				var brace := _ease_in_out(progress)
 				rotation_offset = facing_sign * 0.18 * brace
 				scale_factor = Vector2(1.0 - 0.035 * brace, 1.0 + 0.045 * brace)
-				_pose_translation.x = -facing_sign * 5.0 * brace
+				_pose_translation.x = facing_sign * 6.0 * brace
 			"active":
 				var acceleration := _ease_in_out(progress)
-				rotation_offset = facing_sign * lerpf(0.08, 0.15, acceleration)
-				scale_factor = Vector2(1.02 + 0.045 * acceleration, 1.0 - 0.035 * acceleration)
-				_pose_translation.x = facing_sign * lerpf(7.0, 22.0, acceleration)
+				rotation_offset = facing_sign * lerpf(0.18, 0.15, acceleration)
+				scale_factor = Vector2(0.965, 1.045).lerp(Vector2(1.065, 0.93), acceleration)
+				_pose_translation.x = facing_sign * lerpf(6.0, 22.0, acceleration)
 				if float(player.get("attack_recoil_remaining")) > 0.0:
 					var recoil := clampf(float(player.get("attack_recoil_remaining")) / 0.08, 0.0, 1.0)
 					rotation_offset -= facing_sign * 0.30 * recoil
 					scale_factor *= Vector2(0.98, 1.02)
 			"recovery":
 				var return_blend := _ease_in_out(progress)
-				rotation_offset = facing_sign * 0.18 * (1.0 - return_blend)
-				scale_factor = Vector2(0.975, 1.025).lerp(Vector2.ONE, return_blend)
-				_pose_translation.x = facing_sign * 9.0 * (1.0 - return_blend)
+				rotation_offset = facing_sign * 0.15 * (1.0 - return_blend)
+				scale_factor = Vector2(1.065, 0.93).lerp(Vector2.ONE, return_blend)
+				_pose_translation.x = facing_sign * 22.0 * (1.0 - return_blend)
 	else:
 		# Num5 backfist: counter-twist through the strike and step the upper-body
 		# silhouette through a bounded arc. The single full-body source cannot
@@ -787,17 +787,17 @@ func _apply_skill_pose(facing_sign: float) -> void:
 				var windup := _ease_in_out(progress)
 				rotation_offset = facing_sign * 0.16 * windup
 				scale_factor = Vector2(1.0 - 0.03 * windup, 1.0 + 0.04 * windup)
-				_pose_translation = Vector2(-facing_sign * 4.0, 2.0) * windup
+				_pose_translation = Vector2(facing_sign * 8.0, 0.0) * windup
 			"active":
 				rotation_offset = facing_sign * lerpf(0.16, -0.32, _ease_in_out(progress))
 				var pulse := sin(progress * PI)
-				scale_factor = Vector2(1.0 + 0.035 * pulse, 1.0 - 0.03 * pulse)
-				_pose_translation = Vector2(facing_sign * (9.0 + 9.0 * pulse), -3.0 * pulse)
+				scale_factor = Vector2(0.97, 1.04) * Vector2(1.0 + 0.035 * pulse, 1.0 - 0.03 * pulse)
+				_pose_translation = Vector2(facing_sign * (8.0 + 9.0 * pulse), 0.0)
 			"recovery":
 				var unwind := _ease_in_out(progress)
 				rotation_offset = facing_sign * lerpf(-0.32, 0.0, unwind)
-				scale_factor = Vector2(1.012, 0.988).lerp(Vector2.ONE, _ease_in_out(progress))
-				_pose_translation = Vector2(facing_sign * 8.0 * (1.0 - unwind), -2.0 * (1.0 - unwind))
+				scale_factor = Vector2(0.97, 1.04).lerp(Vector2.ONE, unwind)
+				_pose_translation = Vector2(facing_sign * 8.0 * (1.0 - unwind), 0.0)
 	_skill_rotation = _base_rotation + rotation_offset
 	_skill_scale = _base_scale * scale_factor
 
@@ -829,16 +829,18 @@ func _apply_attack_pose(facing_sign: float) -> void:
 			_pose_translation = Vector2(-facing_sign * [5.0, 8.0, 11.0][index] * amount, 2.0 * amount)
 		"active":
 			var progress := _attack_phase_progress(index, phase, remaining)
-			var contact_blend := 1.0 if index != 1 else _ease_in_out(clampf(progress / 0.42, 0.0, 1.0))
+			var contact_blend := _ease_in_out(progress) if index != 1 else _ease_in_out(clampf(progress / 0.42, 0.0, 1.0))
 			rotation_offset = lerpf(facing_sign * [0.07, 0.11, 0.17][index], -facing_sign * [0.19, 0.30, 0.25][index], contact_blend)
-			scale_factor = Vector2.ONE.lerp(Vector2(1.0 + [0.025, 0.04, 0.055][index], 1.0 - [0.02, 0.035, 0.05][index]), contact_blend)
-			_pose_translation = Vector2(facing_sign * [8.0, 12.0, 17.0][index] * contact_blend, -2.0 * contact_blend)
+			var windup_scale := Vector2(1.0 - [0.02, 0.028, 0.04][index], 1.0 + [0.025, 0.035, 0.05][index])
+			var contact_scale := Vector2(1.0 + [0.025, 0.04, 0.055][index], 1.0 - [0.02, 0.035, 0.05][index])
+			scale_factor = windup_scale.lerp(contact_scale, contact_blend)
+			_pose_translation = Vector2(lerpf(-[5.0, 8.0, 11.0][index], [8.0, 12.0, 17.0][index], contact_blend) * facing_sign, lerpf(2.0, -2.0, contact_blend))
 		"recovery":
 			var recovery_progress := 1.0 - clampf(remaining / ATTACK_RECOVERY[index], 0.0, 1.0)
 			var return_blend := _ease_in_out(recovery_progress)
 			rotation_offset = -facing_sign * [0.19, 0.30, 0.25][index] * (1.0 - return_blend)
 			scale_factor = Vector2(1.0 + [0.025, 0.04, 0.055][index], 1.0 - [0.02, 0.035, 0.05][index]).lerp(Vector2.ONE, return_blend)
-			_pose_translation = Vector2(facing_sign * [11.0, 15.0, 20.0][index] * (1.0 - return_blend), 0.0)
+			_pose_translation = Vector2(facing_sign * [8.0, 12.0, 17.0][index] * (1.0 - return_blend), -2.0 * (1.0 - return_blend))
 		"combo_hold":
 			rotation_offset = 0.0
 			scale_factor = Vector2.ONE
