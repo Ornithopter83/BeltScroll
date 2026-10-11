@@ -13,6 +13,7 @@ var _stride := 0.0
 var _support_side := -1
 var _support_global := Vector2.ZERO
 var _support_offset := Vector2.ZERO
+var _support_facing := 0.0
 
 func apply(sprite: Sprite2D, state: String, phase: String, stage: int, progress: float, stride: float) -> void:
 	_sprite = sprite
@@ -25,10 +26,20 @@ func apply(sprite: Sprite2D, state: String, phase: String, stage: int, progress:
 		var side := 0 if stride < PI else 1
 		var foot := Vector2(395, 1040) if side == 0 else Vector2(945, 1090)
 		var size := Vector2(sprite.texture.get_size())
-		if side != _support_side:
+		var facing := signf(sprite.global_transform.x.x)
+		if side != _support_side or facing != _support_facing:
 			_support_global = sprite.to_global((foot - Vector2(627, 627)) * size / 1254.0)
 			_support_side = side
+			_support_facing = facing
 		_support_offset = sprite.to_local(_support_global) * 1254.0 / size + Vector2(627, 627) - foot
+		# Solve against the same triangle interpolation used for rendering. A fade
+		# that only reaches 1 below the left shoe leaves a visible sliding residual.
+		var desired := foot + _support_offset
+		_support_offset = Vector2.ZERO
+		var unplanted := _sample_walk_mapping(foot)
+		_support_offset = Vector2.ONE
+		var influence := _sample_walk_mapping(foot) - unplanted
+		_support_offset = (desired - unplanted) / influence
 	else:
 		_support_side = -1
 		_support_offset = Vector2.ZERO
@@ -66,6 +77,16 @@ func apply(sprite: Sprite2D, state: String, phase: String, stage: int, progress:
 	mesh.uv = uvs
 	mesh.visible = true
 	sprite.self_modulate.a = 0.0
+
+func _sample_walk_mapping(pixel: Vector2) -> Vector2:
+	var cell := pixel / 1254.0 * GRID
+	var origin := cell.floor()
+	var fraction := cell - origin
+	var a := origin * 1254.0 / GRID
+	var step := 1254.0 / GRID
+	if fraction.x >= fraction.y:
+		return map_point(a) * (1.0 - fraction.x) + map_point(a + Vector2(step, 0)) * (fraction.x - fraction.y) + map_point(a + Vector2(step, step)) * fraction.y
+	return map_point(a) * (1.0 - fraction.y) + map_point(a + Vector2(step, step)) * fraction.x + map_point(a + Vector2(0, step)) * (fraction.y - fraction.x)
 
 func sample_rendered_point(pixel: Vector2) -> Vector2:
 	if _sprite == null or not _meshes.has(_sprite.get_instance_id()):
@@ -111,7 +132,7 @@ func map_point(pixel: Vector2) -> Vector2:
 		var left_support := _stride < PI
 		var cycle := fposmod(_stride, TAU)
 		var swing := sin(cycle)
-		var lift := maxf(0.0, swing)
+		var lift := absf(swing)
 		var leg_weight := smoothstep(640.0, 760.0, pixel.y)
 		var upper_body_weight := 1.0 - smoothstep(570.0, 735.0, pixel.y)
 		var swing_side_weight := _smooth_capsule_weight(pixel, Vector2(500.0, 840.0), Vector2(395.0, 1040.0), 150.0)
@@ -128,12 +149,13 @@ func map_point(pixel: Vector2) -> Vector2:
 		result += leg_pose * free_weight
 		result += Vector2(foot_sign * 28.0 * swing, -42.0 * lift) * free_weight
 		# The other leg counter-swings from the hip while retaining a quiet ankle.
-		var support_hip := Vector2(760.0, 700.0) if left_support else Vector2(650.0, 700.0)
-		var support_knee := Vector2(900.0, 910.0) if left_support else Vector2(330.0, 900.0)
+		var support_hip := Vector2(650.0, 700.0) if left_support else Vector2(760.0, 700.0)
+		var support_knee := Vector2(330.0, 900.0) if left_support else Vector2(900.0, 910.0)
 		var support_weight := (1.0 - free_weight) * leg_weight
 		result += _rotate_delta(pixel, support_hip, -swing * 0.035) * _segment_weight(pixel, support_hip, support_knee, 145.0) * support_weight
-		# Anchoring correction fades out above the ankle, avoiding a stretched shin.
-		result += _support_offset * smoothstep(850.0, 1080.0, pixel.y) * (1.0 - free_weight)
+		# Carry the knee, calf and boot together. Concentrating the correction at
+		# the ankle stretches the shoe and pinches the trouser hem into a spike.
+		result += _support_offset * smoothstep(600.0, 850.0, pixel.y) * (1.0 - free_weight)
 		# Hip bounce, shoulder counter-roll, and head/hair lag read at game scale.
 		result.y -= 12.0 * absf(swing) * upper_body_weight
 		var waist := Vector2(650.0, 650.0)

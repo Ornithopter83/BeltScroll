@@ -1,0 +1,97 @@
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 Core Profile Context 26.8.1.260806 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6900 XT
+
+Godot_v4.7.2-stable_mono_win64_console.exe : ERROR: Failed to read the root certificate store.
+위치 줄:2 문자:457
++ ... F8 -Tail 4; & 'C:\Project\Godot\Godot_v4.7.2-stable_mono_win64_consol ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ERROR: Failed t...tificate store.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+PASS: smoke itself runs under a Window renderer
+PASS: contact sheet image exists
+PASS: visual acceptance matrix exists
+PASS: continuous main-scene capture tool exists
+PASS: contact sheet is a readable PNG
+PASS: saved card manifest exists
+PASS: card manifest parses
+PASS: manifest contains forced and expanded actual-input cards
+PASS: PNG dimensions exactly match card count, grid and saved manifest
+PASS: every saved card pixel hash matches, including all actual-input cards
+PASS: all live frames exist at equal crop size and consecutive rendered frame numbers
+PASS: raw PNG hashes and both production facing directions are retained
+PASS: raw image sequence covers jump_rise
+PASS: raw image sequence covers jump_fall
+PASS: raw image sequence covers landing
+PASS: raw image sequence covers ko
+PASS: raw image sequence covers attack2_startup
+PASS: raw image sequence covers attack2_contact
+PASS: raw image sequence covers attack2_recovery
+PASS: raw image sequence covers attack3_startup
+PASS: raw image sequence covers attack3_contact
+PASS: raw image sequence covers attack3_recovery
+PASS: review report records scenes/game/main.tscn
+PASS: review report records window frame
+PASS: review report records 발 anchor
+PASS: review report records 손 anchor
+PASS: review report records F10 박스
+PASS: review report records UNVERIFIED
+PASS: review report records 육안
+PASS: review report records 관절 왜곡
+PASS: review report records 체형·얼굴·복장 일관성
+PASS: review report records 프레임 끊김
+PASS: review report records 주먹과 판정
+PASS: report separates forced and production-input evidence and records FORCED STATE · PHYSICS OFF
+PASS: report separates forced and production-input evidence and records REAL INPUT · PHYSICS ON
+PASS: report separates forced and production-input evidence and records world_displacement_px
+PASS: report separates forced and production-input evidence and records support_residual_px
+PASS: report separates forced and production-input evidence and records hand_hitbox_error_px
+PASS: report separates forced and production-input evidence and records 실루엣 중복
+PASS: report separates forced and production-input evidence and records UNVERIFIED
+PASS: production input before/after trace covers 실입력·이동 중 기준
+PASS: production input before/after trace covers 실입력·이동 해제 후
+PASS: production input before/after trace covers 실입력·J1 회복 후
+PASS: production input before/after trace covers 실입력·Num4 회복 후
+PASS: production input before/after trace covers 실입력·Num5 회복 후
+PASS: production input before/after trace covers 실입력·피격 회복 후
+PASS: actual input trace records the production transition 실입력·상태전환·walk
+PASS: actual input trace records the production transition 실입력·상태전환·attack1_startup
+PASS: actual input trace records the production transition 실입력·상태전환·attack1_contact
+PASS: actual input trace records the production transition 실입력·상태전환·attack1_recovery
+PASS: actual input trace records the production transition 실입력·상태전환·skill1_startup
+PASS: actual input trace records the production transition 실입력·상태전환·skill1_contact
+PASS: actual input trace records the production transition 실입력·상태전환·skill1_recovery
+PASS: actual input trace records the production transition 실입력·상태전환·skill2_startup
+PASS: actual input trace records the production transition 실입력·상태전환·skill2_contact
+PASS: actual input trace records the production transition 실입력·상태전환·skill2_recovery
+PASS: actual input trace records the production transition 실입력·상태전환·hit
+PASS: review report covers 4위상 보행
+PASS: review report covers 정지·우향
+PASS: review report covers 점프 상승
+PASS: review report covers 점프 하강
+PASS: review report covers 착지
+PASS: review report covers 피격
+PASS: review report covers KO·정착
+PASS: review report covers J1 startup
+PASS: review report covers J1 active
+PASS: review report covers J1 combo_hold
+PASS: review report covers J1 recovery
+PASS: review report covers J2 startup
+PASS: review report covers J2 active
+PASS: review report covers J2 combo_hold
+PASS: review report covers J2 recovery
+PASS: review report covers J3 startup
+PASS: review report covers J3 active
+PASS: review report covers J3 recovery
+PASS: review report covers Num4 startup
+PASS: review report covers Num4 active
+PASS: review report covers Num4 recovery
+PASS: review report covers Num5 startup
+PASS: review report covers Num5 active
+PASS: review report covers Num5 recovery
+PASS: capture tool targets the production game scene
+PASS: capture tool samples consecutive rendered Window frames
+PASS: capture tool samples fist anchor and live hitbox geometry
+PASS: capture tool includes a real InputMap/Player physics path
+m6v_animation_visual_matrix_smoke: review artifacts and state coverage are present; no visual approval is inferred

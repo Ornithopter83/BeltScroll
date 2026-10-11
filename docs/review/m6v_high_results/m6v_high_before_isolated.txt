@@ -1,0 +1,20 @@
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 Core Profile Context 26.8.1.260806 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6900 XT
+
+Godot_v4.7.2-stable_mono_win64_console.exe : ERROR: Failed to read the root certificate store.
+위치 줄:2 문자:59
++ ... ing]::UTF8; & 'C:\Project\Godot\Godot_v4.7.2-stable_mono_win64_consol ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ERROR: Failed t...tificate store.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+M6V_PROGRESS|forced_baselines
+M6V_INPUT_TRACE|frames=518|max_displacement=12.667|max_support_residual=15.585|max_hand_hitbox_error=0.000|max_visible_sources=1
+M6V_PROGRESS|compose_sheet
+ERROR: m6v_animation_comparison: 시트 카드 픽셀 불일치 #141
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _fail (res://tools/capture_m6v_animation_comparison_window.gd:718)
+       [1] _run (res://tools/capture_m6v_animation_comparison_window.gd:114)
+       [2] _capture_sheet_and_report (res://tools/capture_m6v_animation_comparison_window.gd:606)

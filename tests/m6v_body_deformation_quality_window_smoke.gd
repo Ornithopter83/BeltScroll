@@ -117,6 +117,22 @@ func _run() -> void:
 		rig.apply(sprite, "walk", "", 0, 0.0, stride)
 		worst_support_residual = maxf(worst_support_residual, rig.get_walk_support_residual())
 	_check(sampled_contact != Vector2.ZERO and worst_support_residual < 1.0, "sampled contact and both support-foot getter contracts remain valid (%.4f px)" % worst_support_residual)
+	# The old test held the sprite still and missed the sliding/elongated shoe.
+	# Exercise real translation and a mirror change with both planted sides.
+	var moving_residual := 0.0
+	var calf_stretch := 0.0
+	for direction in [1.0, -1.0]:
+		sprite.scale.x = absf(sprite.scale.x) * direction
+		for frame in range(102):
+			sprite.position.x += direction * 280.0 / 60.0
+			var stride := fposmod(float(frame) * 280.0 / 60.0 / 235.2 * TAU, TAU)
+			rig.apply(sprite, "walk", "", 0, 0.0, stride)
+			moving_residual = maxf(moving_residual, rig.get_walk_support_residual())
+			var ankle := Vector2(395, 1040) if stride < PI else Vector2(945, 1090)
+			var calf := Vector2(430, 970) if stride < PI else Vector2(930, 1010)
+			calf_stretch = maxf(calf_stretch, rig.sample_rendered_point(ankle).distance_to(rig.sample_rendered_point(calf)) / ankle.distance_to(calf))
+	_check(moving_residual < 0.02, "translated and mirrored support remains on its rendered triangle (%.5f px)" % moving_residual)
+	_check(calf_stretch < 1.12, "plant correction preserves calf/boot length under movement (max %.4fx)" % calf_stretch)
 	if failures.is_empty():
 		print("M6V_BODY_QUALITY|fail=0|fps=15,60|display=1280x720@0.447|fold_min=%.3f|edge_max=%.2f" % [min_area, max_edge])
 		quit(0)

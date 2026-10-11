@@ -1,0 +1,278 @@
+{
+	"camera_zoom": 1.0,
+	"frames": [
+		{
+			"frame": 1,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_001.png",
+			"sha256": "7dad285790d702b37b71e4e622aeba8881aafa50354bdd119c7e59ff21254c78",
+			"state": "idle",
+			"stimulus": "idle / InputMap",
+			"window_frame": 0
+		},
+		{
+			"frame": 7,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_007.png",
+			"sha256": "997935000253651996f905f583d8c2827abcc764ecf3c39cd0986bc4acc85257",
+			"state": "idle",
+			"stimulus": "idle / InputMap",
+			"window_frame": 6
+		},
+		{
+			"frame": 12,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_012.png",
+			"sha256": "d81227904379c9a011e70ecb1f2691bcddf32434825b794b04be97adcb806bcd",
+			"state": "idle",
+			"stimulus": "idle / InputMap",
+			"window_frame": 11
+		},
+		{
+			"frame": 13,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_013.png",
+			"sha256": "b1bd452b7fdb51944a08608eaa400ad3e0c1683fa3ab7c83f24270dcaba58eda",
+			"state": "jump_rise",
+			"stimulus": "jump held / InputMap",
+			"window_frame": 12
+		},
+		{
+			"frame": 19,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_019.png",
+			"sha256": "0eacdfd31e9be48850255acd8e5833c1e8c70998951e975c53706b80877ef017",
+			"state": "jump_rise",
+			"stimulus": "jump held / InputMap",
+			"window_frame": 18
+		},
+		{
+			"frame": 25,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_025.png",
+			"sha256": "58d93551f78e82d45c11f21c7ddfce8a5f3c5cd378cbaae914a14ccd6ad75007",
+			"state": "jump_rise",
+			"stimulus": "jump held / InputMap",
+			"window_frame": 24
+		},
+		{
+			"frame": 30,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_030.png",
+			"sha256": "3f454924f1b9b29bef4ee2cfbf8618d19f2a58e90f94cfa6b6b2e83b981a9487",
+			"state": "jump_rise",
+			"stimulus": "jump held / InputMap",
+			"window_frame": 29
+		},
+		{
+			"frame": 31,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_031.png",
+			"sha256": "393517796e7f4e4065670d3a8134792d4717dab24a530558463a9942f0fa214e",
+			"state": "jump_rise",
+			"stimulus": "jump released / InputMap",
+			"window_frame": 30
+		},
+		{
+			"frame": 37,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_037.png",
+			"sha256": "e1a76eec3581ffa4e2e5b635a7fc19a65ae149ebdc4c750d2a6550795a25c56a",
+			"state": "jump_fall",
+			"stimulus": "jump released / InputMap",
+			"window_frame": 36
+		},
+		{
+			"frame": 43,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_043.png",
+			"sha256": "b246442f1a9ef566bc246511ea460a5410afb435bd4c3d26b1a924f9f9c182a0",
+			"state": "jump_fall",
+			"stimulus": "jump released / InputMap",
+			"window_frame": 42
+		},
+		{
+			"frame": 49,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_049.png",
+			"sha256": "30c0373f899937c9b5ece9b446faf0e3a30c7dfda340c843f8f6f3fd3ce01d93",
+			"state": "jump_fall",
+			"stimulus": "jump released / InputMap",
+			"window_frame": 48
+		},
+		{
+			"frame": 55,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_055.png",
+			"sha256": "2295ddfeee71e9ad8af33bc90959324a5eea7494a5a541329eeb420c3706ca6f",
+			"state": "jump_fall",
+			"stimulus": "jump released / InputMap",
+			"window_frame": 54
+		},
+		{
+			"frame": 61,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_061.png",
+			"sha256": "177044f9e955156354760f184b2f5823745108407da4b3fd1a9cd4afedd520a9",
+			"state": "landing",
+			"stimulus": "jump released / InputMap",
+			"window_frame": 60
+		},
+		{
+			"frame": 67,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_067.png",
+			"sha256": "22946c043ab0cb60811a0d0a5cf01ad25ab256db815a5c398c185691363076c5",
+			"state": "idle",
+			"stimulus": "jump released / InputMap",
+			"window_frame": 66
+		},
+		{
+			"frame": 73,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_073.png",
+			"sha256": "aacd78f3cbde97548ab39f67c8666c627176ed16a70bd5e8b831fa3d04c3df2c",
+			"state": "idle",
+			"stimulus": "jump released / InputMap",
+			"window_frame": 72
+		},
+		{
+			"frame": 78,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_078.png",
+			"sha256": "4f5a29dfd394b21320cad387c931261b2ea5af128df85e7d07afebeae73a2b95",
+			"state": "idle",
+			"stimulus": "jump released / InputMap",
+			"window_frame": 77
+		},
+		{
+			"frame": 79,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_079.png",
+			"sha256": "c747ae06798b0458a6d73b304fe5493a25704147ee32d354e4c7f80505389e5f",
+			"state": "hit",
+			"stimulus": "receive_hit fixture; not enemy AI",
+			"window_frame": 78
+		},
+		{
+			"frame": 85,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_085.png",
+			"sha256": "fdf604f6f908b6591d23341239fdebe913773a37c9ec20f9c50099804f7d51c0",
+			"state": "hit",
+			"stimulus": "receive_hit fixture; not enemy AI",
+			"window_frame": 84
+		},
+		{
+			"frame": 91,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_091.png",
+			"sha256": "5f927d4327be752fbdd7e73db3c97c9bd63a7c1660f0c69e897a75d38deb4da6",
+			"state": "hit",
+			"stimulus": "receive_hit fixture; not enemy AI",
+			"window_frame": 90
+		},
+		{
+			"frame": 97,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_097.png",
+			"sha256": "3d61472220ffed6a410b38da4702ddaf71ed6913912e3281fd1c54b44384e290",
+			"state": "idle",
+			"stimulus": "receive_hit fixture; not enemy AI",
+			"window_frame": 96
+		},
+		{
+			"frame": 102,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_102.png",
+			"sha256": "e973f24c902c62a8561899db24d7c0edce1beeea2b3ea278b7ca3d26c9a37a3b",
+			"state": "idle",
+			"stimulus": "receive_hit fixture; not enemy AI",
+			"window_frame": 101
+		},
+		{
+			"frame": 103,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_103.png",
+			"sha256": "8a5e277b42a2ffd223560e81917ef87c1582c57e233de4a7c67d7a4884153eee",
+			"state": "ko",
+			"stimulus": "lethal receive_hit fixture; not enemy AI",
+			"window_frame": 102
+		},
+		{
+			"frame": 109,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_109.png",
+			"sha256": "9cfe0ef1675c7f230aeb378915782d9794af3188a9dc9fd6d775631f25ea29b8",
+			"state": "ko",
+			"stimulus": "lethal receive_hit fixture; not enemy AI",
+			"window_frame": 108
+		},
+		{
+			"frame": 115,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_115.png",
+			"sha256": "f8ceb2c9b2b3214e7c99f3b45ed7b4ee49322b778b21c6d35ac3949371c85efc",
+			"state": "ko",
+			"stimulus": "lethal receive_hit fixture; not enemy AI",
+			"window_frame": 114
+		},
+		{
+			"frame": 121,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_121.png",
+			"sha256": "991ecc31cf6597ad923a2907ed3c135eb0dc79b83612213878e6c51f56a6666c",
+			"state": "ko",
+			"stimulus": "lethal receive_hit fixture; not enemy AI",
+			"window_frame": 120
+		},
+		{
+			"frame": 127,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_127.png",
+			"sha256": "66a3df7d77818c07b67eb53cfbb543a1223e974322deb4cf6790c2153b92c56e",
+			"state": "ko",
+			"stimulus": "lethal receive_hit fixture; not enemy AI",
+			"window_frame": 126
+		},
+		{
+			"frame": 133,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_133.png",
+			"sha256": "498fa41721ec10a7054bde759c5cf566e55ec24fd6f6080244201c8b44a602ae",
+			"state": "ko",
+			"stimulus": "lethal receive_hit fixture; not enemy AI",
+			"window_frame": 132
+		},
+		{
+			"frame": 139,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_139.png",
+			"sha256": "97edab1287d6eac011293c6f8da650a15c300bc3b761bc20f57a5f3aed3d839b",
+			"state": "ko",
+			"stimulus": "lethal receive_hit fixture; not enemy AI",
+			"window_frame": 138
+		},
+		{
+			"frame": 145,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_145.png",
+			"sha256": "3facb2e7126ebfa776296a869c48185f88188e0d259307b37ccaa120cc01883a",
+			"state": "ko",
+			"stimulus": "lethal receive_hit fixture; not enemy AI",
+			"window_frame": 144
+		},
+		{
+			"frame": 151,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_151.png",
+			"sha256": "8834e72acdf99923cb3f0e71a75b252fd940c68c83a05facd2278cbb0ff80078",
+			"state": "ko",
+			"stimulus": "lethal receive_hit fixture; not enemy AI",
+			"window_frame": 150
+		},
+		{
+			"frame": 157,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_157.png",
+			"sha256": "50d33095eeb8cfb7b2f79f4aa5e0e6fe495d7bb6fe4aa801af5a2a1fa7f2c300",
+			"state": "ko",
+			"stimulus": "lethal receive_hit fixture; not enemy AI",
+			"window_frame": 156
+		},
+		{
+			"frame": 163,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_163.png",
+			"sha256": "65b0b21d7e1d14dd31ce7726990695db7bf229404751f96741344e913d3f9a84",
+			"state": "ko",
+			"stimulus": "lethal receive_hit fixture; not enemy AI",
+			"window_frame": 162
+		},
+		{
+			"frame": 169,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_169.png",
+			"sha256": "56363417bcc59d5e05d46408afe1911889c42374fc5baad2d28c908c021c7191",
+			"state": "ko",
+			"stimulus": "lethal receive_hit fixture; not enemy AI",
+			"window_frame": 168
+		},
+		{
+			"frame": 174,
+			"path": "res://assets/art/review/m6v_full_reactions/frame_174.png",
+			"sha256": "52b9d4e1085c2b327035f288b9f8956e643f9087ef2393db75208d1a5fd00b06",
+			"state": "ko",
+			"stimulus": "lethal receive_hit fixture; not enemy AI",
+			"window_frame": 173
+		}
+	],
+	"human_approval": "UNVERIFIED"
+}
